@@ -1,17 +1,19 @@
-# Discourse Saver V4.3.5
+# Discourse Saver V4.6.24
 
 **[中文](README.md) | English**
 
-Save **any Discourse forum** posts and comments to **Obsidian**, **Feishu Bitable**, or **Notion** with one click.
+Save **any Discourse forum** posts and comments to **Obsidian**, **Feishu Bitable**, or **Notion** with one click. Also available as a **Tampermonkey userscript** for cross-browser support.
 
-> **V4.3.5 Updates**:
-> - **HTML Export Enhancement** - Image Lightbox, table fullscreen/copy, 5 themes
-> - **PWA Support** - Installable to device home screen, offline viewing
-> - **PDF Export** - One-click export to PDF from toolbar
+> **V4.6.24 Updates**:
+> - **Tampermonkey Userscript** - Cross-browser support (Chrome/Edge/Firefox/Safari)
+> - **Comment Username Hyperlinks** (V4.3.8) - Click username to visit user profile
+> - **HTML Export Enhancement** (V4.3.5) - Image Lightbox, table fullscreen/copy, 5 themes, PWA, PDF export
 > - **Code Copy** - One-click code block copy
 > - **Responsive Design** - Perfect for mobile, tablet, desktop
 
 ## Browser Support
+
+### Chrome Extension
 
 | Browser | Status | Notes |
 |---------|--------|-------|
@@ -21,6 +23,17 @@ Save **any Discourse forum** posts and comments to **Obsidian**, **Feishu Bitabl
 | Opera | ✅ Full Support | Chromium-based, fully compatible |
 | Firefox | ❌ Not Supported | Extension API incompatible |
 | Safari | ❌ Not Supported | Extension API incompatible |
+
+### Tampermonkey Userscript (V4.6.24)
+
+| Browser | Status | Notes |
+|---------|--------|-------|
+| Chrome | ✅ Supported | Requires Tampermonkey extension |
+| Edge | ✅ Supported | Requires Tampermonkey extension |
+| Firefox | ✅ Supported | Requires Tampermonkey/Greasemonkey extension |
+| Safari | ✅ Supported | Requires Userscripts extension |
+| Brave | ✅ Supported | Requires Tampermonkey extension |
+| Opera | ✅ Supported | Requires Tampermonkey extension |
 
 ## Supported Forums
 
@@ -177,9 +190,27 @@ For privately deployed or undetected Discourse sites, you can manually add them 
 
 ---
 
-## V4.3.5 New Features
+## V4.6.24 New Features
 
-### HTML Export Enhancement
+### Tampermonkey Userscript (V4.6.24)
+
+| Feature | Description |
+|---------|-------------|
+| **Cross-browser** | Supports Chrome, Edge, Firefox, Safari via Tampermonkey/Greasemonkey |
+| **40+ Forums** | Built-in @match rules for popular Discourse sites |
+| **Three Platforms** | Save to Obsidian / Notion / HTML export |
+| **Comments** | Comment saving, collapse mode, username hyperlinks |
+| **One-click Install** | [Install page](https://acheng-byte.github.io/discourse-saver/install.html) with one-click copy |
+
+### Comment Username Hyperlinks (V4.3.8)
+
+| Feature | Description |
+|---------|-------------|
+| **Normal Mode** | Username displayed as Markdown hyperlink |
+| **Collapse Mode** | Username displayed as HTML hyperlink |
+| **Auto Detection** | Automatically extracts user profile link from page |
+
+### HTML Export Enhancement (V4.3.5)
 
 | Feature | Description |
 |---------|-------------|
@@ -240,7 +271,16 @@ For privately deployed or undetected Discourse sites, you can manually add them 
 
 ## Installation
 
-### Chrome / Edge / Brave / Opera Installation
+### Method 1: Tampermonkey Userscript (Recommended, Cross-browser)
+
+1. Install the [Tampermonkey](https://www.tampermonkey.net/) browser extension
+2. Visit the [One-click Install Page](https://acheng-byte.github.io/discourse-saver/install.html)
+3. Click the "Copy" button to copy the complete script
+4. Open Tampermonkey Dashboard → Create New Script → Paste code → Save
+
+> **Tip**: This method supports all major browsers including Chrome, Edge, Firefox, Safari, Brave, and Opera.
+
+### Method 2: Chrome Extension (Chromium browsers only)
 
 1. Download all plugin files to a local folder
 2. Open browser extensions page:
@@ -334,7 +374,7 @@ Settings page supports Chinese/English toggle, click **中文 / EN** button in t
 
 | Option | Description |
 |--------|-------------|
-| Integration Token | Notion Integration key starting with `secret_` |
+| Integration Token | Notion Integration key starting with `ntn_` (new) or `secret_` (old) |
 | Database ID | 32-character hexadecimal Database identifier |
 | Property Mapping | Configure Database property names (default Chinese: 标题, 链接, 作者, etc.) |
 
@@ -621,7 +661,7 @@ All Chromium-based browsers (Chrome, Edge, Brave, Opera) support this extension.
 ### Q9: Notion save failed?
 
 **A:** Please check in this order:
-1. Does Integration Token start with `secret_`
+1. Does Integration Token start with `ntn_` (new) or `secret_` (old)
 2. Is Database ID a 32-character hexadecimal string
 3. Is Integration connected to Database (most common reason!)
 4. Does property mapping match Database property names exactly (case-sensitive)
@@ -635,6 +675,22 @@ See [NOTION-GUIDE.html](NOTION-GUIDE.html)
 ---
 
 ## Changelog
+
+### v4.6.24 (2026-03-30)
+
+- **New**: Tampermonkey/Greasemonkey userscript version
+  - Cross-browser support (Chrome/Edge/Firefox/Safari)
+  - 40+ Discourse forum @match rules
+  - Three platform save: Obsidian / Notion / HTML export
+  - Comment saving, collapse mode, username hyperlinks
+  - [One-click install page](https://acheng-byte.github.io/discourse-saver/install.html)
+
+### v4.3.8 (2026-03-15)
+
+- **New**: Comment username hyperlinks
+  - Normal mode: username as Markdown hyperlink `[username](profile URL)`
+  - Collapse mode: username as HTML `<a>` tag hyperlink
+  - Auto-detect user profile link from page
 
 ### v4.3.5 (2026-03-15)
 

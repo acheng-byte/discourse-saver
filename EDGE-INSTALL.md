@@ -73,7 +73,7 @@
 
 ### Q: 为什么安装说明里只提到 Chrome？
 
-**A:** 这是旧版文档遗留问题。从 v3.5.11 开始，已明确支持 Edge、Brave、Opera 等所有 Chromium 浏览器。
+**A:** 从 V4.6.24 开始，已明确支持 Edge、Brave、Opera 等所有 Chromium 浏览器。也可使用油猴脚本版，支持包括 Firefox 在内的所有主流浏览器。
 
 ### Q: Edge 扩展商店有这个插件吗？
 
@@ -92,7 +92,7 @@
 
 ## 技术支持
 
-- GitHub Issues: https://github.com/AchengBusiness/discourse-saver/issues
+- GitHub Issues: https://github.com/acheng-byte/discourse-saver/issues
 - 文档问题或建议：欢迎提交 PR
 
 ## 版本要求
@@ -105,9 +105,10 @@
 
 ## 更新说明
 
-本指南对应插件版本：**v3.5.11**
+本指南对应插件版本：**V4.6.24**
 
 更新内容：
 - 明确 Edge 浏览器完全支持
 - 添加 Edge 特有安装说明
 - 更新兼容性对照表
+- 新增油猴脚本安装方式（推荐）

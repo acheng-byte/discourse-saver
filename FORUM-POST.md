@@ -1,18 +1,19 @@
-# LinuxDo to Obsidian V3.5.5 - 一键保存帖子到Obsidian/飞书多维表格
+# Discourse Saver V4.6.24 - 一键保存任意Discourse论坛帖子到Obsidian/飞书/Notion
 
-> 劫持LinuxDo书签按钮，单击保存帖子+评论到Obsidian或飞书多维表格，双击触发L站原生收藏。支持双保存、评论书签、飞书MD附件上传。
+> 支持所有Discourse论坛（56+站点验证），单击保存帖子+评论到Obsidian、飞书多维表格或Notion Database。支持Chrome扩展和油猴脚本两种安装方式，覆盖所有主流浏览器。
 
 ## 前言
 
-作为一个重度LinuxDo用户和知识管理爱好者，我经常想把论坛上的精华帖子保存到自己的知识库中。但每次手动复制粘贴，格式都会乱掉，图片也保存不了，非常麻烦。
+作为一个重度Discourse论坛用户和知识管理爱好者，我经常想把论坛上的精华帖子保存到自己的知识库中。但每次手动复制粘贴，格式都会乱掉，图片也保存不了，非常麻烦。
 
-于是我开发了这个Chrome插件：**LinuxDo to Obsidian**。
+于是我开发了 **Discourse Saver**——一个支持所有Discourse论坛的帖子保存工具。
 
 它可以：
-- **劫持书签按钮**：单击就保存到Obsidian/飞书，双击才是原生收藏
-- **保留完整格式**：颜色、代码高亮、表格样式全部保留
-- **同步飞书多维表格**：建立可检索的帖子索引库
-- **支持评论书签**：点击评论区的书签，保存主帖+该条评论
+- **一键保存到三大平台**：Obsidian、飞书多维表格、Notion Database
+- **自动检测Discourse**：四层检测机制，访问任意Discourse站点自动激活
+- **保留完整格式**：颜色、代码高亮、表格样式、图片全部保留
+- **HTML导出**：5种主题、图片Lightbox、表格复制、PWA离线查看、PDF导出
+- **油猴脚本版**：跨浏览器通用（Chrome/Edge/Firefox/Safari）
 
 ---
 
@@ -20,255 +21,177 @@
 
 | 功能 | 说明 |
 |-----|------|
-| 劫持书签按钮 | 单击保存到Obsidian/飞书，双击添加L站收藏 |
-| 评论书签支持 | 点击评论区书签，保存主帖+该条评论 |
-| 飞书多维表格 | 同步保存到飞书，支持MD文件附件上传 |
-| 飞书双版本 | 支持国内版(feishu.cn)和国际版(larksuite.com) |
-| 完整保留格式 | 文字颜色、代码高亮、表格样式完整保留 |
-| 评论折叠 | 使用 `<details>` 标签，展开查看评论 |
+| 三平台保存 | Obsidian + 飞书多维表格 + Notion Database |
+| 油猴脚本版（V4.6.24） | 支持 Tampermonkey/Greasemonkey，跨浏览器通用 |
+| HTML导出增强（V4.3.5） | 图片Lightbox、表格全屏/复制、5种主题、PWA、PDF导出 |
+| 评论用户名超链接（V4.3.8） | 点击用户名跳转到用户主页 |
+| 支持56+论坛 | 自动检测 + 自定义站点管理 |
+| 图片Base64嵌入 | 图片转为Base64嵌入Markdown，单文件完整保存 |
+| 评论批量获取 | 通过Discourse API获取全部评论，突破懒加载限制 |
 | 快捷键支持 | `Ctrl+Shift+S` (Mac: `Cmd+Shift+S`) |
-| 插件开关 | 可随时禁用，恢复书签原功能 |
+| 代码块复制 | 一键复制代码内容 |
+| 响应式设计 | 完美适配手机、平板、桌面 |
 
 ---
 
 ## 安装方法
 
-### 方法一：直接下载安装（推荐）
+### 方式一：油猴脚本安装（推荐，跨浏览器通用）
 
-1. 访问GitHub仓库：https://github.com/AchengBusiness/linuxdo-to-obsidian
+1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 浏览器扩展
+2. 访问 [油猴脚本一键安装页面](https://acheng-byte.github.io/discourse-saver/install.html)
+3. 点击「一键复制」按钮复制完整脚本
+4. 打开 Tampermonkey 仪表盘 → 新建脚本 → 粘贴代码 → 保存
+
+**支持浏览器**：Chrome、Edge、Firefox、Safari、Brave、Opera 等所有主流浏览器
+
+### 方式二：Chrome扩展安装
+
+1. 访问GitHub仓库：https://github.com/acheng-byte/discourse-saver
 2. 点击绿色的 **Code** 按钮 → **Download ZIP**
 3. 解压到本地文件夹
-4. 打开Chrome浏览器，访问 `chrome://extensions/`
-5. 开启右上角的「**开发者模式**」
+4. 打开浏览器扩展页面：
+   - **Chrome**: `chrome://extensions/`
+   - **Edge**: `edge://extensions/`
+   - **Brave**: `brave://extensions/`
+5. 开启「**开发者模式**」
 6. 点击「**加载已解压的扩展程序**」
-7. 选择刚才解压的 `linuxdo-to-obsidian` 文件夹
+7. 选择解压的 `discourse-saver` 文件夹
 
-### 方法二：Git克隆
+---
 
-```bash
-git clone https://github.com/AchengBusiness/linuxdo-to-obsidian.git
-```
+## 支持的论坛
 
-然后按方法一的步骤4-7加载插件。
+### 自动检测（56+站点验证通过）
+
+插件内置四层检测机制，访问Discourse论坛时自动激活：
+
+| 分类 | 论坛 | 数量 |
+|-----|------|------|
+| 编程语言 | Rust、Swift、Go、Julia、Elixir、Haskell 等 | 12 |
+| AI/ML | OpenAI、Hugging Face、PyTorch | 3 |
+| DevOps | Docker、Kubernetes、Terraform、GitLab 等 | 8 |
+| 数据库 | Elastic、MongoDB、Redis 等 | 5 |
+| 开源项目 | Fedora、Ubuntu、NixOS、Home Assistant 等 | 8 |
+| 游戏开发 | Godot、Roblox、Unreal Engine 等 | 5 |
+| 区块链 | Ethereum、Polkadot、Cosmos 等 | 4 |
+| 其他 | LinuxDo、Obsidian、Netlify 等 | 11+ |
+
+对于未列出的Discourse站点，可在设置中手动添加。
 
 ---
 
 ## 插件配置
 
-安装完成后，右键点击插件图标 → 选择「**选项**」进入配置页面。
+安装完成后，配置页面提供以下选项：
 
-### 1. 插件状态
-
-| 选项 | 说明 |
-|-----|------|
-| 启用插件 | 关闭后书签按钮恢复原功能（需刷新页面） |
-
-### 2. 保存目标
+### 保存目标（可同时启用多个）
 
 | 选项 | 说明 |
 |-----|------|
-| 保存到 Obsidian | 启用Obsidian保存 |
-| 保存到飞书多维表格 | 启用飞书同步 |
+| 保存到 Obsidian | 保存为Markdown笔记 |
+| 保存到飞书多维表格 | 同步到飞书，支持MD文件附件 |
+| 保存到 Notion Database | 保存到Notion数据库 |
+| HTML导出 | 导出为独立HTML文件（含5种主题） |
 
-> 可以同时勾选两个，实现双保存！
-
-### 3. Obsidian设置
-
-| 选项 | 说明 |
-|-----|------|
-| Vault 名称 | 留空使用当前打开的vault（推荐） |
-| 保存文件夹 | 保存到vault中的哪个文件夹，如 `LinuxDo收集箱` |
-| 使用 Advanced URI | 支持大内容保存（强烈推荐开启） |
-
-> **注意**：如果勾选了「使用 Advanced URI」，需要先在Obsidian中安装 [Advanced URI](https://github.com/Vinzent03/obsidian-advanced-uri) 插件。
-
-### 4. 内容设置
+### Obsidian 设置
 
 | 选项 | 说明 |
 |-----|------|
-| 添加元数据 | 是否添加中文frontmatter（推荐开启） |
-| 保留图片链接 | 是否保留帖子中的图片 |
+| Vault 名称 | 留空使用当前打开的vault |
+| 保存文件夹 | 保存到vault中的哪个文件夹 |
+| 使用 Advanced URI | 支持大内容保存（推荐开启） |
 
-### 5. 评论设置
+### 飞书设置
+
+详细配置教程请参考插件内附的 [飞书配置指南](https://acheng-byte.github.io/discourse-saver/feishu-guide.html)。
+
+### Notion 设置
 
 | 选项 | 说明 |
 |-----|------|
-| 保存评论区 | 是否保存评论（默认关闭） |
-| 评论数量 | 1-3000条，默认100 |
-| 折叠评论 | 使用 `<details>` 标签折叠显示 |
+| Integration Token | 以 `ntn_` 或 `secret_` 开头的密钥 |
+| Database ID | 32位十六进制标识符 |
+| 属性映射 | 配置Database属性名称（默认中文） |
 
----
+**Database 属性要求**：
 
-## 飞书配置教程（重点）
+| 属性名 | 类型 | 必填 |
+|-------|------|------|
+| 标题 | Title | ✅ |
+| 链接 | URL | ✅ |
+| 作者 | Rich Text | |
+| 分类 | Rich Text 或 Select | |
+| 保存日期 | Date | |
+| 评论数 | Number | |
 
-飞书多维表格可以作为帖子的索引库，方便检索和管理。配置稍微复杂一点，但跟着教程走，5分钟就能搞定。
+详细配置教程请参考插件内附的 [Notion配置指南](https://acheng-byte.github.io/discourse-saver/notion-guide.html)。
 
-### 第一步：创建飞书应用
+### 内容设置
 
-1. 访问 [飞书开放平台](https://open.feishu.cn/)
-2. 登录你的飞书账号
-3. 点击「**创建应用**」→ 选择「**企业自建应用**」
-4. 填写应用名称（如：LinuxDo收藏器）和描述
-5. 创建完成后，进入应用详情页
-
-### 第二步：获取凭证
-
-在应用详情页的「**凭证与基础信息**」中找到：
-
-| 字段 | 位置 |
+| 选项 | 说明 |
 |-----|------|
-| App ID | 应用凭证区域 |
-| App Secret | 点击「显示」查看 |
+| 保留图片链接 | 保留帖子中的图片 |
+| 图片Base64嵌入 | 图片转为Base64嵌入Markdown |
+| 图片压缩 | 设置最大宽度和压缩质量 |
+| 跳过GIF | GIF保留原链接 |
 
-### 第三步：配置权限
+### 评论设置
 
-1. 在左侧菜单中选择「**权限管理**」
-2. 搜索并添加以下权限（都是免审权限）：
-
-| 权限标识 | 权限名称 | 说明 |
-|---------|---------|------|
-| `bitable:app` | 多维表格 | 读写多维表格（必须） |
-| `drive:file:upload` | 上传文件 | 上传MD附件时需要 |
-
-3. 点击「**批量开通**」
-
-### 第四步：创建多维表格
-
-1. 在飞书文档中创建一个「**多维表格**」
-2. 添加以下字段：
-
-| 字段名 | 字段类型 | 说明 |
-|-------|---------|------|
-| 标题 | 文本 | 帖子标题 |
-| 链接 | 超链接 | 原帖URL（可点击跳转） |
-| 作者 | 文本 | 发帖人 |
-| 保存时间 | 日期 | 自动记录保存时间 |
-| 评论数 | 数字 | 评论条数 |
-| 附件 | 附件 | MD文件（勾选上传附件时使用） |
-| 正文 | 文本 | 内容摘要（不上传附件时使用） |
-
-### 第五步：获取表格参数
-
-从多维表格的URL中提取 `app_token` 和 `table_id`：
-
-```
-https://feishu.cn/base/CVchbNPTraNcq1s3RqPcTJFJnDU?table=tblUP8jpxkIGiSWU&view=...
-                    └─────────────────────────────┘      └───────────────┘
-                            app_token                        table_id
-```
-
-| 参数 | 说明 | 示例 |
-|-----|------|------|
-| app_token | `/base/` 后面的字符串 | `CVchbNPTraNcq1s3RqPcTJFJnDU` |
-| table_id | `?table=` 后面的字符串 | `tblUP8jpxkIGiSWU` |
-
-### 第六步：添加应用为协作者
-
-**这一步很重要！很多人漏掉这一步导致保存失败。**
-
-1. 在多维表格右上角点击「**...**」→「**更多**」→「**添加文档应用**」
-2. 搜索你刚创建的应用名称
-3. 添加为「**可编辑**」协作者
-
-### 第七步：发布应用
-
-1. 回到飞书开放平台的应用详情页
-2. 点击「**版本管理与发布**」
-3. 创建版本并发布
-
-> 注意：企业自建应用需要发布后才能正常使用API
-
-### 第八步：填写插件配置
-
-在插件配置页面的「飞书设置」中填入：
-
-| 配置项 | 填入内容 |
-|-------|---------|
-| API 版本 | 选择「飞书国内版」 |
-| App ID | 第二步获取的 App ID |
-| App Secret | 第二步获取的 App Secret |
-| app_token | 第五步获取的 app_token |
-| table_id | 第五步获取的 table_id |
-| 上传MD附件 | 根据需要勾选 |
-
-点击「**测试连接**」按钮，如果显示「连接成功」就配置完成了！
+| 选项 | 说明 |
+|-----|------|
+| 保存评论区 | 是否保存评论 |
+| 评论数量 | 0-10000条 |
+| 保存全部 | 通过API获取全部评论 |
+| 折叠评论 | 使用 `<details>` 标签折叠 |
 
 ---
 
 ## 使用方法
 
-### 基本操作
-
 | 操作 | 效果 |
 |-----|------|
-| **单击** 主帖书签 | 保存主帖到Obsidian/飞书 |
-| **单击** 评论书签 | 保存主帖+该条评论（文件名带楼层号） |
-| **双击** 任意书签 | 添加到L站原生收藏（必须是同一按钮） |
-| **Ctrl+Shift+S** | 快捷键保存主帖 |
+| **单击** 书签/链接按钮 | 保存帖子到Obsidian/飞书/Notion |
+| **双击** 书签/链接按钮 | 触发原生收藏/复制链接 |
+| **Ctrl+Shift+S** | 快捷键保存帖子 |
 
 ### 使用流程
 
-1. 访问任意LinuxDo帖子页面
-2. 找到评论区上方右侧的「**三个点**」菜单
-3. **单击**「书签」选项 → 保存到Obsidian/飞书
-4. **双击**「书签」选项 → 添加L站收藏
-
-### 评论书签功能
-
-V3.5.3 新增了评论书签功能：
-
-- 点击**评论区**的书签图标
-- 保存主帖 + 该条评论
-- 文件名自动带楼层号，如：`帖子标题-评论2楼.md`
-- 飞书中也会单独创建一条记录，URL指向该楼层
+1. 访问任意Discourse论坛帖子页面
+2. 插件自动检测并激活
+3. 单击书签按钮 → 保存到已配置的平台
+4. 保存成功后显示提示信息
 
 ---
 
-## 保存的笔记格式
+## V4.6.24 新增功能
 
-### 文件命名
+### 油猴脚本版
+- 支持 Tampermonkey/Greasemonkey，跨浏览器通用
+- 40+ Discourse 论坛 @match 规则
+- 三平台保存：Obsidian / Notion / HTML 导出
+- 评论保存、折叠模式、用户名超链接
+- [一键安装页面](https://acheng-byte.github.io/discourse-saver/install.html)
 
-```
-帖子标题.md
-帖子标题-评论2楼.md  # 评论书签保存时
-```
+### 评论用户名超链接（V4.3.8）
+- 普通模式：用户名显示为 Markdown 超链接
+- 折叠模式：用户名显示为 HTML 超链接
+- 自动识别用户主页链接
 
-### 笔记结构
-
-```markdown
----
-来源: https://linux.do/t/topic/847468
-标题: 秘密花园园丁邀请函
-作者: Neo
-保存时间: 2026-03-11T05:00:00Z
-标签: [linuxdo]
-评论数: 100
----
-
-# 秘密花园园丁邀请函
-
-[帖子正文内容...]
-
-<span style="color: red;">颜色会保留</span>
-
----
-
-## 评论区（共100条）
-
-### 1楼 - Alice
-
-感谢分享！
-
-### 2楼 - Bob
-
-<span style="color: blue;">颜色也会保留</span>
-```
+### HTML 导出增强（V4.3.5）
+- 图片 Lightbox 放大查看
+- 表格一键复制为 TSV / 全屏查看
+- 5 种主题切换（L站原风格、暗夜极客、商务精英、樱花粉、薰衣草）
+- PWA 可安装到设备、离线查看
+- PDF 一键导出
+- 代码块一键复制
+- 响应式设计适配移动端
 
 ---
 
 ## 常见问题
 
-### Q1: 点击书签后没反应？
+### Q1: 点击保存后没反应？
 
 请检查：
 1. Obsidian是否已运行
@@ -287,87 +210,32 @@ V3.5.3 新增了评论书签功能：
 3. 应用是否已发布
 4. 多维表格是否已添加应用为协作者（最常见原因！）
 
-### Q4: 评论没有全部保存？
+### Q4: Notion保存失败？
 
-插件只能提取当前页面已加载的评论。如果帖子有很多评论，需要先**滚动页面**加载更多评论，再点击保存。
+请检查：
+1. Integration Token 是否以 `ntn_` 或 `secret_` 开头
+2. Database ID 是否为32位十六进制
+3. Integration 是否已连接到 Database（最常见原因！）
+4. 属性映射是否与 Database 属性名完全匹配
 
-### Q5: 如何恢复书签原功能？
+### Q5: 评论没有全部保存？
 
-在设置中关闭「启用插件」开关，然后刷新页面。
+如果帖子评论超过30条，请在设置中勾选「保存全部」选项，插件将通过Discourse API获取完整评论。
 
-### Q6: 双击触发了两次保存？
+### Q6: 油猴脚本版和Chrome扩展版有什么区别？
 
-V3.5.4 已修复此问题。请确保双击的是**同一个**书签按钮。快速点击**不同的**书签按钮不会触发双击。
-
-### Q7: 飞书重复保存同一帖子会创建多条记录？
-
-V3.5.5 已修复此问题。现在重复保存同一帖子会**更新**原记录，而不是创建新记录。
-
----
-
-## 技术细节
-
-### 文件结构
-
-```
-linuxdo-to-obsidian/
-├── manifest.json           # 插件配置（Manifest V3）
-├── content.js              # 内容脚本（劫持书签+保存逻辑）
-├── background.js           # 飞书API处理（解决CORS问题）
-├── options.html            # 配置页面
-├── options.js              # 配置逻辑
-├── lib/
-│   └── turndown.min.js     # HTML→Markdown转换
-├── icons/
-│   ├── icon16.png
-│   ├── icon48.png
-│   └── icon128.png
-└── README.md
-```
-
-### 权限说明
-
-| 权限 | 说明 |
-|-----|------|
-| storage | 保存用户配置 |
-| activeTab | 访问当前标签页 |
-| host_permissions | 访问飞书API |
-
----
-
-## 更新日志
-
-### V3.5.5 (2026-03-11)
-- **修复**：飞书记录重复问题 - 重复保存同一帖子现在会更新而不是创建新记录
-- **修复**：URL清理 - 移除查询参数和锚点，确保URL一致性
-- **说明**：飞书超链接字段的搜索改为按标题匹配，再精确比对URL
-
-### V3.5.4 (2026-03-11)
-- 修复：双击检测竞态条件（必须是同一按钮才触发双击）
-- 改进：原生收藏触发机制（使用Discourse API，失败时回退bypass）
-- 优化：快速点击不同书签不再误触双击
-
-### V3.5.3
-- 新增：评论区书签支持
-- 新增：单条评论文件名带楼层号
-
-### V3.5.2
-- 新增：飞书API版本选择（国内版/Lark国际版）
-
-### V3.5.1
-- 新增：单击保存/双击收藏分离
-- 新增：插件开关
-
-### V3.5.0
-- 新增：飞书多维表格支持
-- 新增：MD文件附件上传
-- 变更：文件名只用标题
+| 对比项 | 油猴脚本版 | Chrome扩展版 |
+|-------|----------|------------|
+| 浏览器支持 | 所有主流浏览器 | 仅Chromium浏览器 |
+| 安装方式 | 需要Tampermonkey | 开发者模式加载 |
+| 保存目标 | Obsidian + Notion + HTML | Obsidian + 飞书 + Notion |
+| 飞书支持 | 不支持 | 支持 |
 
 ---
 
 ## 开源地址
 
-GitHub: https://github.com/AchengBusiness/linuxdo-to-obsidian
+GitHub: https://github.com/acheng-byte/discourse-saver
 
 欢迎 Star、Fork、提 Issue 和 PR！
 
@@ -375,12 +243,14 @@ GitHub: https://github.com/AchengBusiness/linuxdo-to-obsidian
 
 ## 致谢
 
-- [LinuxDo](https://linux.do) - 最好的技术社区
-- [Obsidian](https://obsidian.md) - 最好的笔记软件
+- [Discourse](https://discourse.org) - 优秀的开源论坛平台
+- [LinuxDo](https://linux.do) - 活跃的技术社区
+- [Obsidian](https://obsidian.md) - 优秀的笔记软件
 - [飞书开放平台](https://open.feishu.cn) - 强大的API支持
+- [Notion](https://www.notion.so) - 优秀的协作工具
 - [Turndown](https://github.com/mixmark-io/turndown) - HTML转Markdown
 - [Advanced URI](https://github.com/Vinzent03/obsidian-advanced-uri) - 大内容保存支持
 
 ---
 
-**如果觉得有用，欢迎点赞、收藏、分享！有问题请在评论区留言。**
+**如果觉得有用，欢迎点赞、收藏、分享！有问题请在评论区留言或到 GitHub 提 Issue。**

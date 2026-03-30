@@ -3,16 +3,29 @@
 ## 版本信息
 
 - **原版本**: v3.6.0
-- **最新版本**: v4.3.8
-- **更新日期**: 2026-03-15
+- **最新版本**: v4.6.24
+- **更新日期**: 2026-03-30
 - **更新内容**:
-  1. 评论用户名超链接 - 点击用户名跳转到用户主页
-  2. HTML 导出增强 - 图片 Lightbox、表格全屏/复制、5 种主题、PWA 支持
-  3. PDF 导出 - 工具栏一键导出为 PDF
-  4. 代码块复制 - 一键复制代码内容
-  5. 响应式设计 - 完美适配手机、平板、桌面
-  6. 设置页面优化 - HTML 导出提示
-  7. 性能优化 - 评论/Notion/飞书批处理
+  1. 油猴脚本版 - 支持 Tampermonkey/Greasemonkey，跨浏览器通用
+  2. 评论用户名超链接 - 点击用户名跳转到用户主页
+  3. HTML 导出增强 - 图片 Lightbox、表格全屏/复制、5 种主题、PWA 支持
+  4. PDF 导出 - 工具栏一键导出为 PDF
+  5. 代码块复制 - 一键复制代码内容
+  6. 响应式设计 - 完美适配手机、平板、桌面
+  7. 设置页面优化 - HTML 导出提示
+  8. 性能优化 - 评论/Notion/飞书批处理
+
+---
+
+## V4.6.24 主要变更 (2026-03-30)
+
+### 油猴脚本版
+
+- **Tampermonkey/Greasemonkey 支持** - 跨浏览器通用脚本（Chrome/Edge/Firefox/Safari）
+- **40+ Discourse 论坛** - 通过 @match 规则匹配主流 Discourse 站点
+- **三平台保存** - 支持 Obsidian / Notion / HTML 导出
+- **评论功能** - 评论保存、折叠模式、用户名超链接
+- **一键安装** - [安装页面](https://acheng-byte.github.io/discourse-saver/install.html) 支持一键复制脚本
 
 ---
 
@@ -409,5 +422,5 @@
 
 ## 联系方式
 
-- GitHub: https://github.com/AchengBusiness/discourse-saver
-- Issues: https://github.com/AchengBusiness/discourse-saver/issues
+- GitHub: https://github.com/acheng-byte/discourse-saver
+- Issues: https://github.com/acheng-byte/discourse-saver/issues

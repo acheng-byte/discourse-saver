@@ -1,17 +1,22 @@
-# Discourse Saver V4.3.5
+# Discourse Saver V4.6.24
 
 **中文 | [English](README_EN.md)**
 
-通用 Discourse 论坛内容保存工具 - 一键保存任意 Discourse 论坛（如 LinuxDo、Discourse Meta、Rust Users 等数百个站点）的帖子和评论到 Obsidian、飞书多维表格或 Notion。
+通用 Discourse 论坛内容保存工具 - 一键保存任意 Discourse 论坛（如 LinuxDo、Discourse Meta、Rust Users 等数百个站点）的帖子和评论到 Obsidian、Notion 或 HTML 文件。
 
-> **V4.3.5 更新**：
+支持 **Chrome 扩展** 和 **油猴脚本（Tampermonkey）** 两种安装方式。
+
+> **V4.6.24 更新**：
+> - **油猴脚本版** - 支持 Tampermonkey/Greasemonkey，跨浏览器通用（Chrome/Edge/Firefox/Safari）
 > - **HTML 导出增强** - 图片 Lightbox 放大、表格全屏/复制、5 种主题切换
+> - **评论用户名超链接** - 评论区用户名支持点击跳转到用户主页
 > - **PWA 支持** - 可安装到设备主屏幕，离线查看
 > - **PDF 导出** - 工具栏一键导出为 PDF 文件
-> - **代码复制** - 代码块一键复制功能
-> - **响应式优化** - 完美适配手机、平板、桌面
+> - **40+ Discourse 论坛支持** - 通过 @match 和通配符匹配
 
 ## 浏览器支持
+
+### Chrome 扩展
 
 | 浏览器 | 支持状态 | 说明 |
 |-------|---------|------|
@@ -19,8 +24,18 @@
 | Edge | ✅ 完全支持 | 基于 Chromium，完全兼容 |
 | Brave | ✅ 完全支持 | 基于 Chromium，完全兼容 |
 | Opera | ✅ 完全支持 | 基于 Chromium，完全兼容 |
-| Firefox | ❌ 不支持 | 扩展API不兼容 |
-| Safari | ❌ 不支持 | 扩展API不兼容 |
+| Firefox | ❌ 不支持 | 扩展 API 不兼容（请使用油猴脚本版） |
+| Safari | ❌ 不支持 | 扩展 API 不兼容（请使用油猴脚本版） |
+
+### 油猴脚本（Tampermonkey）
+
+| 浏览器 | 支持状态 | 说明 |
+|-------|---------|------|
+| Chrome | ✅ 支持 | 需安装 Tampermonkey 扩展 |
+| Edge | ✅ 支持 | 需安装 Tampermonkey 扩展 |
+| Firefox | ✅ 支持 | 需安装 Tampermonkey/Greasemonkey 扩展 |
+| Safari | ✅ 支持 | 需安装 Userscripts 扩展 |
+| Opera | ✅ 支持 | 需安装 Tampermonkey 扩展 |
 
 ## 支持的论坛
 
@@ -177,7 +192,27 @@
 
 ---
 
-## V4.3.5 新功能
+## V4.6.24 新功能
+
+### 油猴脚本版（V4.6.24）
+
+| 特性 | 说明 |
+|-----|------|
+| **跨浏览器** | 支持 Chrome/Edge/Firefox/Safari 等所有主流浏览器 |
+| **Tampermonkey** | 通过油猴扩展安装，无需开发者模式 |
+| **40+ 论坛** | 通过 @match 规则匹配 40+ Discourse 论坛 |
+| **三平台保存** | Obsidian / Notion / HTML 导出 |
+| **评论保存** | 支持折叠模式和用户名超链接 |
+
+> **安装地址**：[油猴脚本一键安装页面](https://acheng-byte.github.io/discourse-saver/install.html)
+
+### 评论用户名超链接（V4.3.8）
+
+| 特性 | 说明 |
+|-----|------|
+| **Obsidian 导出** | 评论区用户名支持点击跳转到用户主页 |
+| **折叠模式兼容** | 折叠评论中的用户名同样支持超链接 |
+| **自动识别** | 自动从页面提取用户主页链接 |
 
 ### HTML 导出增强
 
@@ -240,7 +275,16 @@
 
 ## 安装方法
 
-### Chrome / Edge / Brave / Opera 安装
+### 方式一：油猴脚本安装（推荐，跨浏览器通用）
+
+1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 浏览器扩展
+2. 访问 [油猴脚本一键安装页面](https://acheng-byte.github.io/discourse-saver/install.html)
+3. 点击「一键复制」按钮复制完整脚本
+4. 打开 Tampermonkey 仪表盘 → 新建脚本 → 粘贴代码 → 保存
+
+> **优势**：支持 Chrome、Edge、Firefox、Safari 等所有主流浏览器
+
+### 方式二：Chrome 扩展安装
 
 1. 下载本插件的所有文件到本地文件夹
 2. 打开浏览器扩展页面：
@@ -334,7 +378,7 @@
 
 | 配置项 | 说明 |
 |-------|------|
-| Integration Token | 以 `secret_` 开头的 Notion Integration 密钥 |
+| Integration Token | 以 `ntn_` 或 `secret_` 开头的 Notion Integration 密钥 |
 | Database ID | 32 位十六进制 Database 标识符 |
 | 属性映射 | 配置 Database 属性名称（默认中文：标题、链接、作者等） |
 
@@ -624,7 +668,7 @@
 ### Q9: Notion 保存失败？
 
 **A:** 请按以下顺序检查：
-1. Integration Token 是否以 `secret_` 开头
+1. Integration Token 是否以 `ntn_` 或 `secret_` 开头
 2. Database ID 是否为 32 位十六进制字符
 3. 是否已将 Integration 连接到 Database（最常见原因！）
 4. 属性映射是否与 Database 中的属性名完全一致（区分大小写）
@@ -638,6 +682,22 @@
 ---
 
 ## 更新日志
+
+### v4.6.24 (2026-03-30)
+
+- **新增**：油猴脚本版（Tampermonkey/Greasemonkey）
+  - 跨浏览器通用：Chrome、Edge、Firefox、Safari
+  - 40+ Discourse 论坛通过 @match 规则匹配
+  - 支持 Obsidian / Notion / HTML 导出
+  - 评论保存、折叠模式、用户名超链接
+  - [一键安装页面](https://acheng-byte.github.io/discourse-saver/install.html)
+
+### v4.3.8 (2026-03-15)
+
+- **新增**：评论用户名超链接
+  - Obsidian 导出 - 评论区用户名支持点击跳转到用户主页
+  - 折叠模式兼容 - 折叠评论中的用户名同样支持超链接
+  - 自动识别 - 自动从页面提取用户主页链接
 
 ### v4.3.5 (2026-03-15)
 
