@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discourse Saver - 设置</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: #333;
+    }
+
+    .container {
+      max-width: 560px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+    }
+
+    .header {
+      background: #2563eb;
+      color: #fff;
+      padding: 24px;
+      text-align: center;
+      position: relative;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .header p {
+      font-size: 13px;
+      opacity: 0.9;
+    }
+
+    .language-toggle {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .language-toggle button {
+      background: transparent;
+      border: none;
+      color: #fff;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .language-toggle button:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .language-toggle button.active {
+      background: rgba(255, 255, 255, 0.3);
+      font-weight: 600;
+    }
+
+    .content {
+      padding: 24px;
+    }
+
+    .section {
+      margin-bottom: 16px;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* 可折叠标题 */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #f9fafb;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+    }
+
+    .section-header:hover {
+      background: #f3f4f6;
+    }
+
+    .section-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    .section-title .badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 500;
+      margin-left: 6px;
+    }
+
+    .badge-obsidian {
+      background: #7c3aed;
+      color: #fff;
+    }
+
+    .badge-feishu {
+      background: #3370ff;
+      color: #fff;
+    }
+
+    .badge-notion {
+      background: #000000;
+      color: #fff;
+    }
+
+    .badge-new {
+      background: #059669;
+      color: #fff;
+    }
+
+    .collapse-icon {
+      font-size: 12px;
+      color: #6b7280;
+      transition: transform 0.3s ease;
+      width: 20px;
+      text-align: center;
+    }
+
+    .collapse-icon.expanded {
+      transform: rotate(90deg);
+    }
+
+    /* 可折叠内容 */
+    .section-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+      padding: 0 16px;
+    }
+
+    .section-content.expanded {
+      max-height: 2000px;
+      padding: 16px;
+      border-top: 1px solid #e5e5e5;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      color: #333;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group input[type="password"],
+    .form-group select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input[type="text"]:focus,
+    .form-group input[type="number"]:focus,
+    .form-group input[type="password"]:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #2563eb;
+    }
+
+    .form-group input::placeholder {
+      color: #999;
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: #888;
+      margin-top: 4px;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .checkbox-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: #2563eb;
+    }
+
+    .checkbox-row label {
+      font-size: 14px;
+      color: #333;
+      cursor: pointer;
+    }
+
+    .number-input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .number-input-row label {
+      font-size: 14px;
+      color: #333;
+    }
+
+    .number-input-row input[type="number"] {
+      width: 80px;
+      padding: 6px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .number-input-row span {
+      font-size: 13px;
+      color: #888;
+    }
+
+    .sub-options {
+      margin-left: 24px;
+      padding: 12px;
+      background: #f9f9f9;
+      border-radius: 6px;
+      margin-top: 8px;
+      transition: opacity 0.2s;
+    }
+
+    .sub-options.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .btn-save {
+      background: #2563eb;
+      color: #fff;
+    }
+
+    .btn-save:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-reset {
+      background: #f0f0f0;
+      color: #666;
+    }
+
+    .btn-reset:hover {
+      background: #e5e5e5;
+    }
+
+    .btn-test {
+      background: #059669;
+      color: #fff;
+      flex: none;
+      padding: 8px 16px;
+      font-size: 13px;
+    }
+
+    .btn-test:hover {
+      background: #047857;
+    }
+
+    .btn-test:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .status-message {
+      margin-top: 16px;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .status-message.show {
+      opacity: 1;
+    }
+
+    .status-message.success {
+      background: #ecfdf5;
+      color: #059669;
+    }
+
+    .status-message.error {
+      background: #fef2f2;
+      color: #dc2626;
+    }
+
+    .status-message.info {
+      background: #eff6ff;
+      color: #2563eb;
+    }
+
+    .tip-box {
+      margin-top: 20px;
+      padding: 12px;
+      background: #eff6ff;
+      border-radius: 6px;
+      border-left: 3px solid #2563eb;
+    }
+
+    .tip-box p {
+      font-size: 12px;
+      color: #555;
+      line-height: 1.6;
+    }
+
+    .tip-box strong {
+      color: #2563eb;
+    }
+
+    .tip-box a {
+      color: #2563eb;
+      text-decoration: none;
+    }
+
+    .tip-box a:hover {
+      text-decoration: underline;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 16px;
+      font-size: 12px;
+      color: #999;
+      border-top: 1px solid #eee;
+    }
+
+    .footer a {
+      color: #2563eb;
+      text-decoration: none;
+    }
+
+    .inline-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .inline-row .form-group {
+      flex: 1;
+      margin-bottom: 0;
+    }
+
+    .warning-text {
+      font-size: 12px;
+      color: #d97706;
+      background: #fef3c7;
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+
+    .custom-sites-list {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      max-height: 150px;
+      overflow-y: auto;
+      background: #fafafa;
+    }
+
+    .custom-sites-list:empty::before {
+      content: '暂无自定义站点';
+      display: block;
+      padding: 12px;
+      color: #999;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    .site-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid #eee;
+      font-size: 13px;
+    }
+
+    .site-item:last-child {
+      border-bottom: none;
+    }
+
+    .site-item .site-url {
+      color: #333;
+      word-break: break-all;
+    }
+
+    .site-item .remove-btn {
+      background: none;
+      border: none;
+      color: #dc2626;
+      cursor: pointer;
+      padding: 4px 8px;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .site-item .remove-btn:hover {
+      background: #fef2f2;
+      border-radius: 4px;
+    }
+
+    /* 图片设置子面板 */
+    .image-settings-panel {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f0f9ff;
+      border-radius: 6px;
+      border: 1px solid #bae6fd;
+    }
+
+    .image-settings-panel.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    @media (max-width: 560px) {
+      body {
+        padding: 20px 15px;
+      }
+
+      .button-group {
+        flex-direction: column;
+      }
+
+      .inline-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+  <script src="i18n.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="language-toggle">
+        <button id="lang-zh" class="active" data-lang="zh">中文</button>
+        <button id="lang-en" data-lang="en">English</button>
+      </div>
+      <h1>Discourse Saver</h1>
+      <p data-i18n="header.subtitle">保存 Discourse 论坛帖子到 Obsidian、飞书或 Notion V4.2.3</p>
+    </div>
+
+    <div class="content">
+      <form id="optionsForm">
+        <!-- 插件开关 -->
+        <div class="section" data-section="pluginStatus">
+          <div class="section-header" data-section="pluginStatus">
+            <div class="section-header-left">
+              <span class="section-title" data-i18n="sections.pluginStatus">插件状态</span>
+            </div>
+            <span class="collapse-icon expanded" id="icon-pluginStatus">▶</span>
+          </div>
+          <div class="section-content expanded" id="content-pluginStatus">
+            <div class="checkbox-row">
+              <input type="checkbox" id="pluginEnabled" checked>
+              <label for="pluginEnabled" data-i18n="pluginStatus.enabled">启用插件（关闭后链接按钮恢复原功能）</label>
+            </div>
+            <div class="help-text" data-i18n="pluginStatus.help">关闭后需刷新页面生效</div>
+          </div>
+        </div>
+
+        <!-- 站点设置 -->
+        <div class="section" data-section="siteSettings">
+          <div class="section-header" data-section="siteSettings">
+            <div class="section-header-left">
+              <span class="section-title" data-i18n="sections.siteSettings">站点设置 <span class="badge badge-new">新</span></span>
+            </div>
+            <span class="collapse-icon expanded" id="icon-siteSettings">▶</span>
+          </div>
+          <div class="section-content expanded" id="content-siteSettings">
+            <div class="help-text" style="margin-bottom: 12px;">
+              <span data-i18n="siteSettings.autoDetectHelp">插件会自动检测 Discourse 论坛（如 LinuxDo、Meta.discourse.org 等）。</span><br>
+              <span data-i18n="siteSettings.manualAddHelp">如果某个站点未被自动识别，可以手动添加。</span>
+            </div>
+
+            <div class="form-group">
+              <label data-i18n="siteSettings.customSites">自定义站点列表</label>
+              <div id="customSitesList" class="custom-sites-list"></div>
+              <div class="inline-row" style="margin-top: 8px;">
+                <input type="text" id="newSiteInput" placeholder="输入站点域名，如 forum.example.com" data-i18n="siteSettings.newSitePlaceholder" style="flex: 1;">
+                <button type="button" class="btn-test" id="addSiteBtn" data-i18n="buttons.add">添加</button>
+              </div>
+              <div class="help-text" data-i18n="siteSettings.autoDetect">已内置支持所有 Discourse 论坛自动检测，仅在检测失败时需要手动添加</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 保存目标 -->
+        <div class="section" data-section="saveTarget">
+          <div class="section-header" data-section="saveTarget">
+            <div class="section-header-left">
+              <span class="section-title" data-i18n="sections.saveTarget">保存目标</span>
+            </div>
+            <span class="collapse-icon expanded" id="icon-saveTarget">▶</span>
+          </div>
+          <div class="section-content expanded" id="content-saveTarget">
+            <div class="checkbox-row">
+              <input type="checkbox" id="saveToObsidian" checked>
+              <label for="saveToObsidian" data-i18n="saveTarget.obsidian">保存到 Obsidian</label>
+            </div>
+
+            <div class="checkbox-row">
+              <input type="checkbox" id="saveToFeishu">
+              <label for="saveToFeishu" data-i18n="saveTarget.feishu">保存到飞书多维表格</label>
+            </div>
+
+            <div class="checkbox-row">
+              <input type="checkbox" id="saveToNotion">
+              <label for="saveToNotion" data-i18n="saveTarget.notion">保存到 Notion Database</label> <span class="badge badge-new" data-i18n="badges.new">新</span>
+            </div>
+
+            <div class="checkbox-row">
+              <input type="checkbox" id="exportHtml">
+              <label for="exportHtml" data-i18n="saveTarget.exportHtml">导出 HTML 文件</label> <span class="badge badge-new" data-i18n="badges.new">新</span>
+            </div>
+
+            <!-- V4.3.6: HTML 导出文件夹设置 -->
+            <div class="form-group" style="margin-left: 24px; margin-top: 8px;">
+              <label data-i18n="html.folder">HTML 导出文件夹</label>
+              <input type="text" id="htmlExportFolder" value="Discourse导出" placeholder="Discourse导出" data-i18n-placeholder="html.folderPlaceholder">
+              <div class="help-text" data-i18n="html.folderHelp">相对于浏览器下载目录，留空则直接保存到下载目录</div>
+            </div>
+
+            <div class="help-text" data-i18n="saveTarget.multiSaveHelp">可以同时保存到多个地方</div>
+          </div>
+        </div>
+
+        <!-- Obsidian 设置 -->
+        <div class="section" data-section="obsidianSettings" id="obsidianSection">
+          <div class="section-header" data-section="obsidianSettings">
+            <div class="section-header-left">
+              <span class="badge badge-obsidian">Obsidian</span>
+              <span class="section-title" data-i18n="sections.obsidian">Obsidian 设置</span>
+            </div>
+            <span class="collapse-icon expanded" id="icon-obsidianSettings">▶</span>
+          </div>
+          <div class="section-content expanded" id="content-obsidianSettings">
+            <div class="form-group">
+              <label data-i18n="obsidian.vaultName">Vault 名称</label>
+              <input type="text" id="vaultName" placeholder="留空自动使用当前打开的仓库" data-i18n="obsidian.vaultPlaceholder">
+              <div class="help-text" data-i18n="obsidian.vaultHelpDetail">推荐留空，会自动保存到当前打开的 Obsidian 仓库</div>
+            </div>
+
+            <div class="form-group">
+              <label data-i18n="obsidian.folder">保存文件夹</label>
+              <input type="text" id="folderPath" value="LinuxDo收集箱" placeholder="LinuxDo收集箱" data-i18n="obsidian.folderPlaceholder">
+              <div class="help-text" data-i18n="obsidian.folderHelpDetail">文件夹不存在会自动创建</div>
+            </div>
+
+            <div class="checkbox-row">
+              <input type="checkbox" id="useAdvancedUri" checked>
+              <label for="useAdvancedUri" data-i18n="obsidian.useAdvancedUri">使用 Advanced URI 插件（支持大内容）</label>
+            </div>
+            <div class="help-text" style="margin-left: 24px;" data-i18n="obsidian.advancedUriHelp">
+              需先在 Obsidian 中安装 "Advanced URI" 插件
+            </div>
+          </div>
+        </div>
+
+        <!-- 飞书设置 -->
+        <div class="section" data-section="feishuSettings" id="feishuSection">
+          <div class="section-header" data-section="feishuSettings">
+            <div class="section-header-left">
+              <span class="badge badge-feishu">飞书</span>
+              <span class="section-title" data-i18n="sections.feishu">飞书多维表格设置</span>
+            </div>
+            <span class="collapse-icon expanded" id="icon-feishuSettings">▶</span>
+          </div>
+          <div class="section-content expanded" id="content-feishuSettings">
+            <div id="feishuOptions">
+              <div class="form-group">
+                <label data-i18n="feishu.version">API 版本</label>
+                <select id="feishuApiDomain">
+                  <option value="feishu">飞书国内版 (feishu.cn)</option>
+                  <option value="lark">Lark 国际版 (larksuite.com)</option>
+                </select>
+                <div class="help-text" data-i18n="feishu.versionHelp">根据你的飞书账号类型选择，国内用户选飞书，海外用户选 Lark</div>
+              </div>
+
+              <div class="form-group">
+                <label data-i18n="feishu.appId">App ID</label>
+                <input type="text" id="feishuAppId" placeholder="cli_xxxxxxxxxxxxxxxx" data-i18n="feishu.appIdPlaceholder">
+                <div class="help-text" data-i18n="feishu.appIdHelp">在飞书开放平台创建应用获取</div>
+              </div>
+
+              <div class="form-group">
+                <label data-i18n="feishu.appSecret">App Secret</label>
+                <input type="password" id="feishuAppSecret" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" data-i18n="feishu.appSecretPlaceholder">
+              </div>
+
+              <div class="form-group">
+                <label data-i18n="feishu.appToken">多维表格 app_token</label>
+                <input type="text" id="feishuAppToken" placeholder="bascnxxxxxxxxxxxxxxxx" data-i18n="feishu.appTokenPlaceholder">
+                <div class="help-text" data-i18n="feishu.appTokenHelpDetail">从多维表格 URL 中获取：feishu.cn/base/bascnxxx?table=...</div>
+              </div>
+
+              <div class="inline-row">
+                <div class="form-group">
+                  <label data-i18n="feishu.tableId">数据表 table_id</label>
+                  <input type="text" id="feishuTableId" placeholder="tblxxxxxxxxxxxxxxxx" data-i18n="feishu.tableIdPlaceholder">
+                </div>
+                <button type="button" class="btn-test" id="testFeishuBtn"data-i18n="buttons.testConnection">测试连接</button>
+              </div>
+              <div class="help-text" data-i18n="feishu.tableIdHelpDetail">从 URL 中获取：?table=tblxxx&view=...</div>
+
+              <div class="checkbox-row" style="margin-top: 12px;">
+                <input type="checkbox" id="feishuUploadAttachment">
+                <label for="feishuUploadAttachment" data-i18n="feishu.uploadMd">上传 MD 附件（需额外权限，可选）</label>
+              </div>
+              <div class="help-text" style="margin-left: 24px;" data-i18n="feishu.uploadMdHelpDetail">不勾选则只保存文本摘要，无需 drive 权限</div>
+
+              <div class="checkbox-row" style="margin-top: 8px;">
+                <input type="checkbox" id="feishuUploadHtml">
+                <label for="feishuUploadHtml" data-i18n="feishu.uploadHtml">上传 HTML 附件</label> <span class="badge badge-new" data-i18n="badges.new">新</span>
+              </div>
+              <div class="help-text" style="margin-left: 24px;" data-i18n="feishu.uploadHtmlHelpDetail">同时上传 HTML 格式的完整单页文件</div>
+
+              <div class="tip-box" style="margin-top: 16px; background: #fef3c7; border-left-color: #d97706;">
+                <p>
+                  <strong data-i18n="feishu.perm1Title">1. 必须的权限（均为免审）：</strong><br>
+                  <span data-i18n="feishu.perm1Content">bitable:app（多维表格读写）</span>
+                </p>
+                <p style="margin-top: 8px;">
+                  <strong data-i18n="feishu.perm2Title">2. 上传附件的权限（免审）：</strong><br>
+                  <span data-i18n="feishu.perm2Content">drive:file:upload（上传文件到云空间）</span>
+                </p>
+                <p style="margin-top: 8px;">
+                  <strong data-i18n="feishu.perm3Title">3. 多维表格字段：</strong><br>
+                  <span data-i18n="feishu.perm3Content1">标题（文本）、链接（超链接）、作者（文本）、保存时间（日期）、评论数（数字）</span><br>
+                  <span data-i18n="feishu.perm3Content2">如勾选上传附件：附件（附件）；否则：正文（文本）</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notion 设置 (V4.0.1 新增) -->
+        <div class="section" data-section="notionSettings" id="notionSection">
+          <div class="section-header" data-section="notionSettings">
+            <div class="section-header-left">
+              <span class="badge badge-notion">Notion</span>
+              <span class="section-title" data-i18n="sections.notion">Notion Database 设置 <span class="badge badge-new">新</span></span>
+            </div>
+            <span class="collapse-icon expanded" id="icon-notionSettings">▶</span>
+          </div>
+          <div class="section-content expanded" id="content-notionSettings">
+            <div id="notionOptions">
+              <div class="form-group">
+                <label><span data-i18n="notion.token">Integration Token</span> <span style="color: #ef4444;">*</span></label>
+                <input type="password" id="notionToken" placeholder="ntn_xxx 或 secret_xxx" data-i18n="notion.tokenPlaceholder">
+                <div class="help-text">
+                  <span data-i18n="notion.tokenHelpPre">在</span> <a href="https://www.notion.so/profile/integrations/internal" target="_blank">Notion Internal Integrations</a> <span data-i18n="notion.tokenHelpPost">创建获取</span>
+                  · <a href="NOTION-GUIDE.html" target="_blank" data-i18n="notion.detailedGuide">详细教程</a>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label><span data-i18n="notion.databaseId">Database ID</span> <span style="color: #ef4444;">*</span></label>
+                <input type="text" id="notionDatabaseId" placeholder="a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" data-i18n="notion.databaseIdPlaceholder">
+                <div class="help-text" data-i18n="notion.databaseIdHelpDetail">从 Database 链接中复制，格式为 32 位字符（可含连字符）</div>
+              </div>
+
+              <!-- V4.2.3: 图片嵌入提示 -->
+              <div class="warning-box" style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 10px 12px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #d97706;">⚠️</span>
+                  <div style="font-size: 12px; color: #92400e;">
+                    <strong data-i18n="notion.imageWarningTitle">图片嵌入注意</strong>
+                    <p style="margin: 4px 0 0 0;" data-i18n="notion.imageWarningContent">如果开启了"图片嵌入（Base64）"功能，Notion 将无法显示图片（Notion 不支持 Base64 格式）。建议关闭图片嵌入或仅用于 Obsidian。</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label data-i18n="notion.propertyMapping">属性映射配置</label>
+                <div class="help-text" style="margin-bottom: 8px;" data-i18n="notion.propertyMappingHelp">属性名需与 Notion Database 中的列名完全匹配（区分大小写）</div>
+                <div style="background: #f9fafb; border: 1px solid #e5e5e5; border-radius: 6px; padding: 12px;">
+                  <div class="form-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 12px; color: #6b7280;"><span data-i18n="notion.propTitleLabel">标题属性名</span> <span style="color: #ef4444;">*</span> <span style="color: #9ca3af; font-weight: normal;" data-i18n="notion.propTitleType">（类型：Title）</span></label>
+                    <input type="text" id="notionPropTitle" value="标题" placeholder="标题" data-i18n="notion.propTitlePlaceholder" style="padding: 6px 10px;">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 12px; color: #6b7280;"><span data-i18n="notion.propUrlLabel">链接属性名</span> <span style="color: #ef4444;">*</span> <span style="color: #9ca3af; font-weight: normal;" data-i18n="notion.propUrlType">（类型：URL）</span></label>
+                    <input type="text" id="notionPropUrl" value="链接" placeholder="链接" data-i18n="notion.propUrlPlaceholder" style="padding: 6px 10px;">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 12px; color: #6b7280;"><span data-i18n="notion.propAuthorLabel">作者属性名</span> <span style="color: #9ca3af; font-weight: normal;" data-i18n="notion.propAuthorType">（类型：Rich Text）</span></label>
+                    <input type="text" id="notionPropAuthor" value="作者" placeholder="作者" data-i18n="notion.propAuthorPlaceholder" style="padding: 6px 10px;">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 12px; color: #6b7280;"><span data-i18n="notion.propCategoryLabel">分类属性名</span> <span style="color: #9ca3af; font-weight: normal;" data-i18n="notion.propCategoryType">（类型：Rich Text 或 Select）</span></label>
+                    <input type="text" id="notionPropCategory" value="分类" placeholder="分类" data-i18n="notion.propCategoryPlaceholder" style="padding: 6px 10px;">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 12px; color: #6b7280;"><span data-i18n="notion.propTagsLabel">标签属性名</span> <span style="color: #9ca3af; font-weight: normal;" data-i18n="notion.propTagsType">（类型：Multi Select）</span></label>
+                    <input type="text" id="notionPropTags" value="标签" placeholder="标签" style="padding: 6px 10px;">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 12px; color: #6b7280;"><span data-i18n="notion.propSavedDateLabel">保存日期属性名</span> <span style="color: #9ca3af; font-weight: normal;" data-i18n="notion.propSavedDateType">（类型：Date）</span></label>
+                    <input type="text" id="notionPropSavedDate" value="保存日期" placeholder="保存日期" data-i18n="notion.propSavedDatePlaceholder" style="padding: 6px 10px;">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 12px; color: #6b7280;"><span data-i18n="notion.propCommentCountLabel">评论数属性名</span> <span style="color: #9ca3af; font-weight: normal;" data-i18n="notion.propCommentCountType">（类型：Number）</span></label>
+                    <input type="text" id="notionPropCommentCount" value="评论数" placeholder="评论数" data-i18n="notion.propCommentCountPlaceholder" style="padding: 6px 10px;">
+                  </div>
+                </div>
+              </div>
+
+              <div class="inline-row" style="margin-top: 12px;">
+                <button type="button" class="btn-test" id="testNotionBtn"data-i18n="buttons.testConnection">测试连接</button>
+              </div>
+
+              <div class="tip-box" style="margin-top: 16px; background: #f0f9ff; border-left-color: #0ea5e9;">
+                <p>
+                  <strong data-i18n="notion.configStepsTitle">配置步骤：</strong><br>
+                  <span data-i18n="notion.configStep1">1. 创建 Internal Integration 并复制 Token</span><br>
+                  <span data-i18n="notion.configStep2">2. 创建 Database 并添加以下属性列（名称和类型必须匹配）：</span><br>
+                  <span data-i18n="notion.configStep2a">&nbsp;&nbsp;&nbsp;• 标题（Title 类型）- 必填</span><br>
+                  <span data-i18n="notion.configStep2b">&nbsp;&nbsp;&nbsp;• 链接（URL 类型）- 必填</span><br>
+                  <span data-i18n="notion.configStep2c">&nbsp;&nbsp;&nbsp;• 作者（Rich Text 类型）</span><br>
+                  <span data-i18n="notion.configStep2d">&nbsp;&nbsp;&nbsp;• 分类（Rich Text 或 Select 类型）</span><br>
+                  <span data-i18n="notion.configStep2d2">&nbsp;&nbsp;&nbsp;• 标签（Multi Select 类型）</span><br>
+                  <span data-i18n="notion.configStep2e">&nbsp;&nbsp;&nbsp;• 保存日期（Date 类型）</span><br>
+                  <span data-i18n="notion.configStep2f">&nbsp;&nbsp;&nbsp;• 评论数（Number 类型）</span><br>
+                  <span data-i18n="notion.configStep3">3. 在 Database 页面点击「...」→「Connections」→ 添加你的 Integration</span><br>
+                  <span data-i18n="notion.configStep4">4. 从 Database 链接中复制 ID 并填入上方</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 内容设置 -->
+        <div class="section" data-section="contentSettings">
+          <div class="section-header" data-section="contentSettings">
+            <div class="section-header-left">
+              <span class="section-title" data-i18n="sections.content">内容设置</span>
+            </div>
+            <span class="collapse-icon expanded" id="icon-contentSettings">▶</span>
+          </div>
+          <div class="section-content expanded" id="content-contentSettings">
+            <div class="checkbox-row">
+              <input type="checkbox" id="addMetadata" checked>
+              <label for="addMetadata" data-i18n="content.addMetadata">添加元数据（来源、作者、时间等）</label>
+            </div>
+
+            <div class="checkbox-row">
+              <input type="checkbox" id="includeImages" checked>
+              <label for="includeImages" data-i18n="content.keepImages">保留图片链接</label>
+            </div>
+
+            <!-- 图片嵌入设置 -->
+            <div class="checkbox-row" style="margin-top: 12px;">
+              <input type="checkbox" id="embedImages">
+              <label for="embedImages"><span data-i18n="content.embedImages">将图片嵌入笔记（Base64）</span><span class="badge badge-new" data-i18n="badges.new">新</span></label>
+            </div>
+
+            <div class="image-settings-panel disabled" id="imageSettingsPanel">
+              <div class="warning-text" style="margin-top: 0;">
+                <strong data-i18n="content.embedWarning1Title">注意：</strong><span data-i18n="content.embedWarning1Content">启用后图片会以 Base64 格式嵌入 Markdown 文件中。优点是单文件完整保存，缺点是文件体积会显著增大。</span>
+              </div>
+              <div class="warning-text" style="margin-top: 8px; background: #fff3cd; border-color: #ffc107;">
+                <strong data-i18n="content.embedWarning2Title">⚠️ 重要：</strong><span data-i18n="content.embedWarning2Content">图片嵌入会使文件变大，必须启用上方的"使用 Advanced URI 插件"选项才能正常保存到 Obsidian。</span>
+              </div>
+              <div class="warning-text" style="margin-top: 8px; background: #e0f2fe; border-color: #0ea5e9; color: #0369a1;">
+                <strong data-i18n="content.embedWarning3Title">📄 HTML 导出提示：</strong><span data-i18n="content.embedWarning3Content">每张图片约增加 100KB-1MB 文件大小。大文章（图片多或超长内容）建议关闭此功能，HTML 将保留原图链接，支持 10 万字以上内容流畅浏览。</span>
+              </div>
+
+              <div class="form-group" style="margin-top: 12px;">
+                <label data-i18n="content.maxWidth">图片最大宽度</label>
+                <select id="imageMaxWidth">
+                  <option value="0">原始尺寸（不压缩）</option>
+                  <option value="1920">1920px（推荐，平衡质量与大小）</option>
+                  <option value="1280">1280px（较小文件）</option>
+                  <option value="800">800px（小文件）</option>
+                  <option value="480">480px（极小文件）</option>
+                </select>
+                <div class="help-text" data-i18n="content.maxWidthHelp">超过此宽度的图片会等比例缩小</div>
+              </div>
+
+              <div class="form-group">
+                <label data-i18n="content.quality">图片质量</label>
+                <select id="imageQuality">
+                  <option value="1">100%（原始质量）</option>
+                  <option value="0.9">90%（推荐）</option>
+                  <option value="0.8">80%（较小文件）</option>
+                  <option value="0.6">60%（小文件）</option>
+                </select>
+                <div class="help-text" data-i18n="content.qualityHelp">降低质量可减小文件体积</div>
+              </div>
+
+              <div class="checkbox-row">
+                <input type="checkbox" id="imageSkipGif">
+                <label for="imageSkipGif" data-i18n="content.skipGif">跳过 GIF 动图（保留原链接）</label>
+              </div>
+              <div class="help-text" style="margin-left: 24px;" data-i18n="content.skipGifHelpDetail">GIF 转换后会失去动画效果</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 评论设置 -->
+        <div class="section" data-section="commentSettings">
+          <div class="section-header" data-section="commentSettings">
+            <div class="section-header-left">
+              <span class="section-title" data-i18n="sections.comments">评论设置</span>
+            </div>
+            <span class="collapse-icon expanded" id="icon-commentSettings">▶</span>
+          </div>
+          <div class="section-content expanded" id="content-commentSettings">
+            <div class="checkbox-row">
+              <input type="checkbox" id="saveComments">
+              <label for="saveComments" data-i18n="comments.saveComments">保存评论区</label>
+            </div>
+
+            <div id="commentOptions" class="sub-options disabled">
+              <!-- V4.3.7: 评论获取模式（三选一互斥） -->
+              <div class="help-text" style="margin-bottom: 8px; color: #6b7280;" data-i18n="comments.modeHint">评论获取模式（三选一）：</div>
+
+              <!-- 模式1: 自定义数量（默认） -->
+              <div class="number-input-row">
+                <label for="commentCount" data-i18n="comments.commentsCount">评论数量：</label>
+                <input type="number" id="commentCount" value="100" min="0" max="10000">
+                <span style="color: #6b7280;" data-i18n="comments.commentsRange">条（0-10000）</span>
+              </div>
+
+              <!-- 模式2: 保存全部 -->
+              <div class="checkbox-row" style="margin-top: 8px;">
+                <input type="checkbox" id="saveAllComments">
+                <label for="saveAllComments" data-i18n="comments.saveAllComments">保存全部</label>
+              </div>
+              <p id="allCommentsWarning" style="display: none; color: #f59e0b; font-size: 12px; margin: 4px 0 8px 24px;" data-i18n="comments.saveAllWarning">
+                ⚠️ 评论较多时可能需要较长时间加载
+              </p>
+
+              <!-- 模式3: 指定楼层范围 -->
+              <div class="checkbox-row" style="margin-top: 8px;">
+                <input type="checkbox" id="useFloorRange">
+                <label for="useFloorRange" data-i18n="comments.useFloorRange">指定楼层范围</label>
+              </div>
+              <div id="floorRangeOptions" class="sub-options disabled" style="margin-left: 24px; margin-top: 8px;">
+                <div class="number-input-row">
+                  <label data-i18n="comments.floorFrom">从第</label>
+                  <input type="number" id="floorFrom" value="1" min="1" max="99999" style="width: 80px;">
+                  <label data-i18n="comments.floorTo">楼到第</label>
+                  <input type="number" id="floorTo" value="100" min="1" max="99999" style="width: 80px;">
+                  <label data-i18n="comments.floorUnit">楼</label>
+                </div>
+                <div class="help-text" data-i18n="comments.floorRangeHelp">只保存指定范围内的楼层评论</div>
+              </div>
+
+              <div class="checkbox-row" style="margin-top: 12px;">
+                <input type="checkbox" id="foldComments">
+                <label for="foldComments" data-i18n="comments.collapseComments">折叠评论（使用HTML details标签）</label>
+              </div>
+
+              <div class="tip-box" style="margin-top: 12px; background: #f0fdf4; border-left-color: #22c55e;">
+                <p>
+                  <strong data-i18n="comments.fetchExplainTitle">评论获取说明：</strong><br>
+                  <span data-i18n="comments.fetchExplain1">• 评论数 ≤30 条：从当前页面提取（快速）</span><br>
+                  <span data-i18n="comments.fetchExplain2">• 评论数 >30 条或勾选"保存全部"：通过API获取（完整，解决懒加载问题）</span><br>
+                  <span data-i18n="comments.fetchExplain3">• 超过500条评论时会显示加载进度</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button type="submit" class="btn-save"data-i18n="buttons.save">保存设置</button>
+          <button type="button" class="btn-reset" id="resetBtn" data-i18n="buttons.reset">恢复默认</button>
+        </div>
+
+        <div id="statusMessage" class="status-message"></div>
+      </form>
+
+      <div class="tip-box">
+        <p>
+          <strong data-i18n="usage.title">使用方法：</strong><br>
+          <span data-i18n="usage.singleClick">- 单击链接按钮 → 保存到 Obsidian/飞书</span><br>
+          <span data-i18n="usage.doubleClick">- 双击链接按钮 → 复制链接</span><br>
+          <span data-i18n="usage.shortcut">- Ctrl+Shift+S（Mac: ⌘+Shift+S）→ 快捷键保存</span><br>
+          <strong data-i18n="usage.feishuTutorial">飞书配置教程：</strong><a href="https://open.feishu.cn/document/home/introduction-to-custom-app-development/self-built-application-development-process" target="_blank" data-i18n="usage.feishuTutorialLink">创建飞书自建应用</a>
+        </p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <a href="https://meta.discourse.org" target="_blank">Discourse</a> |
+      <a href="https://linux.do" target="_blank">LinuxDo</a> |
+      <a href="https://obsidian.md" target="_blank">Obsidian</a> |
+      <a href="https://www.feishu.cn" target="_blank">飞书</a>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

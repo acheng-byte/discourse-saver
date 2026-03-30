@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>飞书多维表格配置指南 - LinuxDo Saver</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #3370ff, #1456cb);
+      color: #fff;
+      padding: 30px;
+      text-align: center;
+    }
+    .header h1 { font-size: 28px; margin-bottom: 8px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    .content { padding: 30px; }
+    .step {
+      margin-bottom: 30px;
+      border: 1px solid #e8e8e8;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .step-header {
+      background: #f8f9fa;
+      padding: 15px 20px;
+      border-bottom: 1px solid #e8e8e8;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .step-num {
+      background: #3370ff;
+      color: #fff;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .step-title { font-weight: 600; font-size: 16px; }
+    .step-content { padding: 20px; }
+    .step-content p { margin-bottom: 12px; }
+    .step-content ul, .step-content ol { margin-left: 20px; margin-bottom: 12px; }
+    .step-content li { margin-bottom: 6px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #e8e8e8;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    th { background: #f8f9fa; font-weight: 600; }
+    code {
+      background: #f1f3f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: "SF Mono", Monaco, monospace;
+      font-size: 13px;
+      color: #d63384;
+    }
+    .url-box {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 13px;
+      overflow-x: auto;
+      margin: 15px 0;
+    }
+    .url-box .highlight { color: #4fc3f7; }
+    .url-box .label { color: #9e9e9e; font-size: 12px; }
+    .tip {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 12px 15px;
+      margin: 15px 0;
+      border-radius: 0 6px 6px 0;
+      font-size: 14px;
+    }
+    .tip.danger {
+      background: #f8d7da;
+      border-color: #dc3545;
+    }
+    .tip.success {
+      background: #d4edda;
+      border-color: #28a745;
+    }
+    .tip.info {
+      background: #e7f3ff;
+      border-color: #3370ff;
+    }
+    .field-table td:nth-child(2) { font-weight: 600; color: #3370ff; }
+    .checklist {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .checklist h3 { margin-bottom: 15px; font-size: 16px; }
+    .checklist label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    .checklist input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #3370ff;
+    }
+    .faq { margin-top: 30px; }
+    .faq-item {
+      border-bottom: 1px solid #e8e8e8;
+      padding: 15px 0;
+    }
+    .faq-item:last-child { border-bottom: none; }
+    .faq-q { font-weight: 600; color: #3370ff; margin-bottom: 8px; }
+    .faq-a { color: #666; font-size: 14px; }
+    .footer {
+      text-align: center;
+      padding: 20px;
+      background: #f8f9fa;
+      color: #666;
+      font-size: 13px;
+    }
+    .footer a { color: #3370ff; text-decoration: none; }
+    @media (max-width: 600px) {
+      body { padding: 10px; }
+      .header { padding: 20px; }
+      .header h1 { font-size: 22px; }
+      .content { padding: 15px; }
+      .step-content { padding: 15px; }
+      table { font-size: 12px; }
+      th, td { padding: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>飞书多维表格配置指南</h1>
+      <p>Discourse Saver V4.2.3 | 一键保存帖子到飞书</p>
+    </div>
+
+    <div class="content">
+      <!-- 步骤1 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">1</span>
+          <span class="step-title">创建飞书自建应用</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>打开 <a href="https://open.feishu.cn/app" target="_blank">飞书开发者后台</a></li>
+            <li>点击右上角 <strong>「创建企业自建应用」</strong></li>
+            <li>填写应用名称（如 <code>LinuxDo Saver</code>）和描述</li>
+            <li>创建成功后，在「凭证与基础信息」中获取：</li>
+          </ol>
+          <table>
+            <tr><th>字段</th><th>说明</th><th>示例</th></tr>
+            <tr><td>App ID</td><td>以 <code>cli_</code> 开头</td><td><code>cli_a1b2c3d4xxxx</code></td></tr>
+            <tr><td>App Secret</td><td>点击显示</td><td><code>xxxxxxxxxxxxxxxx</code></td></tr>
+          </table>
+          <div class="tip danger">App Secret 只显示一次，请妥善保存！</div>
+        </div>
+      </div>
+
+      <!-- 步骤2 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">2</span>
+          <span class="step-title">配置应用权限</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>点击左侧菜单「权限管理」</li>
+            <li>搜索并开通以下 <strong>2 个权限</strong>（免审权限）：</li>
+          </ol>
+          <table>
+            <tr><th>权限名称</th><th>权限标识</th><th>用途</th></tr>
+            <tr><td>多维表格</td><td><code>bitable:app</code></td><td>读写多维表格（必须）</td></tr>
+            <tr><td>上传文件</td><td><code>drive:file:upload</code></td><td>上传 MD 附件时需要</td></tr>
+          </table>
+          <p>点击「批量开通」完成授权。</p>
+        </div>
+      </div>
+
+      <!-- 步骤3 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">3</span>
+          <span class="step-title">发布应用</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>点击左侧菜单「版本管理与发布」</li>
+            <li>点击「创建版本」，填写版本号（如 <code>1.0.0</code>）</li>
+            <li>点击「申请发布」，选择发布范围</li>
+            <li>等待审核通过（管理员可直接审核）</li>
+          </ol>
+          <div class="tip">应用状态变为「已启用」后才能使用</div>
+        </div>
+      </div>
+
+      <!-- 步骤4 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">4</span>
+          <span class="step-title">创建多维表格</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>打开 <a href="https://www.feishu.cn/drive" target="_blank">飞书文档</a></li>
+            <li>点击「新建」→「多维表格」</li>
+            <li>输入表格名称（如 <code>LinuxDo 收藏</code>）</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- 步骤5 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">5</span>
+          <span class="step-title">创建必需字段（7个）</span>
+        </div>
+        <div class="step-content">
+          <p>在数据表中创建以下字段，<strong>名称和类型必须完全一致</strong>：</p>
+          <table class="field-table">
+            <tr><th>序号</th><th>字段名</th><th>字段类型</th><th>说明</th></tr>
+            <tr><td>1</td><td>标题</td><td>文本</td><td>帖子标题</td></tr>
+            <tr><td>2</td><td>链接</td><td>超链接</td><td>帖子 URL（可点击）</td></tr>
+            <tr><td>3</td><td>作者</td><td>文本</td><td>发帖人</td></tr>
+            <tr><td>4</td><td>保存时间</td><td>日期</td><td>自动记录时间</td></tr>
+            <tr><td>5</td><td>评论数</td><td>数字</td><td>评论条数</td></tr>
+            <tr><td>6</td><td>附件</td><td>附件</td><td>MD 文件</td></tr>
+            <tr><td>7</td><td>正文</td><td>文本</td><td>内容摘要</td></tr>
+          </table>
+          <div class="tip danger">「链接」必须是<strong>超链接</strong>类型，不是文本！</div>
+        </div>
+      </div>
+
+      <!-- 步骤6 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">6</span>
+          <span class="step-title">添加应用为协作者</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>在多维表格页面，点击右上角「分享」</li>
+            <li>搜索你创建的应用名称</li>
+            <li>权限设置为「可编辑」</li>
+            <li>点击「确定」</li>
+          </ol>
+          <div class="tip danger">这一步非常重要！否则应用无法访问表格。</div>
+        </div>
+      </div>
+
+      <!-- 步骤7 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">7</span>
+          <span class="step-title">获取 app_token 和 table_id</span>
+        </div>
+        <div class="step-content">
+          <p>打开多维表格，从浏览器地址栏 URL 中提取：</p>
+          <div class="url-box">
+            <div class="label">URL 格式：</div>
+            https://xxx.feishu.cn/base/<span class="highlight">VwGKbWxQXaKDxxxx</span>?table=<span class="highlight">tblABC1xxxx</span>&view=vewDEFxxxx<br><br>
+            <div class="label">提取结果：</div>
+            app_token: <span class="highlight">VwGKbWxQXaKDxxxx</span> （/base/ 后面到 ? 之前）<br>
+            table_id: <span class="highlight">tblABC1xxxx</span> （?table= 后面，以 tbl 开头）
+          </div>
+          <div class="tip info">
+            <strong>注意区分：</strong><br>
+            - app_token：整个多维表格文档的标识<br>
+            - table_id：当前数据表的标识（以 <code>tbl</code> 开头）
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤8 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">8</span>
+          <span class="step-title">配置浏览器插件</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>打开插件配置页面（右键插件图标 → 选项）</li>
+            <li>勾选「保存到飞书多维表格」</li>
+            <li>填写配置信息：</li>
+          </ol>
+          <table>
+            <tr><th>配置项</th><th>填写内容</th></tr>
+            <tr><td>API 版本</td><td>飞书（国内版）或 Lark（国际版）</td></tr>
+            <tr><td>App ID</td><td>步骤 1 获取的 App ID</td></tr>
+            <tr><td>App Secret</td><td>步骤 1 获取的 App Secret</td></tr>
+            <tr><td>多维表格 Token</td><td>步骤 7 获取的 app_token</td></tr>
+            <tr><td>数据表 ID</td><td>步骤 7 获取的 table_id</td></tr>
+          </table>
+          <p>点击「保存设置」。</p>
+        </div>
+      </div>
+
+      <!-- 步骤9 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">9</span>
+          <span class="step-title">测试连接</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>点击「测试连接」按钮</li>
+            <li>成功后显示字段验证通过和记录数</li>
+            <li>打开 LinuxDo 帖子，单击链接按钮测试保存</li>
+          </ol>
+          <div class="tip success">配置完成！现在可以一键保存帖子到飞书了。</div>
+        </div>
+      </div>
+
+      <!-- 重要提示 -->
+      <div class="tip danger" style="margin: 30px 0; padding: 20px;">
+        <strong style="font-size: 16px;">关于评论保存的重要说明</strong><br><br>
+        由于浏览器技术限制，插件<strong>只能获取当前页面已加载的评论</strong>。<br><br>
+        <strong>如果帖子评论较多：</strong><br>
+        1. 保存前请先<strong>滚动页面</strong>，加载更多评论<br>
+        2. 插件只能抓取已经显示在页面上的评论<br>
+        3. 未加载的评论（需要点击"加载更多"或滚动才能显示的）无法被获取<br><br>
+        <strong>建议：</strong>保存前滚动到页面底部，确保所需评论已加载。
+      </div>
+
+      <!-- 配置检查清单 -->
+      <div class="checklist">
+        <h3>配置检查清单</h3>
+        <label><input type="checkbox"> 创建了飞书自建应用</label>
+        <label><input type="checkbox"> 获取了 App ID 和 App Secret</label>
+        <label><input type="checkbox"> 开通了 2 个必需权限</label>
+        <label><input type="checkbox"> 发布了应用（状态为「已启用」）</label>
+        <label><input type="checkbox"> 创建了多维表格和 7 个字段</label>
+        <label><input type="checkbox"> 将应用添加为协作者（可编辑）</label>
+        <label><input type="checkbox"> 正确获取了 app_token 和 table_id</label>
+        <label><input type="checkbox"> 在插件中填写了配置信息</label>
+        <label><input type="checkbox"> 测试连接成功</label>
+      </div>
+
+      <!-- FAQ -->
+      <div class="faq">
+        <h3 style="margin-bottom: 15px; font-size: 18px;">常见问题</h3>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 提示「App ID 或 App Secret 错误」</div>
+          <div class="faq-a">检查凭证是否正确复制，App ID 必须以 <code>cli_</code> 开头。</div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 提示「多维表格不存在」或「数据表不存在」</div>
+          <div class="faq-a">重新从 URL 提取 app_token 和 table_id，注意 table_id 以 <code>tbl</code> 开头。</div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 提示「没有权限访问」</div>
+          <div class="faq-a">检查是否将应用添加为多维表格的协作者（可编辑权限）。</div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 提示「缺失字段」或「字段类型错误」</div>
+          <div class="faq-a">检查 7 个字段名称和类型是否完全一致，特别是「链接」必须是超链接类型。</div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 评论保存不完整？</div>
+          <div class="faq-a">浏览器只能获取已加载的内容。保存前请先滚动页面，加载更多评论。</div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 飞书国内版和 Lark 国际版的区别？</div>
+          <div class="faq-a">国内版域名 feishu.cn，国际版域名 larksuite.com，根据账号类型选择。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>
+        <a href="index.html">返回首页</a> |
+        <a href="notion-guide.html">Notion 配置指南</a> |
+        <a href="https://github.com/AchengBusiness/discourse-saver" target="_blank">GitHub</a> |
+        <a href="https://linux.do" target="_blank">LinuxDo</a> |
+        <a href="https://www.feishu.cn" target="_blank">飞书</a>
+      </p>
+      <p style="margin-top: 10px;">Discourse Saver V4.2.3</p>
+    </div>
+  </div>
+</body>
+</html>

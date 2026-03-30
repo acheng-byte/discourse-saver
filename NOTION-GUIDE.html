@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notion Database 配置指南 - Discourse Saver</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #000, #333);
+      color: #fff;
+      padding: 30px;
+      text-align: center;
+    }
+    .header h1 { font-size: 28px; margin-bottom: 8px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    .content { padding: 30px; }
+    .step {
+      margin-bottom: 30px;
+      border: 1px solid #e8e8e8;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .step-header {
+      background: #f8f9fa;
+      padding: 15px 20px;
+      border-bottom: 1px solid #e8e8e8;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .step-num {
+      background: #000;
+      color: #fff;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .step-title { font-weight: 600; font-size: 16px; }
+    .step-content { padding: 20px; }
+    .step-content p { margin-bottom: 12px; }
+    .step-content ul, .step-content ol { margin-left: 20px; margin-bottom: 12px; }
+    .step-content li { margin-bottom: 6px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #e8e8e8;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    th { background: #f8f9fa; font-weight: 600; }
+    code {
+      background: #f1f3f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: "SF Mono", Monaco, monospace;
+      font-size: 13px;
+      color: #d63384;
+    }
+    .url-box {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 13px;
+      overflow-x: auto;
+      margin: 15px 0;
+    }
+    .url-box .highlight { color: #4fc3f7; }
+    .url-box .label { color: #9e9e9e; font-size: 12px; }
+    .tip {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 12px 15px;
+      margin: 15px 0;
+      border-radius: 0 6px 6px 0;
+      font-size: 14px;
+    }
+    .tip.danger {
+      background: #f8d7da;
+      border-color: #dc3545;
+    }
+    .tip.success {
+      background: #d4edda;
+      border-color: #28a745;
+    }
+    .tip.info {
+      background: #e7f3ff;
+      border-color: #000;
+    }
+    .field-table td:nth-child(2) { font-weight: 600; color: #000; }
+    .checklist {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .checklist h3 { margin-bottom: 15px; font-size: 16px; }
+    .checklist label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    .checklist input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #000;
+    }
+    .faq { margin-top: 30px; }
+    .faq-item {
+      border-bottom: 1px solid #e8e8e8;
+      padding: 15px 0;
+    }
+    .faq-item:last-child { border-bottom: none; }
+    .faq-q { font-weight: 600; color: #000; margin-bottom: 8px; }
+    .faq-a { color: #666; font-size: 14px; }
+    .footer {
+      text-align: center;
+      padding: 20px;
+      background: #f8f9fa;
+      color: #666;
+      font-size: 13px;
+    }
+    .footer a { color: #000; text-decoration: none; }
+    @media (max-width: 600px) {
+      body { padding: 10px; }
+      .header { padding: 20px; }
+      .header h1 { font-size: 22px; }
+      .content { padding: 15px; }
+      .step-content { padding: 15px; }
+      table { font-size: 12px; }
+      th, td { padding: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Notion Database 配置指南</h1>
+      <p>Discourse Saver V4.2.3 | 一键保存帖子到 Notion</p>
+    </div>
+
+    <div class="content">
+      <!-- 步骤1 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">1</span>
+          <span class="step-title">创建 Notion Integration</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>打开 <a href="https://www.notion.so/profile/integrations/internal" target="_blank">Notion Internal Integrations</a></li>
+            <li>点击 <strong>「+ New integration」</strong></li>
+            <li>填写 Integration 名称（如 <code>Discourse Saver</code>）</li>
+            <li>选择关联的 Workspace</li>
+            <li>点击 <strong>「Submit」</strong> 创建</li>
+            <li>创建成功后，复制 <strong>Internal Integration Secret</strong></li>
+          </ol>
+          <table>
+            <tr><th>字段</th><th>说明</th><th>示例</th></tr>
+            <tr><td>Integration Token</td><td>以 <code>ntn_</code> 或 <code>secret_</code> 开头</td><td><code>ntn_xxx...</code> 或 <code>secret_xxx...</code></td></tr>
+          </table>
+          <div class="tip info">
+            <strong>Token 格式说明：</strong><br>
+            • 2024年9月后创建的 Integration：Token 以 <code>ntn_</code> 开头（新格式）<br>
+            • 2024年9月前创建的 Integration：Token 以 <code>secret_</code> 开头（旧格式）<br>
+            两种格式都有效，插件均支持。
+          </div>
+          <div class="tip danger">Token 非常重要，请妥善保存！不要分享给他人。</div>
+        </div>
+      </div>
+
+      <!-- 步骤2 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">2</span>
+          <span class="step-title">创建 Notion Database</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>打开 Notion，新建一个页面</li>
+            <li>输入 <code>/database</code> 选择 <strong>「Database - Full page」</strong></li>
+            <li>输入 Database 名称（如 <code>Discourse 收藏</code>）</li>
+          </ol>
+          <div class="tip info">
+            <strong>提示：</strong>也可以使用现有的 Database，只需确保有正确的属性类型。
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤3 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">3</span>
+          <span class="step-title">配置 Database 属性</span>
+        </div>
+        <div class="step-content">
+          <p>在 Database 中创建以下属性，<strong>类型必须匹配</strong>：</p>
+          <table class="field-table">
+            <tr><th>属性名（推荐）</th><th>属性类型</th><th>必填</th><th>用途</th></tr>
+            <tr><td><strong>标题</strong></td><td>Title（标题）</td><td>✅</td><td>帖子标题</td></tr>
+            <tr><td><strong>链接</strong></td><td>URL</td><td>✅</td><td>帖子链接</td></tr>
+            <tr><td>作者</td><td>Rich Text（文本）</td><td></td><td>发帖人</td></tr>
+            <tr><td>分类</td><td>Rich Text 或 Select</td><td></td><td>分类</td></tr>
+            <tr><td>保存日期</td><td>Date（日期）</td><td></td><td>保存时间</td></tr>
+            <tr><td>评论数</td><td>Number（数字）</td><td></td><td>评论数</td></tr>
+          </table>
+          <div class="tip">
+            <strong>V4.0.2 更新：插件默认使用中文属性名！</strong><br>
+            按上表创建属性即可，无需额外配置。<br>
+            如果使用英文属性名，请在插件设置中修改对应的属性映射。
+          </div>
+          <div class="tip danger">
+            <strong>类型必须正确！</strong><br>
+            - Title（标题）属性是每个 Database 必须有的，用于存储帖子标题<br>
+            - URL 属性必须是 URL 类型，不是 Text<br>
+            - Date 属性必须是 Date 类型<br>
+            - Number 属性必须是 Number 类型
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤4 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">4</span>
+          <span class="step-title">将 Integration 连接到 Database</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>打开你创建的 Database 页面</li>
+            <li>点击右上角 <strong>「...」</strong> 菜单</li>
+            <li>选择 <strong>「+ Add connections」</strong></li>
+            <li>搜索并选择你创建的 Integration（如 <code>Discourse Saver</code>）</li>
+            <li>点击 <strong>「Confirm」</strong> 确认连接</li>
+          </ol>
+          <div class="tip danger">
+            <strong>这一步非常重要！</strong><br>
+            如果不将 Integration 连接到 Database，会出现 403 权限错误。
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤5 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">5</span>
+          <span class="step-title">获取 Database ID</span>
+        </div>
+        <div class="step-content">
+          <p>打开 Database 页面，从浏览器地址栏 URL 中提取 Database ID：</p>
+          <div class="url-box">
+            <div class="label">URL 格式解析：</div>
+            https://www.notion.so/<span class="highlight">a1b2c3d4e5f67890a1b2c3d4e5f67890</span>?v=<span style="color:#9e9e9e;">xxxxxxxxxxxxxxxxxxxx</span><br><br>
+            <div class="label">或者带有 Workspace 名称：</div>
+            https://www.notion.so/workspace/<span class="highlight">a1b2c3d4e5f67890a1b2c3d4e5f67890</span>?v=<span style="color:#9e9e9e;">xxxxxxxxxxxxxxxxxxxx</span><br><br>
+            <div class="label" style="color:#4fc3f7;">✅ Database ID（要复制这个）：</div>
+            <span class="highlight">a1b2c3d4e5f67890a1b2c3d4e5f67890</span>（32位十六进制，在 <code>?v=</code> 之前）<br><br>
+            <div class="label" style="color:#9e9e9e;">❌ View ID（不要复制这个）：</div>
+            <span style="color:#9e9e9e;">xxxxxxxxxxxxxxxxxxxx</span>（<code>?v=</code> 后面的部分，是视图 ID，不是 Database ID）
+          </div>
+          <div class="tip danger">
+            <strong>常见错误：复制了 View ID 而非 Database ID</strong><br>
+            如果你的 URL 是 <code>https://www.notion.so/3238a9c62f968048a2bbc2c82cc10e75?v=3238a9c62f9680bba9fb000c3163a72d</code><br>
+            • ✅ 正确的 Database ID：<code>3238a9c62f968048a2bbc2c82cc10e75</code><br>
+            • ❌ 错误（View ID）：<code>3238a9c62f9680bba9fb000c3163a72d</code>
+          </div>
+          <div class="tip info">
+            <strong>格式说明：</strong><br>
+            - Database ID 是 URL 中 <code>?v=</code> 之前的 32 位十六进制字符串<br>
+            - 带连字符的格式（如 <code>a1b2c3d4-e5f6-7890-a1b2-c3d4e5f67890</code>）也可以使用<br>
+            - View ID 是用于保存表格视图设置的，不需要填入插件配置
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤6 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">6</span>
+          <span class="step-title">配置浏览器插件</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>打开插件配置页面（右键插件图标 → 选项）</li>
+            <li>勾选 <strong>「保存到 Notion Database」</strong></li>
+            <li>填写配置信息：</li>
+          </ol>
+          <table>
+            <tr><th>配置项</th><th>填写内容</th></tr>
+            <tr><td>Integration Token</td><td>步骤 1 获取的 Token（以 <code>ntn_</code> 或 <code>secret_</code> 开头）</td></tr>
+            <tr><td>Database ID</td><td>步骤 5 获取的 32 位 ID</td></tr>
+            <tr><td>属性映射</td><td>填写你 Database 中对应属性的名称</td></tr>
+          </table>
+          <div class="tip">
+            <strong>属性映射说明：</strong><br>
+            如果你的 Database 属性名是中文（如「标题」「链接」），<br>
+            请在对应的映射框中填写中文名称，确保完全匹配。
+          </div>
+          <p>点击 <strong>「保存设置」</strong>。</p>
+        </div>
+      </div>
+
+      <!-- 步骤7 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">7</span>
+          <span class="step-title">测试连接</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>点击 <strong>「测试连接」</strong> 按钮</li>
+            <li>成功后显示「连接成功」</li>
+            <li>打开 Discourse 论坛帖子，点击链接按钮测试保存</li>
+          </ol>
+          <div class="tip success">配置完成！现在可以一键保存帖子到 Notion 了。</div>
+        </div>
+      </div>
+
+      <!-- 重要提示 -->
+      <div class="tip danger" style="margin: 30px 0; padding: 20px;">
+        <strong style="font-size: 16px;">关于评论保存的重要说明</strong><br><br>
+        由于浏览器技术限制，插件<strong>只能获取当前页面已加载的评论</strong>。<br><br>
+        <strong>如果帖子评论较多：</strong><br>
+        1. 保存前请先<strong>滚动页面</strong>，加载更多评论<br>
+        2. 插件只能抓取已经显示在页面上的评论<br>
+        3. 未加载的评论（需要点击"加载更多"或滚动才能显示的）无法被获取<br><br>
+        <strong>建议：</strong>保存前滚动到页面底部，确保所需评论已加载。
+      </div>
+
+      <!-- 配置检查清单 -->
+      <div class="checklist">
+        <h3>配置检查清单</h3>
+        <label><input type="checkbox"> 创建了 Notion Integration</label>
+        <label><input type="checkbox"> 复制了 Integration Token（以 ntn_ 或 secret_ 开头）</label>
+        <label><input type="checkbox"> 创建了 Database 并配置了正确的属性类型</label>
+        <label><input type="checkbox"> 将 Integration 连接到 Database</label>
+        <label><input type="checkbox"> 正确获取了 Database ID（32位十六进制）</label>
+        <label><input type="checkbox"> 在插件中填写了 Token 和 Database ID</label>
+        <label><input type="checkbox"> 属性映射与 Database 属性名完全匹配</label>
+        <label><input type="checkbox"> 测试连接成功</label>
+      </div>
+
+      <!-- FAQ -->
+      <div class="faq">
+        <h3 style="margin-bottom: 15px; font-size: 18px;">常见问题</h3>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 提示「Integration Token 无效」(401 错误)</div>
+          <div class="faq-a">
+            检查 Token 是否正确复制，必须以 <code>ntn_</code> 或 <code>secret_</code> 开头。<br>
+            • 2024年9月后创建的 Integration：Token 以 <code>ntn_</code> 开头<br>
+            • 2024年9月前创建的 Integration：Token 以 <code>secret_</code> 开头<br>
+            确认 Token 没有过期或被删除。如果不确定，可以重新创建一个 Integration。
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 提示「无权限访问该 Database」(403 错误)</div>
+          <div class="faq-a">
+            最常见的原因是<strong>没有将 Integration 连接到 Database</strong>。<br>
+            请参考步骤 4，在 Database 页面添加 Integration 连接。
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 提示「Database 不存在」(404 错误)</div>
+          <div class="faq-a">
+            检查 Database ID 是否正确，应该是 32 位十六进制字符。<br>
+            确认 Database 没有被删除或移动到其他 Workspace。
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 提示「属性映射错误」(400 错误)</div>
+          <div class="faq-a">
+            检查插件中的属性名是否与 Database 中的属性名<strong>完全一致</strong>（区分大小写）。<br>
+            确认属性类型正确：URL 属性必须是 URL 类型，Date 属性必须是 Date 类型。
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 提示「请求过于频繁」(429 错误)</div>
+          <div class="faq-a">
+            Notion API 有速率限制。请稍等几秒钟后重试。<br>
+            如果频繁出现此错误，请降低保存频率。
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 插件默认使用什么属性名？</div>
+          <div class="faq-a">
+            <strong>V4.0.2 起默认使用中文属性名：</strong><br>
+            标题、链接、作者、分类、保存日期、评论数<br>
+            按照教程创建中文属性名即可，无需额外配置。<br>
+            如果你的 Database 使用英文属性名，请在插件设置中修改属性映射。
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 内容保存在哪里？</div>
+          <div class="faq-a">
+            帖子内容会保存到 Notion 页面的正文区域（Page Content），<br>
+            而不是保存到某个属性中。你可以在 Database 中点击任意条目查看完整内容。
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 和 Obsidian、飞书保存冲突吗？</div>
+          <div class="faq-a">
+            <strong>不冲突！</strong>三个保存目标完全独立。<br>
+            你可以同时启用 Obsidian、飞书和 Notion，一键保存到多个平台。<br>
+            任何一个平台保存失败不会影响其他平台。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>
+        <a href="https://github.com/AchengBusiness/discourse-saver" target="_blank">GitHub</a> |
+        <a href="https://linux.do" target="_blank">LinuxDo</a> |
+        <a href="https://www.notion.so" target="_blank">Notion</a>
+      </p>
+      <p style="margin-top: 10px;">Discourse Saver V4.2.3</p>
+    </div>
+  </div>
+</body>
+</html>

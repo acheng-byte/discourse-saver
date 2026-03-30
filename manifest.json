@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Discourse Saver",
+  "version": "4.3.9",
+  "description": "通用Discourse论坛内容保存工具 - 支持全球数百个Discourse站点（LinuxDo、Rust Users、Docker等），一键保存到Obsidian/飞书/Notion",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://open.feishu.cn/*",
+    "https://open.larksuite.com/*",
+    "https://api.notion.com/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["detector.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
