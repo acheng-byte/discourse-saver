@@ -1,4 +1,4 @@
-// Discourse Saver - Content Script V4.3.9
+// Discourse Saver - Content Script V4.3.10
 // 劫持链接按钮，保存帖子+评论到Obsidian（保留颜色样式）
 // V3.5: 支持同时保存到飞书多维表格（带MD附件）
 // V3.5.1: 单击保存到Obsidian，双击触发原生复制链接
@@ -36,7 +36,7 @@
   console.log('[Discourse Saver] content.js 开始执行，URL:', location.href);
 
   // 防止重复执行（扩展重新加载后版本号会变，允许重新注入）
-  const CONTENT_SCRIPT_VERSION = '4.3.9';
+  const CONTENT_SCRIPT_VERSION = '4.3.10';
   if (window.__discourseSaverVersion === CONTENT_SCRIPT_VERSION) {
     console.log('[Discourse Saver] content.js 已在运行（同版本），跳过');
     return;
@@ -154,13 +154,18 @@
   // 用于并行执行飞书和 Notion 保存操作
   function sendMessageAsync(message) {
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage(message, (response) => {
-        if (chrome.runtime.lastError) {
-          resolve({ success: false, error: chrome.runtime.lastError.message });
-        } else {
-          resolve(response || { success: false, error: '未收到响应' });
-        }
-      });
+      try {
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            resolve({ success: false, error: chrome.runtime.lastError.message });
+          } else {
+            resolve(response || { success: false, error: '未收到响应' });
+          }
+        });
+      } catch (err) {
+        // 扩展上下文失效时 sendMessage 会抛出同步异常
+        resolve({ success: false, error: '扩展上下文已失效: ' + err.message });
+      }
     });
   }
 
@@ -415,6 +420,12 @@
   function fallbackTriggerCopyLink(target) {
     console.log('[Discourse Saver] 使用回退方法触发原生复制链接');
 
+    // 检查目标元素是否仍在 DOM 中
+    if (!document.contains(target)) {
+      console.warn('[Discourse Saver] 回退目标已从 DOM 移除，跳过');
+      return;
+    }
+
     // 临时标记，让下一次点击通过
     target.setAttribute('data-linuxdo-obsidian-bypass', 'true');
 
@@ -426,9 +437,11 @@
     });
     target.dispatchEvent(clickEvent);
 
-    // 移除标记
+    // 移除标记（检查元素仍存在）
     setTimeout(() => {
-      target.removeAttribute('data-linuxdo-obsidian-bypass');
+      if (document.contains(target)) {
+        target.removeAttribute('data-linuxdo-obsidian-bypass');
+      }
     }, 100);
 
     showNotification('已触发复制链接', 'success');
@@ -448,7 +461,7 @@
     const contentHTML = contentElement.innerHTML;
     const url = window.location.href;
     const author = authorElement ? authorElement.textContent.trim() : '未知作者';
-    const topicId = window.location.pathname.match(/\/t\/[^/]+\/(\d+)/)?.[1];
+    const topicId = window.location.pathname.match(/\/t\/[^/]+\/(\d+)/)?.[1] || null;
 
     // V4.3.7: 提取分类信息
     let category = '';
@@ -1937,19 +1950,29 @@ tags: [${tagsStr}]
                 : `${safeFileName}.html`;
 
               // 通过 background.js 下载（支持自定义路径）
-              chrome.runtime.sendMessage({
-                action: 'downloadHtml',
-                filename: fullFileName,
-                content: htmlContent
-              }, response => {
-                if (response?.success) {
-                  showNotification('HTML 文件已导出', 'success');
-                  console.log('[Discourse Saver] HTML 文件导出成功');
-                } else {
-                  showNotification('HTML 导出失败: ' + (response?.error || '未知错误'), 'error');
-                  console.error('[Discourse Saver] HTML 导出失败:', response?.error);
-                }
-              });
+              try {
+                chrome.runtime.sendMessage({
+                  action: 'downloadHtml',
+                  filename: fullFileName,
+                  content: htmlContent
+                }, response => {
+                  if (chrome.runtime.lastError) {
+                    console.error('[Discourse Saver] HTML 导出消息发送失败:', chrome.runtime.lastError.message);
+                    showNotification('HTML 导出失败: 扩展通信错误', 'error');
+                    return;
+                  }
+                  if (response?.success) {
+                    showNotification('HTML 文件已导出', 'success');
+                    console.log('[Discourse Saver] HTML 文件导出成功');
+                  } else {
+                    showNotification('HTML 导出失败: ' + (response?.error || '未知错误'), 'error');
+                    console.error('[Discourse Saver] HTML 导出失败:', response?.error);
+                  }
+                });
+              } catch (sendErr) {
+                console.error('[Discourse Saver] HTML 导出消息发送异常:', sendErr);
+                showNotification('HTML 导出失败: 扩展上下文已失效', 'error');
+              }
             } else {
               console.error('[Discourse Saver] HTML 转换失败');
               showNotification('HTML 导出失败：转换错误', 'error');
@@ -2210,6 +2233,8 @@ tags: [${tagsStr}]
               console.error('[Discourse Saver] 保存任务异常:', result.reason);
             }
           });
+        }).catch(err => {
+          console.error('[Discourse Saver] 并行保存处理异常:', err);
         });
       }
 
@@ -3916,7 +3941,13 @@ tags: [${tagsStr}]
   // 初始化
   async function init() {
     // 检查插件是否启用
-    const config = await chrome.storage.sync.get({ pluginEnabled: true });
+    let config;
+    try {
+      config = await chrome.storage.sync.get({ pluginEnabled: true });
+    } catch (err) {
+      console.warn('[Discourse Saver] 读取存储失败（扩展上下文可能已失效）:', err.message);
+      return;
+    }
     if (!config.pluginEnabled) {
       console.log('[Discourse Saver] 插件已禁用');
       return;
@@ -3944,15 +3975,27 @@ tags: [${tagsStr}]
     console.log('[Discourse Saver] 插件已加载 (V3.6.0)');
   }
 
+  // 并发保护：防止多个 initWithRetry 同时运行
+  let initRetryRunning = false;
+
   // 页面加载完成后初始化（带重试，防止 SPA 渲染延迟导致检测失败）
   async function initWithRetry(retries = 5, delay = 500) {
-    for (let i = 0; i < retries; i++) {
-      await init();
-      if (pluginInitialized) return; // 初始化成功
-      // 等待后重试（页面可能还在渲染）
-      await new Promise(r => setTimeout(r, delay));
+    if (initRetryRunning) {
+      console.log('[Discourse Saver] initWithRetry 已在运行，跳过');
+      return;
     }
-    console.log('[Discourse Saver] 多次重试后仍未初始化（可能非帖子页面）');
+    initRetryRunning = true;
+    try {
+      for (let i = 0; i < retries; i++) {
+        await init();
+        if (pluginInitialized) return; // 初始化成功
+        // 等待后重试（页面可能还在渲染）
+        await new Promise(r => setTimeout(r, delay));
+      }
+      console.log('[Discourse Saver] 多次重试后仍未初始化（可能非帖子页面）');
+    } finally {
+      initRetryRunning = false;
+    }
   }
 
   if (document.readyState === 'loading') {
@@ -3965,15 +4008,28 @@ tags: [${tagsStr}]
 
   // 监听页面导航（单页应用）
   let lastUrl = location.href;
-  new MutationObserver(() => {
+  const spaObserver = new MutationObserver(() => {
     const url = location.href;
     if (url !== lastUrl) {
       lastUrl = url;
       console.log('[Discourse Saver] 检测到页面导航:', url);
+      // 清除残留的 linkClickTimer（BUG-6: 防止在错误页面执行保存）
+      if (linkClickTimer) {
+        clearTimeout(linkClickTimer);
+        linkClickTimer = null;
+        linkClickCount = 0;
+        lastLinkPostNumber = null;
+      }
       // 页面导航时重置初始化状态，允许重新初始化
       pluginInitialized = false;
       initWithRetry(5, 500).catch(err => console.error('[Discourse Saver] SPA导航后初始化异常:', err));
     }
-  }).observe(document, { subtree: true, childList: true });
+  });
+  spaObserver.observe(document, { subtree: true, childList: true });
+
+  // 页面卸载时断开 MutationObserver（防止内存泄漏）
+  window.addEventListener('pagehide', () => {
+    spaObserver.disconnect();
+  });
 
 })();
