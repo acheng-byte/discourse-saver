@@ -717,7 +717,7 @@ function setLanguage(lang) {
   }
 
   // 更新语言切换按钮状态
-  document.querySelectorAll('.language-toggle button').forEach(btn => {
+  document.querySelectorAll('.toggle-group button[data-lang]').forEach(btn => {
     btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
   });
 }
