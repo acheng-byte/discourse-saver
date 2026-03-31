@@ -176,6 +176,13 @@
   function isLinkButton(element) {
     if (!element) return { isLink: false, postNumber: null };
 
+    // 安全获取 className（SVG 元素的 className 是 SVGAnimatedString 对象）
+    function safeClassName(el) {
+      if (!el) return '';
+      if (typeof el.className === 'string') return el.className;
+      return el.getAttribute('class') || '';
+    }
+
     // 必须在帖子页面上
     if (!isTopicPage()) {
       return { isLink: false, postNumber: null };
@@ -187,55 +194,59 @@
       return { isLink: false, postNumber: null };
     }
 
-    // 必须在帖子操作区域内（.post-controls 或 .post-menu-area 或类似区域）
+    // 必须在帖子操作区域内
     const controlsArea = element.closest('.post-controls, .post-menu-area, .actions, nav.post-controls');
     if (!controlsArea) {
       return { isLink: false, postNumber: null };
     }
 
     // 收集元素属性用于检测
-    // 注意：SVG 元素的 className 是 SVGAnimatedString 对象，不是字符串
-    const className = (typeof element.className === 'string') ? element.className : (element.getAttribute('class') || '');
+    const className = safeClassName(element);
     const dataShareUrl = element.getAttribute('data-share-url');
-    const title = element.title || '';
-    const ariaLabel = element.getAttribute('aria-label') || '';
+    const title = (element.title || '').toLowerCase();
+    const ariaLabel = (element.getAttribute('aria-label') || '').toLowerCase();
 
-    // LinuxDo/Discourse 分享按钮的关键特征（通过浏览器检查确认）：
-    // 最可靠特征: class="post-action-menu__copy-link"
-    // 次要特征: title="copy a link to this post to clipboard" 或中文版
+    // 检测特征
     const hasCopyLinkClass = className.includes('post-action-menu__copy-link') ||
                               className.includes('copy-link');
     const hasShareUrl = dataShareUrl !== null && dataShareUrl !== '';
     const hasShareClass = className.includes('share');
-    const hasShareTitle = title.includes('将此帖子的链接复制到剪贴板') ||
-                          title.includes('复制到剪贴板') ||
-                          title.includes('链接') ||
-                          title.toLowerCase().includes('copy a link') ||
-                          title.toLowerCase().includes('copy') ||
-                          title.toLowerCase().includes('share');
-    const hasShareAria = ariaLabel.includes('链接') ||
-                         ariaLabel.includes('复制') ||
-                         ariaLabel.includes('分享') ||
-                         ariaLabel.toLowerCase().includes('share') ||
-                         ariaLabel.toLowerCase().includes('copy');
+    const hasLinkTitle = title.includes('链接') || title.includes('复制') ||
+                         title.includes('copy') || title.includes('share') ||
+                         title.includes('剪贴板');
+    const hasLinkAria = ariaLabel.includes('链接') || ariaLabel.includes('复制') ||
+                        ariaLabel.includes('分享') || ariaLabel.includes('share') ||
+                        ariaLabel.includes('copy');
 
-    // 判断是否为链接/分享按钮（优先检测最可靠的特征）
-    const isLinkLike = hasCopyLinkClass || hasShareUrl || hasShareClass || hasShareTitle || hasShareAria;
+    // SVG 图标特征检测（Discourse 用 d-icon-d-post-share / d-icon-link 等）
+    const svg = element.querySelector('svg') || (element.tagName === 'svg' ? element : null);
+    let hasSvgShareIcon = false;
+    if (svg) {
+      const svgClass = safeClassName(svg);
+      const useHref = svg.querySelector('use')?.getAttribute('href') ||
+                      svg.querySelector('use')?.getAttribute('xlink:href') || '';
+      hasSvgShareIcon = svgClass.includes('d-post-share') || svgClass.includes('d-icon-link') ||
+                        svgClass.includes('share') || svgClass.includes('link') ||
+                        useHref.includes('share') || useHref.includes('link') ||
+                        useHref.includes('copy');
+    }
 
-    // 如果不像链接按钮，返回 false
+    const isLinkLike = hasCopyLinkClass || hasShareUrl || hasShareClass ||
+                       hasLinkTitle || hasLinkAria || hasSvgShareIcon;
+
     if (!isLinkLike) {
       return { isLink: false, postNumber: null };
     }
 
-    // 获取楼层号 - 必须从 .topic-post 元素获取（不是 article）
-    // 因为 article[data-post-id] 没有 data-post-number，楼层号在外层 .topic-post 上
+    // 获取楼层号
     const topicPost = element.closest('.topic-post');
     const postNumber = topicPost?.getAttribute('data-post-number') ||
                        postContainer.getAttribute('data-post-number') ||
                        postContainer.querySelector('[data-post-number]')?.getAttribute('data-post-number') ||
                        '1';
 
-    console.log('[Discourse Saver] 检测到链接按钮，楼层:', postNumber);
+    console.log('[Discourse Saver] 检测到链接按钮，楼层:', postNumber,
+                '特征:', { hasCopyLinkClass, hasShareUrl, hasShareClass, hasLinkTitle, hasLinkAria, hasSvgShareIcon });
     return { isLink: true, postNumber: postNumber };
   }
 
@@ -260,19 +271,27 @@
 
     document.addEventListener('click', (e) => {
       try {
-        // V3.5.8: 简化检测 - 直接从点击元素向上查找 button
-        // Discourse 的按钮结构: button > svg，点击 svg 时需要找到 button
+        // 从点击元素向上查找 button 或 a
         let target = e.target.closest('button');
-
-        // 如果没找到 button，也检查 a 标签
         if (!target) {
           target = e.target.closest('a');
         }
 
-        // V3.5.3.1: 检查是否有bypass标记（用于触发原生复制链接）
-        if (target?.hasAttribute('data-linuxdo-obsidian-bypass')) {
+        if (!target) return; // 不是按钮/链接点击，直接放行
+
+        // 诊断日志：只在帖子操作区域内的按钮才输出（避免刷屏）
+        const inControls = target.closest('.post-controls, .post-menu-area, nav.post-controls');
+        if (inControls) {
+          const cls = (typeof target.className === 'string') ? target.className : (target.getAttribute('class') || '');
+          console.log('[Discourse Saver] 捕获到操作区点击，target:', target.tagName,
+                      'class:', cls.substring(0, 80),
+                      'title:', (target.title || '').substring(0, 40));
+        }
+
+        // bypass 标记放行
+        if (target.hasAttribute('data-linuxdo-obsidian-bypass')) {
           console.log('[Discourse Saver] 检测到bypass标记，放行原生点击');
-          return; // 不拦截，让原生事件通过
+          return;
         }
 
         const linkResult = isLinkButton(target);
