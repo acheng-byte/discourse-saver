@@ -97,7 +97,11 @@ const DEFAULT_CONFIG = {
   floorFrom: 1,
   floorTo: 100,
 
-  // 媒体文件夹名称
+  // 下载图片/视频到Vault
+  downloadImages: false,
+  downloadVideos: true,
+  restApiKey: '',
+  restApiPort: 27124,
   mediaFolderName: 'media',
 
   // 语雀设置
@@ -289,7 +293,13 @@ function loadOptions() {
     document.getElementById('imageMaxWidth').value = config.imageMaxWidth;
     document.getElementById('imageQuality').value = config.imageQuality;
     document.getElementById('imageSkipGif').checked = config.imageSkipGif;
+    // 下载图片/视频到Vault
+    document.getElementById('downloadImages').checked = config.downloadImages;
+    document.getElementById('restApiKey').value = config.restApiKey || '';
+    document.getElementById('restApiPort').value = config.restApiPort || 27124;
+    document.getElementById('downloadVideos').checked = config.downloadVideos !== false;
     document.getElementById('mediaFolderName').value = config.mediaFolderName || 'media';
+    updateDownloadImagesVisibility();
 
     // 评论设置
     document.getElementById('saveComments').checked = config.saveComments;
@@ -473,6 +483,11 @@ function saveOptions(e) {
     imageMaxWidth: parseInt(document.getElementById('imageMaxWidth').value) || 1920,
     imageQuality: parseFloat(document.getElementById('imageQuality').value) || 0.9,
     imageSkipGif: document.getElementById('imageSkipGif').checked,
+    // 下载图片/视频到Vault
+    downloadImages: document.getElementById('downloadImages').checked,
+    downloadVideos: document.getElementById('downloadVideos').checked,
+    restApiKey: document.getElementById('restApiKey').value.trim(),
+    restApiPort: parseInt(document.getElementById('restApiPort').value) || 27124,
     mediaFolderName: document.getElementById('mediaFolderName').value.trim() || 'media',
 
     // 评论设置
@@ -684,6 +699,23 @@ async function testNotionConnection() {
   }
 }
 
+// 更新下载图片面板可见性
+function updateDownloadImagesVisibility() {
+  const checked = document.getElementById('downloadImages').checked;
+  const panel = document.getElementById('downloadImagesPanel');
+  if (panel) {
+    if (checked) {
+      panel.classList.remove('disabled');
+    } else {
+      panel.classList.add('disabled');
+    }
+  }
+  // downloadImages 和 embedImages 互斥
+  if (checked) {
+    document.getElementById('embedImages').checked = false;
+  }
+}
+
 // 更新语雀区域可见性
 function updateYuqueOptionsVisibility(enabled) {
   const section = document.getElementById('yuqueSection');
@@ -815,6 +847,11 @@ document.addEventListener('DOMContentLoaded', () => {
     updateYuqueOptionsVisibility(e.target.checked);
   });
   document.getElementById('testYuqueBtn').addEventListener('click', testYuqueConnection);
+
+  // 下载图片到Vault复选框
+  document.getElementById('downloadImages').addEventListener('change', () => {
+    updateDownloadImagesVisibility();
+  });
 
   // 保存评论复选框控制子选项
   document.getElementById('saveComments').addEventListener('change', (e) => {

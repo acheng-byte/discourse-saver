@@ -90,7 +90,11 @@
     feishuUploadHtml: false,
     htmlExportFolder: 'Discourse导出',  // V4.3.6: HTML 导出文件夹
 
-    // 媒体文件夹名称
+    // 下载图片/视频到Vault
+    downloadImages: false,
+    downloadVideos: true,
+    restApiKey: '',
+    restApiPort: 27124,
     mediaFolderName: 'media',
 
     // 语雀设置
@@ -1327,6 +1331,87 @@
     }
   }
 
+  // V5.3: 通过 background.js 下载媒体文件到 Vault 并替换 Markdown 路径
+  async function downloadAndReplaceMedia(markdown, config) {
+    const mediaFolderName = config.mediaFolderName || 'media';
+    const includeVideos = config.downloadVideos !== false;
+
+    // 收集图片URL
+    const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    const mediaUrls = [];
+    let match;
+    while ((match = imageRegex.exec(markdown)) !== null) {
+      const url = match[2];
+      if (url && !url.startsWith('data:')) {
+        mediaUrls.push({ url, type: 'image' });
+      }
+    }
+
+    // 收集视频URL
+    if (includeVideos) {
+      const videoRegex = /(?:^|\n)(?:https?:\/\/[^\s]+\.(?:mp4|webm|mov|avi)(?:\?[^\s]*)?)/gim;
+      let videoMatch;
+      while ((videoMatch = videoRegex.exec(markdown)) !== null) {
+        mediaUrls.push({ url: videoMatch[0].trim(), type: 'video' });
+      }
+    }
+
+    if (mediaUrls.length === 0) return markdown;
+
+    console.log(`[Discourse Saver] 找到 ${mediaUrls.length} 个媒体文件，通过 REST API 写入 Vault...`);
+
+    // 构建媒体文件夹路径
+    const siteFolderPath = config.folderPath || '';
+    const vaultMediaPath = siteFolderPath ? `${siteFolderPath}/${mediaFolderName}` : mediaFolderName;
+
+    // 通过 background.js 处理下载（避免 CORS 限制）
+    try {
+      const response = await sendMessageAsync({
+        action: 'downloadMediaToVault',
+        config: {
+          restApiKey: config.restApiKey,
+          restApiPort: config.restApiPort || 27124
+        },
+        mediaUrls: mediaUrls,
+        vaultMediaPath: vaultMediaPath,
+        mediaFolderName: mediaFolderName
+      });
+
+      if (response && response.results) {
+        let processedMarkdown = markdown;
+        let successCount = 0;
+
+        for (const result of response.results) {
+          if (result.success && result.relativePath) {
+            const escapedUrl = result.originalUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            // 替换图片语法中的URL
+            processedMarkdown = processedMarkdown.replace(
+              new RegExp(`(!\\[[^\\]]*\\])\\(${escapedUrl}\\)`, 'g'),
+              `$1(${result.relativePath})`
+            );
+            // 替换裸视频URL
+            processedMarkdown = processedMarkdown.replace(
+              new RegExp(escapedUrl, 'g'),
+              result.relativePath
+            );
+            successCount++;
+          }
+        }
+
+        console.log(`[Discourse Saver] 媒体下载完成: ${successCount}/${mediaUrls.length} 成功`);
+        if (successCount > 0) {
+          showNotification(`已下载 ${successCount}/${mediaUrls.length} 个媒体文件到 Vault`, 'success');
+        }
+        return processedMarkdown;
+      }
+    } catch (err) {
+      console.warn('[Discourse Saver] 媒体下载失败:', err);
+      showNotification('媒体文件下载失败，保留原链接', 'warning');
+    }
+
+    return markdown;
+  }
+
   // 处理 Markdown 中的所有图片，转换为 Base64
   async function processMarkdownImages(markdown, config) {
     if (!config.embedImages) {
@@ -1655,8 +1740,13 @@ tags: [${tagsStr}]
         effectiveConfig
       );
 
-      // V3.6.0: 处理图片嵌入（Base64）
-      if (config.embedImages) {
+      // V5.3: 下载图片/视频到Vault（通过 Obsidian Local REST API）
+      if (config.downloadImages && config.restApiKey) {
+        showNotification('正在下载媒体文件到 Vault...', 'info');
+        markdown = await downloadAndReplaceMedia(markdown, config);
+      }
+      // V3.6.0: 处理图片嵌入（Base64）— 与downloadImages互斥
+      else if (config.embedImages) {
         showNotification('正在处理图片嵌入...', 'info');
         markdown = await processMarkdownImages(markdown, config);
       }

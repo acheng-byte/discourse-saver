@@ -2855,7 +2855,97 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     return true;
   }
+
+  // V5.3: 下载媒体文件到 Vault（通过 Obsidian Local REST API）
+  if (request.action === 'downloadMediaToVault') {
+    const { config, mediaUrls, vaultMediaPath, mediaFolderName } = request;
+    downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFolderName)
+      .then(results => sendResponse({ results }))
+      .catch(err => sendResponse({ error: err.message, results: [] }));
+    return true;
+  }
 });
+
+// ==================== 下载媒体到 Vault ====================
+
+async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFolderName) {
+  const port = config.restApiPort || 27124;
+  // 优先使用 HTTP (27123) 避免自签名证书问题
+  const httpPort = port === 27124 ? 27123 : port;
+  const apiBase = `http://127.0.0.1:${httpPort}`;
+  const results = [];
+  const existingNames = [];
+
+  for (let i = 0; i < mediaUrls.length; i++) {
+    const media = mediaUrls[i];
+    try {
+      // 1. 下载媒体文件
+      const response = await fetch(media.url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const binaryData = await response.arrayBuffer();
+
+      // 2. 提取文件名
+      let fileName;
+      try {
+        const urlObj = new URL(media.url);
+        fileName = urlObj.pathname.split('/').pop() || `media_${i}`;
+      } catch(e) {
+        fileName = `media_${i}`;
+      }
+      fileName = fileName.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
+      if (!fileName.includes('.')) {
+        fileName += media.type === 'video' ? '.mp4' : '.jpg';
+      }
+
+      // 3. 去重文件名
+      let finalName = fileName;
+      let counter = 1;
+      while (existingNames.includes(finalName)) {
+        const dotIdx = fileName.lastIndexOf('.');
+        if (dotIdx > 0) {
+          finalName = fileName.substring(0, dotIdx) + `_${counter}` + fileName.substring(dotIdx);
+        } else {
+          finalName = fileName + `_${counter}`;
+        }
+        counter++;
+      }
+      existingNames.push(finalName);
+
+      // 4. 通过 REST API 写入 Vault
+      const filePath = `${vaultMediaPath}/${finalName}`;
+      const putResponse = await fetch(`${apiBase}/vault/${encodeURIComponent(filePath)}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${config.restApiKey}`,
+          'Content-Type': 'application/octet-stream'
+        },
+        body: binaryData
+      });
+
+      if (!putResponse.ok) {
+        throw new Error(`REST API ${putResponse.status}`);
+      }
+
+      results.push({
+        originalUrl: media.url,
+        localName: finalName,
+        relativePath: `${mediaFolderName}/${finalName}`,
+        success: true
+      });
+    } catch (err) {
+      console.warn(`[Discourse Saver] 下载媒体失败: ${media.url}`, err);
+      results.push({
+        originalUrl: media.url,
+        localName: null,
+        relativePath: null,
+        success: false,
+        error: err.message
+      });
+    }
+  }
+
+  return results;
+}
 
 // ==================== 语雀 API ====================
 
