@@ -3937,7 +3937,7 @@ tags: [${tagsStr}]
       console.log('[Discourse Saver] 检测到页面导航:', url);
       // 页面导航时重置初始化状态，允许重新初始化
       pluginInitialized = false;
-      setTimeout(init, 500);
+      initWithRetry(5, 500).catch(err => console.error('[Discourse Saver] SPA导航后初始化异常:', err));
     }
   }).observe(document, { subtree: true, childList: true });
 
