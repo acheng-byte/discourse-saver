@@ -194,7 +194,8 @@
     }
 
     // 收集元素属性用于检测
-    const className = element.className || '';
+    // 注意：SVG 元素的 className 是 SVGAnimatedString 对象，不是字符串
+    const className = (typeof element.className === 'string') ? element.className : (element.getAttribute('class') || '');
     const dataShareUrl = element.getAttribute('data-share-url');
     const title = element.title || '';
     const ariaLabel = element.getAttribute('aria-label') || '';
@@ -258,76 +259,80 @@
     eventListenerAdded = true;
 
     document.addEventListener('click', (e) => {
-      // V3.5.8: 简化检测 - 直接从点击元素向上查找 button
-      // Discourse 的按钮结构: button > svg，点击 svg 时需要找到 button
-      let target = e.target.closest('button');
+      try {
+        // V3.5.8: 简化检测 - 直接从点击元素向上查找 button
+        // Discourse 的按钮结构: button > svg，点击 svg 时需要找到 button
+        let target = e.target.closest('button');
 
-      // 如果没找到 button，也检查 a 标签
-      if (!target) {
-        target = e.target.closest('a');
-      }
+        // 如果没找到 button，也检查 a 标签
+        if (!target) {
+          target = e.target.closest('a');
+        }
 
-      // V3.5.3.1: 检查是否有bypass标记（用于触发原生复制链接）
-      if (target?.hasAttribute('data-linuxdo-obsidian-bypass')) {
-        console.log('[Discourse Saver] 检测到bypass标记，放行原生点击');
-        return; // 不拦截，让原生事件通过
-      }
+        // V3.5.3.1: 检查是否有bypass标记（用于触发原生复制链接）
+        if (target?.hasAttribute('data-linuxdo-obsidian-bypass')) {
+          console.log('[Discourse Saver] 检测到bypass标记，放行原生点击');
+          return; // 不拦截，让原生事件通过
+        }
 
-      const linkResult = isLinkButton(target);
+        const linkResult = isLinkButton(target);
 
-      if (target && linkResult.isLink) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
+        if (target && linkResult.isLink) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
 
-        // V3.5.3.1: 检查是否点击的是同一个按钮（通过楼层号判断）
-        const isSameButton = lastLinkPostNumber === linkResult.postNumber;
+          // V3.5.3.1: 检查是否点击的是同一个按钮（通过楼层号判断）
+          const isSameButton = lastLinkPostNumber === linkResult.postNumber;
 
-        if (isSameButton) {
-          linkClickCount++;
-        } else {
-          // 点击了不同的链接按钮，重置计数
+          if (isSameButton) {
+            linkClickCount++;
+          } else {
+            // 点击了不同的链接按钮，重置计数
+            if (linkClickTimer) {
+              clearTimeout(linkClickTimer);
+              linkClickTimer = null;
+            }
+            linkClickCount = 1;
+          }
+
+          lastLinkTarget = target;
+          lastLinkPostNumber = linkResult.postNumber;
+
+          // 清除之前的定时器
           if (linkClickTimer) {
             clearTimeout(linkClickTimer);
-            linkClickTimer = null;
           }
-          linkClickCount = 1;
-        }
 
-        lastLinkTarget = target;
-        lastLinkPostNumber = linkResult.postNumber;
-
-        // 清除之前的定时器
-        if (linkClickTimer) {
-          clearTimeout(linkClickTimer);
-        }
-
-        if (linkClickCount === 2 && isSameButton) {
-          // 双击同一个按钮：触发原生复制链接
-          console.log('[Discourse Saver] 双击检测，触发原生复制链接，楼层:', linkResult.postNumber);
-          linkClickCount = 0;
-          lastLinkPostNumber = null;
-          triggerOriginalCopyLink(target);
-        } else {
-          // 等待300ms判断是否为双击
-          const postNumber = linkResult.postNumber;
-          linkClickTimer = setTimeout(() => {
-            if (linkClickCount === 1) {
-              // 单击：保存到Obsidian
-              if (postNumber === '1') {
-                console.log('[Discourse Saver] 单击主帖链接按钮，保存整个帖子');
-                saveToObsidian(null); // 主帖：按原逻辑保存
-              } else {
-                console.log('[Discourse Saver] 单击评论链接按钮，保存主帖+第' + postNumber + '楼评论');
-                saveToObsidian(postNumber); // 评论：保存主帖+该评论
-              }
-            }
+          if (linkClickCount === 2 && isSameButton) {
+            // 双击同一个按钮：触发原生复制链接
+            console.log('[Discourse Saver] 双击检测，触发原生复制链接，楼层:', linkResult.postNumber);
             linkClickCount = 0;
             lastLinkPostNumber = null;
-          }, 300);
-        }
+            triggerOriginalCopyLink(target);
+          } else {
+            // 等待300ms判断是否为双击
+            const postNumber = linkResult.postNumber;
+            linkClickTimer = setTimeout(() => {
+              if (linkClickCount === 1) {
+                // 单击：保存到Obsidian
+                if (postNumber === '1') {
+                  console.log('[Discourse Saver] 单击主帖链接按钮，保存整个帖子');
+                  saveToObsidian(null); // 主帖：按原逻辑保存
+                } else {
+                  console.log('[Discourse Saver] 单击评论链接按钮，保存主帖+第' + postNumber + '楼评论');
+                  saveToObsidian(postNumber); // 评论：保存主帖+该评论
+                }
+              }
+              linkClickCount = 0;
+              lastLinkPostNumber = null;
+            }, 300);
+          }
 
-        return false;
+          return false;
+        }
+      } catch (err) {
+        console.error('[Discourse Saver] 点击事件处理异常:', err);
       }
     }, true);
 
