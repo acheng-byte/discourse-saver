@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Discourse Saver (油猴版)
 // @namespace    https://github.com/discourse-saver
-// @version      5.1
-// @description  通用Discourse论坛内容保存工具 - 支持Obsidian/Notion/思源笔记/HTML，评论、用户名超链接、折叠模式
+// @version      5.2
+// @description  通用Discourse论坛内容保存工具 - 支持Obsidian/Notion/思源笔记/HTML，评论、下载媒体到本地、折叠模式
 // @author       阿成
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=obsidian.md
 // @match        https://linux.do/*
@@ -107,6 +107,12 @@
       addMetadata: true,
       includeImages: true,
       embedImages: false,  // 将图片嵌入为 Base64（解决手机端图片无法显示问题）
+
+      // 下载图片/视频到本地 Vault（通过 Obsidian Local REST API 插件）
+      downloadImages: false,
+      downloadVideos: true,
+      restApiKey: '',
+      restApiPort: 27124,
 
       // 评论设置
       saveComments: false,
@@ -459,7 +465,230 @@
       }
     }
 
-    return { getBeijingTime, sanitizeFileName, showNotification, fetchImageAsBase64, embedImagesInMarkdown, isValidUrl, buildSafeUrl, sanitizeHtml };
+    // V5.1: 收集 Markdown 中的媒体文件 URL（图片+视频）
+    function collectMediaUrls(markdown, downloadVideos) {
+      const mediaUrls = [];
+      const seenUrls = new Set();
+
+      // 匹配图片 ![alt](url)
+      const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+      let match;
+      while ((match = imageRegex.exec(markdown)) !== null) {
+        const url = match[2];
+        if (!seenUrls.has(url) && url.startsWith('http')) {
+          seenUrls.add(url);
+          mediaUrls.push({ url, type: 'image', alt: match[1] });
+        }
+      }
+
+      // 匹配视频链接
+      if (downloadVideos) {
+        const videoRegex = /\[([^\]]*)\]\((https?:\/\/[^)]+\.(?:mp4|webm|mov|avi|mkv|m4v)[^)]*)\)/gi;
+        while ((match = videoRegex.exec(markdown)) !== null) {
+          const url = match[2];
+          if (!seenUrls.has(url)) {
+            seenUrls.add(url);
+            mediaUrls.push({ url, type: 'video', alt: match[1] });
+          }
+        }
+        // 独立的视频 URL 行
+        const videoLineRegex = /^(https?:\/\/\S+\.(?:mp4|webm|mov|avi|mkv|m4v)\S*)$/gim;
+        while ((match = videoLineRegex.exec(markdown)) !== null) {
+          const url = match[1];
+          if (!seenUrls.has(url)) {
+            seenUrls.add(url);
+            mediaUrls.push({ url, type: 'video', alt: '' });
+          }
+        }
+      }
+
+      return mediaUrls;
+    }
+
+    // V5.1: 通过 Obsidian Local REST API 下载媒体文件到 Vault 并替换路径
+    async function downloadAndReplaceMedia(markdown, config, siteFolderPath) {
+      if (!config.downloadImages) {
+        return markdown;
+      }
+
+      const mediaUrls = collectMediaUrls(markdown, config.downloadVideos);
+      if (mediaUrls.length === 0) {
+        console.log('[Discourse Saver] 没有找到需要下载的媒体文件');
+        return markdown;
+      }
+
+      console.log(`[Discourse Saver] 找到 ${mediaUrls.length} 个媒体文件，开始通过 REST API 写入...`);
+      showNotification(`正在下载 ${mediaUrls.length} 个媒体文件到 Vault...`, 'info');
+
+      // 媒体文件夹路径：{siteFolderPath}/media
+      const vaultPath = siteFolderPath ? `${siteFolderPath}/media` : 'media';
+
+      // 优先使用 HTTP (27123) 避免自签名证书问题
+      const configPort = config.restApiPort || 27124;
+      const httpPort = configPort === 27124 ? 27123 : configPort;
+      const apiBase = `http://127.0.0.1:${httpPort}`;
+
+      const results = [];
+
+      for (let i = 0; i < mediaUrls.length; i++) {
+        const media = mediaUrls[i];
+        try {
+          // 1. 通过 GM_xmlhttpRequest 获取图片/视频的二进制数据
+          const binaryData = await new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+              method: 'GET',
+              url: media.url,
+              responseType: 'arraybuffer',
+              timeout: 30000,
+              onload: function(response) {
+                if (response.status >= 200 && response.status < 300) {
+                  resolve(response.response);
+                } else {
+                  reject(new Error(`HTTP ${response.status}`));
+                }
+              },
+              onerror: function(error) {
+                reject(new Error('网络错误'));
+              },
+              ontimeout: function() {
+                reject(new Error('下载超时'));
+              }
+            });
+          });
+
+          // 2. 从 URL 提取文件名
+          let fileName;
+          try {
+            const urlObj = new URL(media.url);
+            fileName = urlObj.pathname.split('/').pop() || `media_${i}`;
+          } catch(e) {
+            fileName = `media_${i}`;
+          }
+          fileName = fileName.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
+          if (!fileName.includes('.')) {
+            fileName += media.type === 'video' ? '.mp4' : '.jpg';
+          }
+
+          // 去重
+          const existingNames = results.map(r => r.localName);
+          let finalName = fileName;
+          let counter = 1;
+          while (existingNames.includes(finalName)) {
+            const dotIdx = fileName.lastIndexOf('.');
+            if (dotIdx > 0) {
+              finalName = fileName.substring(0, dotIdx) + `_${counter}` + fileName.substring(dotIdx);
+            } else {
+              finalName = fileName + `_${counter}`;
+            }
+            counter++;
+          }
+
+          // 3. 通过 REST API 写入 Vault
+          const filePath = `${vaultPath}/${finalName}`;
+          const putResult = await new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+              method: 'PUT',
+              url: `${apiBase}/vault/${encodeURIComponent(filePath)}`,
+              headers: {
+                'Authorization': `Bearer ${config.restApiKey}`,
+                'Content-Type': 'application/octet-stream'
+              },
+              data: binaryData,
+              responseType: 'text',
+              timeout: 30000,
+              onload: function(response) {
+                if (response.status >= 200 && response.status < 300) {
+                  resolve(true);
+                } else {
+                  reject(new Error(`REST API ${response.status}: ${response.responseText}`));
+                }
+              },
+              onerror: function() {
+                reject(new Error('REST API 连接失败'));
+              },
+              ontimeout: function() {
+                reject(new Error('REST API 超时'));
+              }
+            });
+          });
+
+          console.log(`[Discourse Saver] 写入 Vault [${i + 1}/${mediaUrls.length}]: ${filePath}`);
+          showNotification(`下载媒体文件 ${i + 1}/${mediaUrls.length}...`, 'info');
+
+          results.push({
+            originalUrl: media.url,
+            localName: finalName,
+            relativePath: `media/${finalName}`,
+            success: true
+          });
+        } catch (dlError) {
+          console.warn(`[Discourse Saver] 写入媒体失败: ${media.url}`, dlError);
+          results.push({
+            originalUrl: media.url,
+            localName: null,
+            relativePath: null,
+            success: false,
+            error: dlError.message
+          });
+        }
+      }
+
+      // 替换 Markdown 中的 URL 为相对路径
+      let processedMarkdown = markdown;
+      let successCount = 0;
+
+      for (const result of results) {
+        if (result.success && result.relativePath) {
+          const escapedUrl = result.originalUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          processedMarkdown = processedMarkdown.replace(
+            new RegExp(escapedUrl, 'g'),
+            result.relativePath
+          );
+          successCount++;
+        }
+      }
+
+      console.log(`[Discourse Saver] 媒体路径替换完成: ${successCount}/${mediaUrls.length} 成功`);
+      if (successCount > 0) {
+        showNotification(`已下载 ${successCount} 个媒体文件到 Vault`, 'success');
+      }
+
+      return processedMarkdown;
+    }
+
+    // V5.1: 测试 Obsidian Local REST API 连接
+    async function testRestApiConnection(apiKey, apiPort) {
+      const httpPort = (apiPort || 27124) === 27124 ? 27123 : apiPort;
+      const apiBase = `http://127.0.0.1:${httpPort}`;
+
+      return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+          method: 'GET',
+          url: `${apiBase}/`,
+          headers: {
+            'Authorization': `Bearer ${apiKey}`
+          },
+          timeout: 5000,
+          onload: function(response) {
+            if (response.status >= 200 && response.status < 300) {
+              resolve({ success: true, message: '连接成功' });
+            } else if (response.status === 401 || response.status === 403) {
+              resolve({ success: false, message: 'API Key 错误' });
+            } else {
+              resolve({ success: false, message: `HTTP ${response.status}` });
+            }
+          },
+          onerror: function() {
+            resolve({ success: false, message: '无法连接，请确认 Obsidian 已启动且已安装 Local REST API 插件' });
+          },
+          ontimeout: function() {
+            resolve({ success: false, message: '连接超时' });
+          }
+        });
+      });
+    }
+
+    return { getBeijingTime, sanitizeFileName, showNotification, fetchImageAsBase64, embedImagesInMarkdown, isValidUrl, buildSafeUrl, sanitizeHtml, collectMediaUrls, downloadAndReplaceMedia, testRestApiConnection };
   })();
 
   // ============================================================
@@ -3625,6 +3854,19 @@ ${tagsYaml}
         }
       }
 
+      // V5.1: 如果启用了下载图片到本地 Vault（通过 Obsidian Local REST API）
+      if (config.downloadImages && config.restApiKey) {
+        try {
+          // 构建站点文件夹路径：folderPath/站点名
+          const siteName = window.location.hostname.replace(/\./g, '_');
+          const siteFolderPath = config.folderPath ? `${config.folderPath}/${siteName}` : siteName;
+          markdown = await UtilModule.downloadAndReplaceMedia(markdown, config, siteFolderPath);
+        } catch (downloadError) {
+          console.error('[Discourse Saver] 下载媒体文件失败:', downloadError);
+          UtilModule.showNotification('媒体下载失败，将使用原始链接', 'warning');
+        }
+      }
+
       let fileName = UtilModule.sanitizeFileName(title);
       let displayTitle = title;  // Notion 等显示用的标题
 
@@ -4206,6 +4448,31 @@ ${tagsYaml}
             <div class="ds-hint" style="margin-left: 26px; margin-top: 2px;">解决手机端图片无法显示问题，会增加文件大小</div>
           </div>
 
+          <div class="ds-form-group ds-checkbox-group">
+            <input type="checkbox" id="ds-download-images" ${config.downloadImages ? 'checked' : ''}>
+            <label for="ds-download-images">下载图片/视频到 Vault 文件夹</label>
+            <div class="ds-hint" style="margin-left: 26px; margin-top: 2px; color: #ef4444;">需要安装 Obsidian 社区插件「Local REST API」</div>
+          </div>
+          <div id="ds-download-images-panel" style="margin-left: 26px; ${config.downloadImages ? '' : 'display:none;'}">
+            <div class="ds-form-group">
+              <label>API Key</label>
+              <input type="password" id="ds-rest-api-key" value="${config.restApiKey}" placeholder="粘贴你的 API Key">
+            </div>
+            <div class="ds-form-group">
+              <label>端口</label>
+              <input type="number" id="ds-rest-api-port" value="${config.restApiPort}" min="1" max="65535" style="width: 100px;">
+              <span class="ds-hint" style="margin-left: 8px;">默认 27124</span>
+            </div>
+            <div class="ds-form-group" style="display: flex; gap: 8px;">
+              <button class="ds-btn ds-btn-secondary" id="ds-test-rest-api" style="flex: none; padding: 6px 12px;">测试连接</button>
+              <span id="ds-rest-api-status" style="line-height: 30px; color: #6b7280; font-size: 13px;"></span>
+            </div>
+            <div class="ds-form-group ds-checkbox-group">
+              <input type="checkbox" id="ds-download-videos" ${config.downloadVideos ? 'checked' : ''}>
+              <label for="ds-download-videos">同时下载视频文件</label>
+            </div>
+          </div>
+
           <div class="ds-section-title">Notion 设置</div>
 
           <div class="ds-form-group">
@@ -4233,8 +4500,8 @@ ${tagsYaml}
           </div>
 
           <div class="ds-form-group">
-            <label>API Token（可选）</label>
-            <input type="text" id="ds-siyuan-token" value="${config.siyuanToken}" placeholder="未开启鉴权可留空">
+            <label>授权码 <span style="color:#ef4444;font-size:12px;font-weight:normal;">（可选，未设置鉴权请留空）</span></label>
+            <input type="text" id="ds-siyuan-token" value="${config.siyuanToken}" placeholder="思源笔记 设置→关于 中的 API token">
           </div>
 
           <div class="ds-form-group">
@@ -4385,6 +4652,35 @@ ${tagsYaml}
         }
       });
 
+      // 下载图片 checkbox 显隐
+      overlay.querySelector('#ds-download-images').addEventListener('change', (e) => {
+        overlay.querySelector('#ds-download-images-panel').style.display = e.target.checked ? '' : 'none';
+      });
+
+      // 测试 REST API 连接
+      overlay.querySelector('#ds-test-rest-api').addEventListener('click', async () => {
+        const statusEl = overlay.querySelector('#ds-rest-api-status');
+        const apiKey = overlay.querySelector('#ds-rest-api-key').value.trim();
+        const apiPort = parseInt(overlay.querySelector('#ds-rest-api-port').value) || 27124;
+
+        statusEl.textContent = '正在测试...';
+        statusEl.style.color = '#6b7280';
+
+        try {
+          const result = await UtilModule.testRestApiConnection(apiKey, apiPort);
+          if (result.success) {
+            statusEl.textContent = '连接成功';
+            statusEl.style.color = '#10b981';
+          } else {
+            statusEl.textContent = result.message;
+            statusEl.style.color = '#ef4444';
+          }
+        } catch (e) {
+          statusEl.textContent = '测试失败: ' + e.message;
+          statusEl.style.color = '#ef4444';
+        }
+      });
+
       // OB 测试按钮（使用 v4.3.8 验证过的剪贴板方式）
       overlay.querySelector('#ds-test-ob').addEventListener('click', async () => {
         const vaultName = overlay.querySelector('#ds-vault').value.trim();
@@ -4445,6 +4741,11 @@ ${tagsYaml}
           addMetadata: overlay.querySelector('#ds-metadata').checked,
           useAdvancedUri: overlay.querySelector('#ds-advanced-uri').checked,
           embedImages: overlay.querySelector('#ds-embed-images').checked,
+          // 下载图片到本地
+          downloadImages: overlay.querySelector('#ds-download-images').checked,
+          downloadVideos: overlay.querySelector('#ds-download-videos').checked,
+          restApiKey: overlay.querySelector('#ds-rest-api-key').value.trim(),
+          restApiPort: parseInt(overlay.querySelector('#ds-rest-api-port').value) || 27124,
           // Notion设置
           notionToken: overlay.querySelector('#ds-notion-token').value.trim(),
           notionDatabaseId: overlay.querySelector('#ds-notion-db').value.trim(),
