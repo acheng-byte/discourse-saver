@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Discourse Saver",
-  "version": "4.6.24",
-  "description": "通用Discourse论坛内容保存工具 - 支持全球数百个Discourse站点（LinuxDo、Rust Users、Docker等），一键保存到Obsidian/飞书/Notion",
+  "version": "5.1",
+  "description": "通用Discourse论坛内容保存工具 - 支持全球数百个Discourse站点（LinuxDo、Rust Users、Docker等），一键保存到Obsidian/飞书/Notion/思源笔记",
   "permissions": [
     "storage",
     "activeTab",
@@ -13,6 +13,8 @@
     "https://open.feishu.cn/*",
     "https://open.larksuite.com/*",
     "https://api.notion.com/*",
+    "http://127.0.0.1:6806/*",
+    "https://127.0.0.1:27124/*",
     "<all_urls>"
   ],
   "background": {

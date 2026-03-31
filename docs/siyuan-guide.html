@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>思源笔记配置指南 - Discourse Saver</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #d23f31, #a02820);
+      color: #fff;
+      padding: 30px;
+      text-align: center;
+    }
+    .header h1 { font-size: 28px; margin-bottom: 8px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    .content { padding: 30px; }
+    .step {
+      margin-bottom: 30px;
+      border: 1px solid #e8e8e8;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .step-header {
+      background: #f8f9fa;
+      padding: 15px 20px;
+      border-bottom: 1px solid #e8e8e8;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .step-num {
+      background: #d23f31;
+      color: #fff;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .step-title { font-weight: 600; font-size: 16px; }
+    .step-content { padding: 20px; }
+    .step-content p { margin-bottom: 12px; }
+    .step-content ul, .step-content ol { margin-left: 20px; margin-bottom: 12px; }
+    .step-content li { margin-bottom: 6px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #e8e8e8;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    th { background: #f8f9fa; font-weight: 600; }
+    code {
+      background: #f1f3f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: "SF Mono", Monaco, monospace;
+      font-size: 13px;
+      color: #d63384;
+    }
+    .url-box {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 13px;
+      overflow-x: auto;
+      margin: 15px 0;
+    }
+    .url-box .highlight { color: #f7786b; }
+    .url-box .label { color: #9e9e9e; font-size: 12px; }
+    .tip {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 12px 15px;
+      margin: 15px 0;
+      border-radius: 0 6px 6px 0;
+      font-size: 14px;
+    }
+    .tip.danger {
+      background: #f8d7da;
+      border-color: #dc3545;
+    }
+    .tip.success {
+      background: #d4edda;
+      border-color: #28a745;
+    }
+    .tip.info {
+      background: #fce4e4;
+      border-color: #d23f31;
+    }
+    .field-table td:nth-child(2) { font-weight: 600; color: #d23f31; }
+    .checklist {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .checklist h3 { margin-bottom: 15px; font-size: 16px; }
+    .checklist label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    .checklist input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #d23f31;
+    }
+    .faq { margin-top: 30px; }
+    .faq-item {
+      border-bottom: 1px solid #e8e8e8;
+      padding: 15px 0;
+    }
+    .faq-item:last-child { border-bottom: none; }
+    .faq-q { font-weight: 600; color: #d23f31; margin-bottom: 8px; }
+    .faq-a { color: #666; font-size: 14px; }
+    .footer {
+      text-align: center;
+      padding: 20px;
+      background: #f8f9fa;
+      color: #666;
+      font-size: 13px;
+    }
+    .footer a { color: #d23f31; text-decoration: none; }
+    @media (max-width: 600px) {
+      body { padding: 10px; }
+      .header { padding: 20px; }
+      .header h1 { font-size: 22px; }
+      .content { padding: 15px; }
+      .step-content { padding: 15px; }
+      table { font-size: 12px; }
+      th, td { padding: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>思源笔记配置指南</h1>
+      <p>Discourse Saver V5.1 | 一键保存帖子到思源笔记</p>
+    </div>
+
+    <div class="content">
+      <!-- 前置说明 -->
+      <div class="tip info" style="margin-bottom: 30px; padding: 20px;">
+        <strong style="font-size: 15px;">什么是思源笔记？</strong><br><br>
+        <a href="https://b3log.org/siyuan/" target="_blank" style="color: #d23f31;">思源笔记</a> 是一款开源本地优先的个人知识管理系统，支持块级引用和双向链接。<br>
+        Discourse Saver 通过思源笔记的内核 API 将帖子内容保存为 Markdown 文档，自动转换为思源笔记的原生格式。
+      </div>
+
+      <!-- 步骤1 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">1</span>
+          <span class="step-title">确保思源笔记已启动</span>
+        </div>
+        <div class="step-content">
+          <p>插件通过思源笔记的<strong>本地内核 API</strong> 与思源通信，因此保存时必须保持思源笔记处于运行状态。</p>
+          <ol>
+            <li>打开思源笔记桌面客户端</li>
+            <li>确认左下角状态栏显示内核已启动</li>
+            <li>默认 API 地址为 <code>http://127.0.0.1:6806</code></li>
+          </ol>
+          <div class="tip info">
+            <strong>提示：</strong>如果你修改了思源笔记的端口号，请在插件配置中同步修改 API 地址。
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤2 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">2</span>
+          <span class="step-title">获取 API Token（可选）</span>
+        </div>
+        <div class="step-content">
+          <p>如果你在思源笔记中开启了<strong>鉴权（Access Token）</strong>，需要获取 Token 填入插件配置。</p>
+          <ol>
+            <li>打开思源笔记，进入 <strong>设置 → 关于</strong></li>
+            <li>找到 <strong>「API token」</strong> 项</li>
+            <li>复制 Token 值</li>
+          </ol>
+          <table>
+            <tr><th>字段</th><th>说明</th><th>示例</th></tr>
+            <tr><td>API Token</td><td>思源笔记鉴权令牌</td><td><code>token-xxxxxxxxxxxx</code></td></tr>
+          </table>
+          <div class="tip">
+            <strong>什么时候需要填 Token？</strong><br>
+            - 如果你没有开启鉴权（默认状态），<strong>可以留空</strong><br>
+            - 如果你开启了鉴权，则<strong>必须填写</strong>，否则会报权限错误
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤3 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">3</span>
+          <span class="step-title">获取笔记本 ID</span>
+        </div>
+        <div class="step-content">
+          <p>你需要指定帖子保存到哪个笔记本中。获取目标笔记本的 ID：</p>
+          <ol>
+            <li>打开思源笔记</li>
+            <li>右键点击目标笔记本，选择 <strong>「设置」</strong></li>
+            <li>在弹出的面板中找到 <strong>笔记本 ID</strong></li>
+          </ol>
+          <div class="url-box">
+            <div class="label">笔记本 ID 格式：</div>
+            <span class="highlight">20210808180117-czj9bvb</span><br><br>
+            <div class="label">特征：</div>
+            以日期时间开头，格式为 <span class="highlight">YYYYMMDDHHMMSS-xxxxxxx</span>
+          </div>
+          <div class="tip info">
+            <strong>另一种获取方式：</strong><br>
+            打开思源笔记文档，在浏览器地址栏中，URL 格式为：<br>
+            <code>http://127.0.0.1:6806/stage/build/desktop/?...</code><br>
+            也可以通过 API 获取：在浏览器访问 <code>http://127.0.0.1:6806/api/notebook/lsNotebooks</code>（POST 请求，body 为 <code>{}</code>）查看所有笔记本列表。
+          </div>
+          <div class="tip danger">
+            <strong>笔记本 ID 是必填项！</strong><br>
+            没有笔记本 ID，插件无法知道应该保存到哪里。
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤4 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">4</span>
+          <span class="step-title">设置保存路径</span>
+        </div>
+        <div class="step-content">
+          <p>指定帖子在笔记本中的保存位置。路径相对于笔记本根目录。</p>
+          <table class="field-table">
+            <tr><th>路径格式</th><th>说明</th><th>保存位置</th></tr>
+            <tr><td><code>/Discourse收集箱</code></td><td>默认路径</td><td>笔记本根目录下的「Discourse收集箱」文件夹</td></tr>
+            <tr><td><code>/收藏/论坛</code></td><td>多级目录</td><td>笔记本根目录 → 收藏 → 论坛</td></tr>
+            <tr><td><em>（留空）</em></td><td>根目录</td><td>直接保存到笔记本根目录</td></tr>
+          </table>
+          <div class="tip">
+            <strong>路径规则：</strong><br>
+            - 路径以 <code>/</code> 开头表示从笔记本根目录开始<br>
+            - 不存在的文件夹会自动创建<br>
+            - 帖子会自动按站点名称创建子文件夹（如 <code>/Discourse收集箱/linux.do/</code>）
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤5 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">5</span>
+          <span class="step-title">配置浏览器插件</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>打开插件配置页面（右键插件图标 → 选项）</li>
+            <li>切换到 <strong>「思源」</strong> 标签页</li>
+            <li>在通用标签页中勾选 <strong>「保存到思源笔记」</strong></li>
+            <li>填写配置信息：</li>
+          </ol>
+          <table>
+            <tr><th>配置项</th><th>填写内容</th><th>是否必填</th></tr>
+            <tr><td>API 地址</td><td>思源笔记 API 地址，默认 <code>http://127.0.0.1:6806</code></td><td>必填</td></tr>
+            <tr><td>API Token</td><td>步骤 2 获取的 Token（未开启鉴权可留空）</td><td>可选</td></tr>
+            <tr><td>笔记本 ID</td><td>步骤 3 获取的笔记本 ID</td><td>必填</td></tr>
+            <tr><td>保存路径</td><td>步骤 4 设置的路径，默认 <code>/Discourse收集箱</code></td><td>可选</td></tr>
+          </table>
+          <p>填写完成后点击 <strong>「保存设置」</strong>。</p>
+        </div>
+      </div>
+
+      <!-- 步骤6 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num">6</span>
+          <span class="step-title">测试连接</span>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li>确保思源笔记正在运行</li>
+            <li>在插件配置页面点击 <strong>「测试连接」</strong> 按钮</li>
+            <li>成功后显示「连接成功」及笔记本信息</li>
+            <li>打开任意 Discourse 论坛帖子，单击链接按钮测试保存</li>
+          </ol>
+          <div class="tip success">配置完成！现在可以一键保存帖子到思源笔记了。</div>
+        </div>
+      </div>
+
+      <!-- 技术说明 -->
+      <div class="step">
+        <div class="step-header">
+          <span class="step-num" style="background: #666;">i</span>
+          <span class="step-title">工作原理</span>
+        </div>
+        <div class="step-content">
+          <p>了解插件如何将帖子保存到思源笔记：</p>
+          <table>
+            <tr><th>环节</th><th>说明</th></tr>
+            <tr><td>内容提取</td><td>从 Discourse 帖子页面提取标题、正文、评论等内容</td></tr>
+            <tr><td>格式转换</td><td>将 HTML 内容转换为 Markdown 格式</td></tr>
+            <tr><td>API 调用</td><td>调用思源 <code>/api/filetree/createDocWithMd</code> 接口</td></tr>
+            <tr><td>自动转换</td><td>思源笔记内核自动将 Markdown 转换为原生块格式</td></tr>
+            <tr><td>保存位置</td><td><code>{笔记本}/{保存路径}/{站点名}/{帖子标题}.md</code></td></tr>
+          </table>
+          <div class="tip info">
+            <strong>关于格式：</strong><br>
+            思源笔记的 <code>createDocWithMd</code> API 会自动将 Markdown 转换为思源原生的块引用格式。<br>
+            标题、列表、代码块、图片、链接等 Markdown 语法都能正确渲染。
+          </div>
+        </div>
+      </div>
+
+      <!-- 配置检查清单 -->
+      <div class="checklist">
+        <h3>配置检查清单</h3>
+        <label><input type="checkbox"> 思源笔记桌面客户端已启动</label>
+        <label><input type="checkbox"> 确认 API 地址可访问（默认 http://127.0.0.1:6806）</label>
+        <label><input type="checkbox"> 如开启鉴权，已获取并填写 API Token</label>
+        <label><input type="checkbox"> 已获取目标笔记本 ID</label>
+        <label><input type="checkbox"> 在插件通用标签页勾选了「保存到思源笔记」</label>
+        <label><input type="checkbox"> 在思源标签页填写了完整配置信息</label>
+        <label><input type="checkbox"> 测试连接成功</label>
+        <label><input type="checkbox"> 实际保存测试通过</label>
+      </div>
+
+      <!-- FAQ -->
+      <div class="faq">
+        <h3 style="margin-bottom: 15px; font-size: 18px;">常见问题</h3>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 提示「连接失败」或「网络错误」</div>
+          <div class="faq-a">
+            最常见的原因是<strong>思源笔记未启动</strong>。请确认：<br>
+            1. 思源笔记桌面客户端正在运行<br>
+            2. API 地址正确（默认 <code>http://127.0.0.1:6806</code>）<br>
+            3. 如果修改过端口，需要同步修改插件中的 API 地址<br>
+            4. 检查防火墙是否阻止了本地连接
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 提示「鉴权失败」(401/403 错误)</div>
+          <div class="faq-a">
+            说明思源笔记开启了鉴权但 Token 不正确。<br>
+            请到 <strong>设置 → 关于 → API token</strong> 重新复制，确保完整粘贴无多余空格。
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 提示「笔记本不存在」</div>
+          <div class="faq-a">
+            检查笔记本 ID 是否正确。格式为 <code>20210808180117-czj9bvb</code>（日期时间-随机字符）。<br>
+            确认目标笔记本没有被关闭或删除。在思源笔记中右键笔记本 → 设置 查看 ID。
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 保存后在思源笔记中找不到文档</div>
+          <div class="faq-a">
+            1. 检查保存路径设置 — 文档保存在 <code>{保存路径}/{站点名}/</code> 目录下<br>
+            2. 在思源笔记中点击左侧文件树刷新<br>
+            3. 使用思源笔记的全局搜索（<code>Ctrl+P</code>）搜索帖子标题
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 图片无法显示？</div>
+          <div class="faq-a">
+            保存到思源笔记时，图片以<strong>原始 URL 链接</strong>形式嵌入。<br>
+            如果图片显示不出来，可能是：<br>
+            - 网络问题导致无法加载远程图片<br>
+            - 图片来源站点有防盗链限制<br>
+            建议：在 Obsidian 标签页开启「下载图片到本地」功能后，再手动复制到思源
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: Markdown 格式在思源中显示正常吗？</div>
+          <div class="faq-a">
+            <strong>正常！</strong>思源笔记的 <code>createDocWithMd</code> API 会自动将 Markdown 转换为思源原生块格式。<br>
+            标题、列表、代码块、引用、表格、图片、链接等都能正确渲染。<br>
+            少数高级 Markdown 语法（如 HTML 内联标签）可能会有差异。
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 可以同时保存到思源和其他平台吗？</div>
+          <div class="faq-a">
+            <strong>可以！</strong>所有保存目标（Obsidian、飞书、Notion、思源、HTML导出）完全独立。<br>
+            可以同时勾选多个保存目标，一键保存到多个平台。任何一个平台失败不影响其他平台。
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">Q: 思源笔记 Docker 部署如何配置？</div>
+          <div class="faq-a">
+            如果你通过 Docker 部署了思源笔记：<br>
+            1. 将 API 地址改为 Docker 映射的地址和端口<br>
+            2. 确保浏览器能访问该地址<br>
+            3. Token 同样在思源设置 → 关于中获取<br>
+            注意：Docker 部署默认会开启鉴权，Token 为必填项
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>
+        <a href="index.html">返回首页</a> |
+        <a href="feishu-guide.html">飞书配置指南</a> |
+        <a href="notion-guide.html">Notion 配置指南</a> |
+        <a href="https://github.com/acheng-byte/discourse-saver" target="_blank">GitHub</a> |
+        <a href="https://b3log.org/siyuan/" target="_blank">思源笔记</a>
+      </p>
+      <p style="margin-top: 10px;">Discourse Saver V5.1</p>
+    </div>
+  </div>
+</body>
+</html>

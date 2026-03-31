@@ -74,6 +74,9 @@
     .card-header.obsidian {
       background: linear-gradient(135deg, #7c3aed, #5b21b6);
     }
+    .card-header.siyuan {
+      background: linear-gradient(135deg, #d23f31, #a02820);
+    }
     .card-header h2 {
       font-size: 24px;
       font-weight: 600;
@@ -131,6 +134,12 @@
     }
     .btn.btn-feishu:hover {
       background: #1456cb;
+    }
+    .btn.btn-siyuan {
+      background: #d23f31;
+    }
+    .btn.btn-siyuan:hover {
+      background: #a02820;
     }
     .info-section {
       background: #fff;
@@ -192,8 +201,8 @@
   <div class="container">
     <div class="hero">
       <h1>Discourse Saver</h1>
-      <p>一键保存 Discourse 论坛帖子到 Obsidian、飞书多维表格或 Notion Database</p>
-      <span class="version-badge">V4.6.24</span>
+      <p>一键保存 Discourse 论坛帖子到 Obsidian、飞书、Notion 或思源笔记</p>
+      <span class="version-badge">V5.1</span>
     </div>
 
     <div class="cards">
@@ -228,16 +237,32 @@
           <a href="feishu-guide.html" class="btn btn-feishu">查看飞书配置教程</a>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-header siyuan">
+          <h2>思源笔记配置指南</h2>
+          <p>保存帖子到思源笔记</p>
+        </div>
+        <div class="card-body">
+          <ul>
+            <li>通过本地内核 API 通信</li>
+            <li>自动转换为思源原生格式</li>
+            <li>支持自定义笔记本和路径</li>
+            <li>按站点名称自动分类</li>
+          </ul>
+          <a href="siyuan-guide.html" class="btn btn-siyuan">查看思源笔记配置教程</a>
+        </div>
+      </div>
     </div>
 
     <div class="info-section">
       <h3>关于 Discourse Saver</h3>
-      <p>Discourse Saver 是一个 Chrome 浏览器扩展，用于将 Discourse 论坛帖子一键保存到多个平台。支持 Obsidian、飞书多维表格和 Notion Database 三种保存目标，可同时启用。</p>
+      <p>Discourse Saver 是一个 Chrome 浏览器扩展，用于将 Discourse 论坛帖子一键保存到多个平台。支持 Obsidian、飞书多维表格、Notion Database 和思源笔记，还可导出为 HTML 文件，所有保存目标可同时启用。</p>
 
       <div class="features">
         <div class="feature">
           <h4>多平台保存</h4>
-          <p>同时保存到 Obsidian、飞书、Notion</p>
+          <p>同时保存到 Obsidian、飞书、Notion、思源</p>
         </div>
         <div class="feature">
           <h4>评论获取</h4>
@@ -270,9 +295,10 @@
         <a href="https://linux.do" target="_blank">LinuxDo</a> |
         <a href="https://obsidian.md" target="_blank">Obsidian</a> |
         <a href="https://www.feishu.cn" target="_blank">飞书</a> |
-        <a href="https://www.notion.so" target="_blank">Notion</a>
+        <a href="https://www.notion.so" target="_blank">Notion</a> |
+        <a href="https://b3log.org/siyuan/" target="_blank">思源笔记</a>
       </p>
-      <p style="margin-top: 12px;">Discourse Saver V4.6.24</p>
+      <p style="margin-top: 12px;">Discourse Saver V5.1</p>
     </div>
   </div>
 </body>

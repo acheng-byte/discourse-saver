@@ -1,4 +1,4 @@
-# Discourse Saver V4.6.24
+# Discourse Saver V5.1
 
 **中文 | [English](README_EN.md)**
 
@@ -6,13 +6,13 @@
 
 支持 **Chrome 扩展** 和 **油猴脚本（Tampermonkey）** 两种安装方式。
 
-> **V4.6.24 更新**：
-> - **油猴脚本版** - 支持 Tampermonkey/Greasemonkey，跨浏览器通用（Chrome/Edge/Firefox/Safari）
-> - **HTML 导出增强** - 图片 Lightbox 放大、表格全屏/复制、5 种主题切换
-> - **评论用户名超链接** - 评论区用户名支持点击跳转到用户主页
-> - **PWA 支持** - 可安装到设备主屏幕，离线查看
-> - **PDF 导出** - 工具栏一键导出为 PDF 文件
-> - **40+ Discourse 论坛支持** - 通过 @match 和通配符匹配
+> **V5.1 更新**：
+> - **思源笔记支持** - 通过本地内核 API 保存帖子到思源笔记
+> - **Tab 标签页布局** - 设置页面重构为清晰的标签页导航
+> - **三种主题模式** - 支持浅色/深色/跟随系统主题切换
+> - **路径规范化** - 跨平台路径处理，支持 Windows/Mac/Linux
+> - **HTML 导出增强** - 图片 Lightbox、表格全屏/复制、5 种主题、PWA、PDF 导出
+> - **油猴脚本版** - 支持 Tampermonkey/Greasemonkey，跨浏览器通用
 
 ## 浏览器支持
 
@@ -192,9 +192,9 @@
 
 ---
 
-## V4.6.24 新功能
+## V5.1 新功能
 
-### 油猴脚本版（V4.6.24）
+### 油猴脚本版（V5.1）
 
 | 特性 | 说明 |
 |-----|------|
@@ -981,7 +981,9 @@
 
 ## 许可证
 
-MIT License
+MIT License - 完全开源，自由使用、修改和分发。
+
+**二次开发署名期望：** 如果你基于本项目进行二次开发或衍生作品，希望能保留原始项目的署名信息（[acheng-byte/discourse-saver](https://github.com/acheng-byte/discourse-saver)）。这不是强制要求，但非常感谢你的尊重。
 
 ---
 

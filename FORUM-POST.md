@@ -1,4 +1,4 @@
-# Discourse Saver V4.6.24 - 一键保存任意Discourse论坛帖子到Obsidian/飞书/Notion
+# Discourse Saver V5.1 - 一键保存任意Discourse论坛帖子到Obsidian/飞书/Notion
 
 > 支持所有Discourse论坛（56+站点验证），单击保存帖子+评论到Obsidian、飞书多维表格或Notion Database。支持Chrome扩展和油猴脚本两种安装方式，覆盖所有主流浏览器。
 
@@ -22,7 +22,7 @@
 | 功能 | 说明 |
 |-----|------|
 | 三平台保存 | Obsidian + 飞书多维表格 + Notion Database |
-| 油猴脚本版（V4.6.24） | 支持 Tampermonkey/Greasemonkey，跨浏览器通用 |
+| 油猴脚本版（V5.1） | 支持 Tampermonkey/Greasemonkey，跨浏览器通用 |
 | HTML导出增强（V4.3.5） | 图片Lightbox、表格全屏/复制、5种主题、PWA、PDF导出 |
 | 评论用户名超链接（V4.3.8） | 点击用户名跳转到用户主页 |
 | 支持56+论坛 | 自动检测 + 自定义站点管理 |
@@ -164,7 +164,7 @@
 
 ---
 
-## V4.6.24 新增功能
+## V5.1 新增功能
 
 ### 油猴脚本版
 - 支持 Tampermonkey/Greasemonkey，跨浏览器通用

@@ -1,9 +1,6 @@
-// Discourse Saver V4.2.3 - 设置页面
-// 支持 Obsidian、飞书多维表格和 Notion
-// V3.6.0: 支持所有 Discourse 论坛 + 自定义站点管理 + 可折叠面板
-// V4.0.1: 新增 Notion Database 保存功能
-// V4.0.2: 修复换行渲染问题
-// V4.2.3: Notion 属性默认值根据语言自动切换
+// Discourse Saver V5.1 - 设置页面
+// 支持 Obsidian、飞书多维表格、Notion、思源笔记
+// V5.1: Tab 布局 + 三主题切换 + 路径标准化 + 咖啡赞赏
 
 // V4.2.3: Notion 属性的语言相关默认值
 const NOTION_PROP_DEFAULTS = {
@@ -58,6 +55,13 @@ const DEFAULT_CONFIG = {
   feishuTableId: '',
   feishuUploadAttachment: false,
 
+  // 思源笔记设置
+  saveToSiyuan: false,
+  siyuanApiUrl: 'http://127.0.0.1:6806',
+  siyuanToken: '',
+  siyuanNotebook: '',
+  siyuanSavePath: '/Discourse收集箱',
+
   // Notion 设置 (V4.0.1)
   // V4.0.2: 默认属性名改为中文
   // V4.2.3: 根据浏览器语言自动选择中/英文默认值
@@ -87,6 +91,12 @@ const DEFAULT_CONFIG = {
   imageQuality: 0.9,
   imageSkipGif: true,
 
+  // 图片/视频下载到 Vault (V4.7)
+  downloadImages: false,
+  downloadVideos: true,
+  restApiKey: '',
+  restApiPort: 27124,
+
   // 评论设置
   saveComments: false,
   commentCount: 100,
@@ -98,28 +108,77 @@ const DEFAULT_CONFIG = {
   floorTo: 100
 };
 
-// 折叠/展开面板
-function toggleSection(sectionId) {
-  const content = document.getElementById('content-' + sectionId);
-  const icon = document.getElementById('icon-' + sectionId);
-
-  if (content && icon) {
-    content.classList.toggle('expanded');
-    icon.classList.toggle('expanded');
-  }
+// ========== Tab 切换 ==========
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabId);
+  });
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.id === 'tab-' + tabId);
+  });
 }
 
-// 展开所有面板
-function expandAllSections() {
-  const sections = ['pluginStatus', 'siteSettings', 'saveTarget', 'obsidianSettings', 'feishuSettings', 'notionSettings', 'contentSettings', 'commentSettings'];
-  sections.forEach(sectionId => {
-    const content = document.getElementById('content-' + sectionId);
-    const icon = document.getElementById('icon-' + sectionId);
-    if (content && icon) {
-      content.classList.add('expanded');
-      icon.classList.add('expanded');
+// ========== 主题切换 ==========
+function applyTheme(mode) {
+  const html = document.documentElement;
+  if (mode === 'dark') {
+    html.setAttribute('data-theme', 'dark');
+  } else if (mode === 'light') {
+    html.removeAttribute('data-theme');
+  } else {
+    // auto: follow system
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (prefersDark) {
+      html.setAttribute('data-theme', 'dark');
+    } else {
+      html.removeAttribute('data-theme');
+    }
+  }
+  // Update toggle button states
+  document.querySelectorAll('#themeToggle button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.themeVal === mode);
+  });
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('ds-theme') || 'auto';
+  applyTheme(saved);
+  // Listen for system theme changes when in auto mode
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if ((localStorage.getItem('ds-theme') || 'auto') === 'auto') {
+      applyTheme('auto');
     }
   });
+}
+
+function setTheme(mode) {
+  localStorage.setItem('ds-theme', mode);
+  applyTheme(mode);
+}
+
+// ========== 赞赏弹窗 ==========
+function openDonateModal() {
+  document.getElementById('donateOverlay').classList.add('show');
+}
+
+function closeDonateModal() {
+  document.getElementById('donateOverlay').classList.remove('show');
+}
+
+function switchDonateTab(type) {
+  const wechatPanel = document.getElementById('donate-wechat');
+  const alipayPanel = document.getElementById('donate-alipay');
+  const btns = document.querySelectorAll('.donate-tab-btn');
+
+  btns.forEach(btn => {
+    btn.className = 'donate-tab-btn';
+    if (btn.dataset.donate === type) {
+      btn.classList.add(type === 'wechat' ? 'active-wechat' : 'active-alipay');
+    }
+  });
+
+  wechatPanel.style.display = type === 'wechat' ? 'block' : 'none';
+  alipayPanel.style.display = type === 'alipay' ? 'block' : 'none';
 }
 
 // 渲染自定义站点列表
@@ -252,6 +311,13 @@ function loadOptions() {
     document.getElementById('feishuUploadAttachment').checked = config.feishuUploadAttachment;
     document.getElementById('feishuUploadHtml').checked = config.feishuUploadHtml || false;
 
+    // 思源笔记设置
+    document.getElementById('saveToSiyuan').checked = config.saveToSiyuan;
+    document.getElementById('siyuanApiUrl').value = config.siyuanApiUrl || 'http://127.0.0.1:6806';
+    document.getElementById('siyuanToken').value = config.siyuanToken || '';
+    document.getElementById('siyuanNotebook').value = config.siyuanNotebook || '';
+    document.getElementById('siyuanSavePath').value = config.siyuanSavePath || '/Discourse收集箱';
+
     // Notion 设置 (V4.0.1)
     // V4.2.3: 根据语言使用对应的默认值
     document.getElementById('saveToNotion').checked = config.saveToNotion;
@@ -275,6 +341,12 @@ function loadOptions() {
     document.getElementById('imageQuality').value = config.imageQuality;
     document.getElementById('imageSkipGif').checked = config.imageSkipGif;
 
+    // 图片/视频下载设置
+    document.getElementById('downloadImages').checked = config.downloadImages;
+    document.getElementById('downloadVideos').checked = config.downloadVideos;
+    document.getElementById('restApiKey').value = config.restApiKey;
+    document.getElementById('restApiPort').value = config.restApiPort;
+
     // 评论设置
     document.getElementById('saveComments').checked = config.saveComments;
     document.getElementById('commentCount').value = config.commentCount;
@@ -289,13 +361,14 @@ function loadOptions() {
     updateObsidianSectionVisibility(config.saveToObsidian);
     updateFeishuOptionsVisibility(config.saveToFeishu);
     updateNotionOptionsVisibility(config.saveToNotion);
+    updateSiyuanOptionsVisibility(config.saveToSiyuan);
     updateCommentOptionsVisibility(config.saveComments);
     updateSaveAllCommentsVisibility(config.saveAllComments);
     updateImageSettingsVisibility(config.embedImages);
+    updateDownloadImagesVisibility(config.downloadImages);
     updateFloorRangeVisibility(config.useFloorRange);
 
-    // 确保所有面板默认展开
-    expandAllSections();
+    // Tab 布局无需展开面板
     });
   });
 }
@@ -325,6 +398,18 @@ function updateFeishuOptionsVisibility(enabled) {
 // V4.0.2: 修复 - 控制整个 section 而不只是内部选项
 function updateNotionOptionsVisibility(enabled) {
   const section = document.getElementById('notionSection');
+  if (section) {
+    section.style.opacity = enabled ? '1' : '0.5';
+    const content = section.querySelector('.section-content');
+    if (content) {
+      content.style.pointerEvents = enabled ? 'auto' : 'none';
+    }
+  }
+}
+
+// 更新思源笔记区域可见性
+function updateSiyuanOptionsVisibility(enabled) {
+  const section = document.getElementById('siyuanSection');
   if (section) {
     section.style.opacity = enabled ? '1' : '0.5';
     const content = section.querySelector('.section-content');
@@ -374,6 +459,18 @@ function updateImageSettingsVisibility(enabled) {
   }
 }
 
+// 更新图片下载设置面板可见性 (V4.7)
+function updateDownloadImagesVisibility(enabled) {
+  const panel = document.getElementById('downloadImagesPanel');
+  if (panel) {
+    if (enabled) {
+      panel.classList.remove('disabled');
+    } else {
+      panel.classList.add('disabled');
+    }
+  }
+}
+
 // V4.3.7: 更新楼层范围选项可见性
 function updateFloorRangeVisibility(enabled) {
   const panel = document.getElementById('floorRangeOptions');
@@ -412,6 +509,7 @@ function saveOptions(e) {
     saveToObsidian: document.getElementById('saveToObsidian').checked,
     saveToFeishu: document.getElementById('saveToFeishu').checked,
     saveToNotion: document.getElementById('saveToNotion').checked,
+    saveToSiyuan: document.getElementById('saveToSiyuan').checked,
     exportHtml: document.getElementById('exportHtml').checked,
     htmlExportFolder: document.getElementById('htmlExportFolder').value.trim(),
 
@@ -428,6 +526,12 @@ function saveOptions(e) {
     feishuTableId: document.getElementById('feishuTableId').value.trim(),
     feishuUploadAttachment: document.getElementById('feishuUploadAttachment').checked,
     feishuUploadHtml: document.getElementById('feishuUploadHtml').checked,
+
+    // 思源笔记设置
+    siyuanApiUrl: document.getElementById('siyuanApiUrl').value.trim() || 'http://127.0.0.1:6806',
+    siyuanToken: document.getElementById('siyuanToken').value.trim(),
+    siyuanNotebook: document.getElementById('siyuanNotebook').value.trim(),
+    siyuanSavePath: document.getElementById('siyuanSavePath').value.trim(),
 
     // Notion 设置 (V4.0.1)
     // V4.3.7: 默认值改为中文
@@ -451,6 +555,12 @@ function saveOptions(e) {
     imageQuality: parseFloat(document.getElementById('imageQuality').value) || 0.9,
     imageSkipGif: document.getElementById('imageSkipGif').checked,
 
+    // 图片/视频下载设置
+    downloadImages: document.getElementById('downloadImages').checked,
+    downloadVideos: document.getElementById('downloadVideos').checked,
+    restApiKey: document.getElementById('restApiKey').value.trim(),
+    restApiPort: parseInt(document.getElementById('restApiPort').value) || 27124,
+
     // 评论设置
     saveComments: document.getElementById('saveComments').checked,
     commentCount: commentCount,
@@ -463,7 +573,7 @@ function saveOptions(e) {
   };
 
   // 验证：插件启用时至少选择一个保存目标
-  if (config.pluginEnabled && !config.saveToObsidian && !config.saveToFeishu && !config.saveToNotion && !config.exportHtml) {
+  if (config.pluginEnabled && !config.saveToObsidian && !config.saveToFeishu && !config.saveToNotion && !config.saveToSiyuan && !config.exportHtml) {
     showStatus('请至少选择一个保存目标', 'error');
     return;
   }
@@ -502,12 +612,39 @@ function saveOptions(e) {
     }
   }
 
+  // 验证：如果启用思源笔记，检查必填项
+  if (config.saveToSiyuan) {
+    if (!config.siyuanNotebook) {
+      showStatus('请填写思源笔记本 ID', 'error');
+      return;
+    }
+    // 验证 API URL 格式
+    if (config.siyuanApiUrl) {
+      try {
+        const url = new URL(config.siyuanApiUrl);
+        if (!['http:', 'https:'].includes(url.protocol)) {
+          showStatus('思源 API 地址必须以 http:// 或 https:// 开头', 'error');
+          return;
+        }
+      } catch (e) {
+        showStatus('思源 API 地址格式不正确', 'error');
+        return;
+      }
+    }
+  }
+
   // V3.6.0: 验证图片嵌入需要 Advanced URI
   if (config.embedImages && config.saveToObsidian && !config.useAdvancedUri) {
     // 自动启用 Advanced URI
     config.useAdvancedUri = true;
     document.getElementById('useAdvancedUri').checked = true;
     showStatus('已自动启用 Advanced URI（图片嵌入必需）', 'info');
+  }
+
+  // V4.7: 下载图片需要 REST API Key
+  if (config.downloadImages && !config.restApiKey) {
+    showStatus('请填写 Obsidian Local REST API Key', 'error');
+    return;
   }
 
   chrome.storage.sync.set(config, () => {
@@ -648,6 +785,99 @@ async function testNotionConnection() {
   }
 }
 
+// 测试思源笔记连接
+async function testSiyuanConnection() {
+  const btn = document.getElementById('testSiyuanBtn');
+  const originalText = btn.textContent;
+
+  btn.textContent = '测试中...';
+  btn.disabled = true;
+
+  const config = {
+    siyuanApiUrl: document.getElementById('siyuanApiUrl').value.trim() || 'http://127.0.0.1:6806',
+    siyuanToken: document.getElementById('siyuanToken').value.trim(),
+    siyuanNotebook: document.getElementById('siyuanNotebook').value.trim()
+  };
+
+  if (!config.siyuanNotebook) {
+    showStatus('请先填写笔记本 ID', 'error');
+    btn.textContent = originalText;
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    chrome.runtime.sendMessage(
+      { action: 'testSiyuanConnection', config },
+      (response) => {
+        btn.textContent = originalText;
+        btn.disabled = false;
+
+        if (chrome.runtime.lastError) {
+          showStatus('测试失败: ' + chrome.runtime.lastError.message, 'error');
+          return;
+        }
+
+        if (response.success) {
+          showStatus(response.message, 'success');
+        } else {
+          showStatus('连接失败: ' + response.error, 'error');
+        }
+      }
+    );
+  } catch (error) {
+    btn.textContent = originalText;
+    btn.disabled = false;
+    showStatus('测试失败: ' + error.message, 'error');
+  }
+}
+
+// V4.7: 测试 Obsidian Local REST API 连接
+async function testRestApiConnection() {
+  const btn = document.getElementById('testRestApiBtn');
+  const originalText = btn.textContent;
+
+  btn.textContent = '测试中...';
+  btn.disabled = true;
+
+  const config = {
+    restApiKey: document.getElementById('restApiKey').value.trim(),
+    restApiPort: parseInt(document.getElementById('restApiPort').value) || 27124
+  };
+
+  if (!config.restApiKey) {
+    showStatus('请先填写 API Key', 'error');
+    btn.textContent = originalText;
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    chrome.runtime.sendMessage(
+      { action: 'testRestApiConnection', config },
+      (response) => {
+        btn.textContent = originalText;
+        btn.disabled = false;
+
+        if (chrome.runtime.lastError) {
+          showStatus('测试失败: ' + chrome.runtime.lastError.message, 'error');
+          return;
+        }
+
+        if (response.success) {
+          showStatus(response.message, 'success');
+        } else {
+          showStatus('连接失败: ' + response.error, 'error');
+        }
+      }
+    );
+  } catch (error) {
+    btn.textContent = originalText;
+    btn.disabled = false;
+    showStatus('测试失败: ' + error.message, 'error');
+  }
+}
+
 // 显示状态
 function showStatus(message, type) {
   const statusElement = document.getElementById('statusMessage');
@@ -670,12 +900,27 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('lang-zh').addEventListener('click', () => setLanguage('zh'));
   document.getElementById('lang-en').addEventListener('click', () => setLanguage('en'));
 
-  // 绑定折叠/展开事件（使用事件监听器，避免 Chrome 扩展 CSP 限制）
-  document.querySelectorAll('.section-header[data-section]').forEach(header => {
-    header.addEventListener('click', () => {
-      const sectionId = header.getAttribute('data-section');
-      toggleSection(sectionId);
-    });
+  // 初始化主题
+  initTheme();
+
+  // 主题切换按钮事件
+  document.querySelectorAll('#themeToggle button').forEach(btn => {
+    btn.addEventListener('click', () => setTheme(btn.dataset.themeVal));
+  });
+
+  // Tab 切换事件
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // 赞赏弹窗事件
+  document.getElementById('coffeeBtn').addEventListener('click', openDonateModal);
+  document.getElementById('donateClose').addEventListener('click', closeDonateModal);
+  document.getElementById('donateOverlay').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeDonateModal();
+  });
+  document.querySelectorAll('.donate-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchDonateTab(btn.dataset.donate));
   });
 
   // 表单提交
@@ -710,6 +955,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('saveToNotion').addEventListener('change', (e) => {
     updateNotionOptionsVisibility(e.target.checked);
   });
+
+  document.getElementById('saveToSiyuan').addEventListener('change', (e) => {
+    updateSiyuanOptionsVisibility(e.target.checked);
+  });
+
+  // 测试思源笔记连接
+  document.getElementById('testSiyuanBtn').addEventListener('click', testSiyuanConnection);
+  document.getElementById('testRestApiBtn').addEventListener('click', testRestApiConnection);
 
   // 测试 Notion 连接 (V4.0.1)
   document.getElementById('testNotionBtn').addEventListener('click', testNotionConnection);
@@ -758,15 +1011,29 @@ document.addEventListener('DOMContentLoaded', () => {
         advancedUriCheckbox.checked = true;
         showStatus('已自动启用 Advanced URI（图片嵌入必需）', 'info');
       }
+      // 互斥：关闭图片下载
+      const downloadCheckbox = document.getElementById('downloadImages');
+      if (downloadCheckbox && downloadCheckbox.checked) {
+        downloadCheckbox.checked = false;
+        updateDownloadImagesVisibility(false);
+        showStatus('已关闭"下载图片到本地"（与 Base64 嵌入互斥）', 'info');
+      }
     }
   });
 
-  // 移除文件夹路径首尾斜杠
-  document.getElementById('folderPath').addEventListener('input', (e) => {
-    let value = e.target.value.trim();
-    value = value.replace(/^\/+|\/+$/g, '');
-    if (e.target.value !== value) {
-      e.target.value = value;
+  // 图片/视频下载到本地 (V4.7)
+  document.getElementById('downloadImages').addEventListener('change', (e) => {
+    updateDownloadImagesVisibility(e.target.checked);
+
+    // 互斥：关闭 Base64 嵌入
+    if (e.target.checked) {
+      const embedCheckbox = document.getElementById('embedImages');
+      if (embedCheckbox && embedCheckbox.checked) {
+        embedCheckbox.checked = false;
+        updateImageSettingsVisibility(false);
+        showStatus('已关闭"图片嵌入 Base64"（与下载到本地互斥）', 'info');
+      }
     }
   });
+
 });

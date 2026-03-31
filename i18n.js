@@ -2,7 +2,7 @@
 const i18n = {
   zh: {
     header: {
-      subtitle: '保存 Discourse 论坛帖子到 Obsidian、飞书或 Notion V4.2.2'
+      subtitle: '保存 Discourse 论坛帖子到 Obsidian、飞书或 Notion V5.1'
     },
     sections: {
       pluginStatus: '插件状态',
@@ -11,6 +11,7 @@ const i18n = {
       obsidian: 'Obsidian 设置',
       feishu: '飞书多维表格设置',
       notion: 'Notion Database 设置',
+      siyuan: '思源笔记设置',
       content: '内容设置',
       comments: '评论设置'
     },
@@ -32,6 +33,7 @@ const i18n = {
       feishu: '保存到飞书多维表格',
       notion: '保存到 Notion Database',
       exportHtml: '导出 HTML 文件',
+      siyuan: '保存到思源笔记',
       multiSaveHelp: '可以同时保存到多个地方'
     },
     html: {
@@ -83,6 +85,30 @@ const i18n = {
       perm3Title: '3. 多维表格字段（9个必填）：',
       perm3Content1: '标题（文本）、链接（超链接）、作者（文本）、分类（文本）、标签（文本）、保存时间（日期）、评论数（数字）',
       perm3Content2: '如勾选上传附件：附件（附件）；否则：正文（文本）'
+    },
+    siyuan: {
+      apiUrl: 'API 地址',
+      apiUrlHelp: '思源笔记本地 API 地址，默认 http://127.0.0.1:6806',
+      apiUrlPlaceholder: 'http://127.0.0.1:6806',
+      token: 'API Token（可选）',
+      tokenHelp: '如果开启了鉴权，需要填写 API Token',
+      tokenPlaceholder: '留空表示未开启鉴权',
+      tokenHelpDetail: '在思源笔记 设置 → 关于 中查看 API Token',
+      notebook: '笔记本 ID',
+      notebookHelp: '保存到哪个笔记本（从笔记本 URL 中获取）',
+      notebookPlaceholder: '20210808180117-czj9bvb',
+      notebookHelpDetail: '打开笔记本，URL 中 /notebook/ 后面的字符串',
+      savePath: '保存路径',
+      savePathHelp: '笔记本内的保存目录，用 / 分隔',
+      savePathPlaceholder: '/Discourse收集箱',
+      savePathHelpDetail: '留空则保存到笔记本根目录，路径以 / 开头',
+      testConnection: '测试连接',
+      help: '需要思源笔记在本地运行，确保 API 服务已开启',
+      configStepsTitle: '配置步骤：',
+      configStep1: '1. 确保思源笔记已启动并运行在本地',
+      configStep2: '2. 打开思源笔记 设置 → 关于，查看 API Token（如已开启鉴权）',
+      configStep3: '3. 在笔记本列表中找到目标笔记本的 ID',
+      configStep4: '4. 填入上方配置并测试连接'
     },
     notion: {
       token: 'Integration Token',
@@ -152,7 +178,24 @@ const i18n = {
       qualityHelp: '降低质量可减小文件体积',
       skipGif: '跳过 GIF 动图（保留原链接）',
       skipGifHelp: 'GIF 转 Base64 会失去动画效果，启用后保留原链接',
-      skipGifHelpDetail: 'GIF 转换后会失去动画效果'
+      skipGifHelpDetail: 'GIF 转换后会失去动画效果',
+      downloadImages: '下载图片/视频到 Vault 文件夹',
+      downloadImagesHelp: '通过 Obsidian Local REST API 将图片/视频直接写入 Vault，Markdown 使用相对路径引用',
+      downloadImagesWarning: '需要安装 Obsidian 社区插件「Local REST API」，在 Obsidian 设置中获取 API Key。',
+      downloadImagesNote: '此选项与"图片嵌入（Base64）"互斥，启用本选项将自动关闭 Base64 嵌入。',
+      restApiKey: 'API Key',
+      restApiKeyHelp: '在 Obsidian 设置 → Local REST API 中查看',
+      restApiKeyPlaceholder: '粘贴你的 API Key',
+      restApiPort: '端口',
+      restApiPortHelp: '默认 27124，一般不需要修改',
+      testRestApi: '测试连接',
+      restApiConfigTitle: '配置步骤：',
+      restApiStep1: '1. 在 Obsidian 中安装社区插件「Local REST API」',
+      restApiStep2: '2. 启用插件后，在设置中找到 API Key',
+      restApiStep3: '3. 将 API Key 粘贴到上方输入框',
+      restApiStep4: '4. 点击「测试连接」确认可用',
+      downloadVideos: '同时下载视频文件',
+      downloadVideosHelp: '启用后也会下载帖子中嵌入的视频文件'
     },
     comments: {
       saveComments: '保存评论区',
@@ -193,6 +236,10 @@ const i18n = {
       feishuTestFailed: '飞书连接测试失败',
       notionTestSuccess: 'Notion 连接测试成功！',
       notionTestFailed: 'Notion 连接测试失败',
+      siyuanTestSuccess: '思源笔记连接测试成功！',
+      siyuanTestFailed: '思源笔记连接测试失败',
+      restApiTestSuccess: 'Obsidian Local REST API 连接成功！',
+      restApiTestFailed: 'Obsidian Local REST API 连接失败',
       siteAdded: '站点已添加',
       siteRemoved: '站点已删除',
       pleaseEnterDomain: '请输入域名'
@@ -201,7 +248,8 @@ const i18n = {
       new: '新',
       obsidian: 'Obsidian',
       feishu: '飞书',
-      notion: 'Notion'
+      notion: 'Notion',
+      siyuan: '思源'
     },
     usage: {
       title: '使用方法：',
@@ -214,7 +262,7 @@ const i18n = {
   },
   en: {
     header: {
-      subtitle: 'Save Discourse Forum Posts to Obsidian, Feishu or Notion V4.2.2'
+      subtitle: 'Save Discourse Forum Posts to Obsidian, Feishu or Notion V5.1'
     },
     sections: {
       pluginStatus: 'Plugin Status',
@@ -223,6 +271,7 @@ const i18n = {
       obsidian: 'Obsidian Settings',
       feishu: 'Feishu Bitable Settings',
       notion: 'Notion Database Settings',
+      siyuan: 'SiYuan Note Settings',
       content: 'Content Settings',
       comments: 'Comment Settings'
     },
@@ -244,6 +293,7 @@ const i18n = {
       feishu: 'Save to Feishu Bitable',
       notion: 'Save to Notion Database',
       exportHtml: 'Export HTML File',
+      siyuan: 'Save to SiYuan Note',
       multiSaveHelp: 'Can save to multiple destinations simultaneously'
     },
     html: {
@@ -295,6 +345,30 @@ const i18n = {
       perm3Title: '3. Bitable Fields (9 required):',
       perm3Content1: 'Title (Text), Link (Hyperlink), Author (Text), Category (Text), Tags (Text), Save Time (Date), Comments (Number)',
       perm3Content2: 'If upload attachment checked: Attachment (Attachment); otherwise: Content (Text)'
+    },
+    siyuan: {
+      apiUrl: 'API URL',
+      apiUrlHelp: 'SiYuan Note local API address, default http://127.0.0.1:6806',
+      apiUrlPlaceholder: 'http://127.0.0.1:6806',
+      token: 'API Token (Optional)',
+      tokenHelp: 'Required if authentication is enabled',
+      tokenPlaceholder: 'Leave empty if auth is disabled',
+      tokenHelpDetail: 'Find API Token in SiYuan Settings → About',
+      notebook: 'Notebook ID',
+      notebookHelp: 'Which notebook to save to (get from notebook URL)',
+      notebookPlaceholder: '20210808180117-czj9bvb',
+      notebookHelpDetail: 'Open notebook, the string after /notebook/ in URL',
+      savePath: 'Save Path',
+      savePathHelp: 'Save directory within the notebook, separated by /',
+      savePathPlaceholder: '/Discourse Inbox',
+      savePathHelpDetail: 'Leave empty to save to notebook root, path starts with /',
+      testConnection: 'Test Connection',
+      help: 'SiYuan Note must be running locally with API service enabled',
+      configStepsTitle: 'Configuration Steps:',
+      configStep1: '1. Ensure SiYuan Note is running locally',
+      configStep2: '2. Open SiYuan Settings → About to find API Token (if auth is enabled)',
+      configStep3: '3. Find the target notebook ID from the notebook list',
+      configStep4: '4. Fill in the config above and test connection'
     },
     notion: {
       token: 'Integration Token',
@@ -364,7 +438,24 @@ const i18n = {
       qualityHelp: 'Lower quality reduces file size',
       skipGif: 'Skip GIF animations (keep original link)',
       skipGifHelp: 'GIF to Base64 loses animation, keep original link when enabled',
-      skipGifHelpDetail: 'GIF will lose animation after conversion'
+      skipGifHelpDetail: 'GIF will lose animation after conversion',
+      downloadImages: 'Download images/videos to Vault folder',
+      downloadImagesHelp: 'Write images/videos directly to Vault via Obsidian Local REST API, Markdown uses relative paths',
+      downloadImagesWarning: 'Requires Obsidian community plugin "Local REST API". Get API Key from Obsidian settings.',
+      downloadImagesNote: 'This option is mutually exclusive with "Embed images (Base64)". Enabling this will disable Base64 embedding.',
+      restApiKey: 'API Key',
+      restApiKeyHelp: 'Find in Obsidian Settings → Local REST API',
+      restApiKeyPlaceholder: 'Paste your API Key',
+      restApiPort: 'Port',
+      restApiPortHelp: 'Default 27124, usually no need to change',
+      testRestApi: 'Test Connection',
+      restApiConfigTitle: 'Configuration Steps:',
+      restApiStep1: '1. Install community plugin "Local REST API" in Obsidian',
+      restApiStep2: '2. After enabling, find API Key in plugin settings',
+      restApiStep3: '3. Paste API Key in the input above',
+      restApiStep4: '4. Click "Test Connection" to verify',
+      downloadVideos: 'Also download video files',
+      downloadVideosHelp: 'Also download embedded video files from posts'
     },
     comments: {
       saveComments: 'Save Comment Section',
@@ -405,6 +496,10 @@ const i18n = {
       feishuTestFailed: 'Feishu connection test failed',
       notionTestSuccess: 'Notion connection test successful!',
       notionTestFailed: 'Notion connection test failed',
+      siyuanTestSuccess: 'SiYuan Note connection test successful!',
+      siyuanTestFailed: 'SiYuan Note connection test failed',
+      restApiTestSuccess: 'Obsidian Local REST API connection successful!',
+      restApiTestFailed: 'Obsidian Local REST API connection failed',
       siteAdded: 'Site added',
       siteRemoved: 'Site removed',
       pleaseEnterDomain: 'Please enter domain'
@@ -413,7 +508,8 @@ const i18n = {
       new: 'New',
       obsidian: 'Obsidian',
       feishu: 'Feishu',
-      notion: 'Notion'
+      notion: 'Notion',
+      siyuan: 'SiYuan'
     },
     usage: {
       title: 'How to Use:',

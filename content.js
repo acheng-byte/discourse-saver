@@ -1,4 +1,4 @@
-// Discourse Saver - Content Script V4.3.9
+// Discourse Saver - Content Script V5.1
 // 劫持链接按钮，保存帖子+评论到Obsidian（保留颜色样式）
 // V3.5: 支持同时保存到飞书多维表格（带MD附件）
 // V3.5.1: 单击保存到Obsidian，双击触发原生复制链接
@@ -61,6 +61,12 @@
     imageQuality: 0.9,
     imageSkipGif: true,
 
+    // V4.7: 图片/视频下载到本地
+    downloadImages: false,
+    downloadVideos: true,
+    restApiKey: '',
+    restApiPort: 27124,
+
     // V3.5: 飞书设置
     saveToObsidian: true,
     saveToFeishu: false,
@@ -84,6 +90,13 @@
     notionPropTags: '',          // V4.3.7: 标签属性
     notionPropSavedDate: '',
     notionPropCommentCount: '',
+
+    // 思源笔记设置
+    saveToSiyuan: false,
+    siyuanApiUrl: 'http://127.0.0.1:6806',
+    siyuanToken: '',
+    siyuanNotebook: '',
+    siyuanSavePath: '/Discourse收集箱',
 
     // V4.2.6: HTML 导出设置
     exportHtml: false,
@@ -117,6 +130,81 @@
   function getNotionPropDefault(propName, lang) {
     const defaults = NOTION_PROP_DEFAULTS[lang] || NOTION_PROP_DEFAULTS.zh;
     return defaults[propName] || '';
+  }
+
+  // V5.1: 路径标准化工具 - 支持 Windows/Mac/Linux 各种路径格式
+  // 支持格式: "D:\folder\sub", "D:/folder/sub", "/Users/me/vault/folder",
+  //           "智囊团/123", "Discourse收集箱", "folder\subfolder"
+  function normalizePath(inputPath) {
+    if (!inputPath || typeof inputPath !== 'string') return '';
+
+    let p = inputPath.trim();
+    if (!p) return '';
+
+    // 统一反斜杠为正斜杠（Windows路径兼容）
+    p = p.replace(/\\/g, '/');
+
+    // 移除多余的连续斜杠（但保留协议前缀如 http://）
+    p = p.replace(/([^:])\/+/g, '$1/');
+
+    // 移除首尾斜杠（Obsidian vault 路径不需要）
+    p = p.replace(/^\/+/, '').replace(/\/+$/, '');
+
+    // 如果是 Windows 绝对路径（如 D:/folder），保留盘符
+    // 对于 Obsidian URI 和 REST API，它们是 vault 内部相对路径
+    // 所以如果检测到绝对路径，只取最后的有效部分
+    // 但用户可能就是想用这个作为文件夹名，所以不做自动截取
+    // 让用户决定路径格式
+
+    return p;
+  }
+
+  // V5.1: 组合路径 - 安全地连接多个路径片段
+  function joinPath(...parts) {
+    return parts
+      .map(p => normalizePath(p))
+      .filter(p => p.length > 0)
+      .join('/');
+  }
+
+  // V4.7: 根据当前站点获取友好名称，用于创建子文件夹
+  function getSiteName() {
+    const hostname = window.location.hostname;
+
+    // 已知站点映射
+    const siteMap = {
+      'linux.do': 'LinuxDo',
+      'meta.discourse.org': 'Meta Discourse',
+      'community.openai.com': 'OpenAI Community',
+      'forum.cursor.com': 'Cursor Forum',
+      'discuss.pytorch.org': 'PyTorch Forum',
+      'discuss.tensorflow.org': 'TensorFlow Forum',
+      'forum.obsidian.md': 'Obsidian Forum',
+      'forum.affinity.serif.com': 'Affinity Forum',
+      'users.rust-lang.org': 'Rust Users',
+      'forums.docker.com': 'Docker Forum',
+      'community.make.com': 'Make Community',
+      'community.cloudflare.com': 'Cloudflare Community',
+      'community.fly.io': 'Fly Community',
+      'forum.replit.com': 'Replit Forum',
+      'community.n8n.io': 'N8N Community'
+    };
+
+    if (siteMap[hostname]) {
+      return siteMap[hostname];
+    }
+
+    // 未知站点：清理 hostname 作为文件夹名
+    // 去掉 www. 前缀，将点替换为可读格式
+    let name = hostname.replace(/^www\./, '');
+    // 取主域名部分（如 forum.example.com → forum.example.com）
+    return name;
+  }
+
+  // V5.1: 构建带站点子文件夹的保存路径（支持任意路径格式）
+  function buildSiteFolderPath(baseFolderPath) {
+    const siteName = getSiteName();
+    return joinPath(baseFolderPath, siteName);
   }
 
   // V4.2.2: Promise 包装 chrome.runtime.sendMessage（感谢 @Gannyn 提供并行保存方案）
@@ -1394,6 +1482,98 @@
     return processedMarkdown;
   }
 
+  // V4.7: 收集 Markdown 中的媒体文件 URL（图片+视频）
+  function collectMediaUrls(markdown, downloadVideos) {
+    const mediaUrls = [];
+    const seenUrls = new Set();
+
+    // 匹配图片 ![alt](url)
+    const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    let match;
+    while ((match = imageRegex.exec(markdown)) !== null) {
+      const url = match[2];
+      if (!seenUrls.has(url) && url.startsWith('http')) {
+        seenUrls.add(url);
+        mediaUrls.push({ url, type: 'image', alt: match[1] });
+      }
+    }
+
+    // 匹配视频链接（常见视频格式 + Discourse 上传视频）
+    if (downloadVideos) {
+      const videoRegex = /\[([^\]]*)\]\((https?:\/\/[^)]+\.(?:mp4|webm|mov|avi|mkv|m4v)[^)]*)\)/gi;
+      while ((match = videoRegex.exec(markdown)) !== null) {
+        const url = match[2];
+        if (!seenUrls.has(url)) {
+          seenUrls.add(url);
+          mediaUrls.push({ url, type: 'video', alt: match[1] });
+        }
+      }
+      // 也匹配独立的视频 URL 行
+      const videoLineRegex = /^(https?:\/\/\S+\.(?:mp4|webm|mov|avi|mkv|m4v)\S*)$/gim;
+      while ((match = videoLineRegex.exec(markdown)) !== null) {
+        const url = match[1];
+        if (!seenUrls.has(url)) {
+          seenUrls.add(url);
+          mediaUrls.push({ url, type: 'video', alt: '' });
+        }
+      }
+    }
+
+    return mediaUrls;
+  }
+
+  // V4.7: 下载媒体文件并替换 Markdown 中的 URL 为相对路径
+  async function downloadAndReplaceMedia(markdown, fileName, config, siteFolderPath) {
+    if (!config.downloadImages) {
+      return markdown;
+    }
+
+    const mediaUrls = collectMediaUrls(markdown, config.downloadVideos);
+    if (mediaUrls.length === 0) {
+      console.log('[Discourse Saver] 没有找到需要下载的媒体文件');
+      return markdown;
+    }
+
+    console.log(`[Discourse Saver] 找到 ${mediaUrls.length} 个媒体文件，开始通过 REST API 写入...`);
+
+    // V4.7.1: 媒体文件夹路径（标准化）：{siteFolderPath}/media
+    // 例如：Discourse收集箱/LinuxDo/media
+    const vaultPath = joinPath(siteFolderPath, 'media');
+
+    // 发送到 background.js 通过 REST API 写入 Vault
+    const response = await sendMessageAsync({
+      action: 'downloadMediaFiles',
+      mediaUrls,
+      vaultPath,
+      restApiKey: config.restApiKey,
+      restApiPort: config.restApiPort
+    });
+
+    if (!response || !response.success) {
+      console.warn('[Discourse Saver] 媒体下载失败:', response?.error);
+      return markdown;
+    }
+
+    // 替换 Markdown 中的 URL 为相对路径
+    let processedMarkdown = markdown;
+    let successCount = 0;
+
+    for (const result of response.results) {
+      if (result.success && result.relativePath) {
+        // 替换所有出现的原始 URL
+        const escapedUrl = result.originalUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        processedMarkdown = processedMarkdown.replace(
+          new RegExp(escapedUrl, 'g'),
+          result.relativePath
+        );
+        successCount++;
+      }
+    }
+
+    console.log(`[Discourse Saver] 媒体路径替换完成: ${successCount}/${mediaUrls.length} 成功`);
+    return processedMarkdown;
+  }
+
   // V3: HTML转Markdown（带评论版本）
   function convertToMarkdownWithComments(contentHTML, metadata, comments, config) {
     const turndownService = createTurndownService();
@@ -1665,8 +1845,18 @@ tags: [${tagsStr}]
         ? `${sanitizedTitle}-${targetPostNumber}楼`
         : sanitizedTitle;
 
-      // 构建Obsidian URI
-      const filePath = config.folderPath ? `${config.folderPath}/${fileName}` : fileName;
+      // V4.7.1: 构建带站点子文件夹的路径（支持 Windows/Mac 各种路径格式）
+      const normalizedFolder = normalizePath(config.folderPath);
+      const siteFolderPath = buildSiteFolderPath(normalizedFolder);
+
+      // V4.7: 下载图片/视频到本地媒体文件夹
+      if (config.downloadImages) {
+        showNotification('正在下载媒体文件...', 'info');
+        markdown = await downloadAndReplaceMedia(markdown, fileName, config, siteFolderPath);
+      }
+
+      // 构建Obsidian URI - 使用站点子文件夹路径
+      const filePath = joinPath(siteFolderPath, fileName);
       const vaultParam = config.vaultName && config.vaultName.trim() !== ''
         ? 'vault=' + encodeURIComponent(config.vaultName.trim()) + '&'
         : '';
@@ -1778,11 +1968,10 @@ tags: [${tagsStr}]
                 ? `${sanitizeFileName(title)}-${targetPostNumber}楼`
                 : (sanitizeFileName(title) || 'discourse-export');
 
-              // V4.3.6: 使用配置的HTML导出文件夹
-              const htmlFolder = config.htmlExportFolder || '';
-              const fullFileName = htmlFolder
-                ? `${htmlFolder}/${safeFileName}.html`
-                : `${safeFileName}.html`;
+              // V4.7.1: 使用配置的HTML导出文件夹 + 站点子文件夹（路径标准化）
+              const htmlFolder = normalizePath(config.htmlExportFolder || '');
+              const htmlSiteFolder = joinPath(htmlFolder, getSiteName());
+              const fullFileName = `${htmlSiteFolder}/${safeFileName}.html`;
 
               // 通过 background.js 下载（支持自定义路径）
               chrome.runtime.sendMessage({
@@ -1934,6 +2123,54 @@ tags: [${tagsStr}]
         remoteSaveTasks.push(notionTask);
       }
 
+      // 准备思源笔记保存任务
+      const siyuanConfigComplete = config.saveToSiyuan &&
+        config.siyuanNotebook;
+
+      if (siyuanConfigComplete) {
+        console.log('[Discourse Saver→思源] 检测到思源笔记配置，准备保存...');
+        showNotification('正在保存到思源笔记...', 'info');
+
+        let siyuanUrl = url.replace(/#.*$/, '').replace(/\?.*$/, '');
+        let siyuanTitle = title;
+        if (isSingleCommentMode) {
+          const match = siyuanUrl.match(/^(.*\/t\/[^/]+\/\d+)(\/\d+)?$/);
+          if (match) {
+            siyuanUrl = match[1];
+          }
+          siyuanUrl = `${siyuanUrl}/${targetPostNumber}`;
+          siyuanTitle = `${title} [${targetPostNumber}楼]`;
+        }
+
+        // V4.7.1: 思源笔记也使用站点子文件夹（路径标准化）
+        const siyuanRawPath = config.siyuanSavePath || '/Discourse收集箱';
+        // 思源笔记路径需要以 / 开头，统一走 normalizePath 清理多余斜杠
+        const siyuanNormalized = normalizePath(siyuanRawPath);
+        const siyuanBasePath = siyuanNormalized ? '/' + siyuanNormalized : '/Discourse收集箱';
+        const siyuanSitePath = `${siyuanBasePath}/${getSiteName()}`;
+
+        const siyuanTask = sendMessageAsync({
+          action: 'saveToSiyuan',
+          config: {
+            siyuanApiUrl: config.siyuanApiUrl || 'http://127.0.0.1:6806',
+            siyuanToken: config.siyuanToken || '',
+            siyuanNotebook: config.siyuanNotebook,
+            siyuanSavePath: siyuanSitePath
+          },
+          postData: {
+            title: siyuanTitle,
+            url: siyuanUrl,
+            author: author,
+            content: markdown,
+            category: category || '',
+            tags: tags || [],
+            commentCount: comments.length
+          }
+        }).then(response => ({ target: 'siyuan', response }));
+
+        remoteSaveTasks.push(siyuanTask);
+      }
+
       // 并行执行所有远程保存任务
       if (remoteSaveTasks.length > 0) {
         Promise.allSettled(remoteSaveTasks).then(results => {
@@ -1957,6 +2194,13 @@ tags: [${tagsStr}]
                   console.error('[Discourse Saver→Notion] 保存失败:', response?.error);
                   showNotification('Notion 保存失败: ' + (response?.error || '未知错误'), 'error');
                 }
+              } else if (target === 'siyuan') {
+                if (response && response.success) {
+                  showNotification('思源笔记保存成功', 'success');
+                } else {
+                  console.error('[Discourse Saver→思源] 保存失败:', response?.error);
+                  showNotification('思源笔记保存失败: ' + (response?.error || '未知错误'), 'error');
+                }
               }
             } else {
               // Promise rejected（理论上不会发生，因为 sendMessageAsync 总是 resolve）
@@ -1968,7 +2212,7 @@ tags: [${tagsStr}]
 
       // V4.0.1: 如果所有保存目标都没有启用，提示用户
       // V4.2.6: 增加 exportHtml 为有效保存目标
-      if (!shouldSaveToObsidian && !feishuConfigComplete && !notionConfigComplete && !config.exportHtml) {
+      if (!shouldSaveToObsidian && !feishuConfigComplete && !notionConfigComplete && !siyuanConfigComplete && !config.exportHtml) {
         showNotification('请在设置中至少启用一个保存目标', 'warning');
       }
 
@@ -3534,7 +3778,7 @@ tags: [${tagsStr}]
   </article>
 
   <footer class="footer">
-    <p>由 <a href="https://github.com/AchengBusiness/discourse-saver" target="_blank" rel="noopener noreferrer">Discourse Saver</a> 导出</p>
+    <p>由 <a href="https://github.com/acheng-byte/discourse-saver" target="_blank" rel="noopener noreferrer">Discourse Saver</a> 导出</p>
   </footer>
 
   ${getThemeScript()}

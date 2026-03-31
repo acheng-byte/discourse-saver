@@ -1,15 +1,16 @@
-# Discourse Saver V4.6.24
+# Discourse Saver V5.1
 
 **[中文](README.md) | English**
 
 Save **any Discourse forum** posts and comments to **Obsidian**, **Feishu Bitable**, or **Notion** with one click. Also available as a **Tampermonkey userscript** for cross-browser support.
 
-> **V4.6.24 Updates**:
+> **V5.1 Updates**:
+> - **SiYuan Note Support** - Save posts to SiYuan Note via local kernel API
+> - **Tab Layout** - Settings page redesigned with tab navigation
+> - **Three Theme Modes** - Light/Dark/System theme switching
+> - **Path Normalization** - Cross-platform path handling (Windows/Mac/Linux)
+> - **HTML Export Enhancement** - Image Lightbox, table fullscreen/copy, 5 themes, PWA, PDF export
 > - **Tampermonkey Userscript** - Cross-browser support (Chrome/Edge/Firefox/Safari)
-> - **Comment Username Hyperlinks** (V4.3.8) - Click username to visit user profile
-> - **HTML Export Enhancement** (V4.3.5) - Image Lightbox, table fullscreen/copy, 5 themes, PWA, PDF export
-> - **Code Copy** - One-click code block copy
-> - **Responsive Design** - Perfect for mobile, tablet, desktop
 
 ## Browser Support
 
@@ -24,7 +25,7 @@ Save **any Discourse forum** posts and comments to **Obsidian**, **Feishu Bitabl
 | Firefox | ❌ Not Supported | Extension API incompatible |
 | Safari | ❌ Not Supported | Extension API incompatible |
 
-### Tampermonkey Userscript (V4.6.24)
+### Tampermonkey Userscript (V5.1)
 
 | Browser | Status | Notes |
 |---------|--------|-------|
@@ -190,9 +191,9 @@ For privately deployed or undetected Discourse sites, you can manually add them 
 
 ---
 
-## V4.6.24 New Features
+## V5.1 New Features
 
-### Tampermonkey Userscript (V4.6.24)
+### Tampermonkey Userscript (V5.1)
 
 | Feature | Description |
 |---------|-------------|

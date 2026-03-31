@@ -1,4 +1,4 @@
-// Discourse Saver - 站点检测器 V4.0.2
+// Discourse Saver - 站点检测器 V5.1
 // 自动检测 Discourse 论坛并加载主脚本
 
 (function() {
@@ -87,6 +87,8 @@
       }
       if (response && response.success) {
         console.log('[Discourse Saver] 主脚本加载成功');
+        scriptsLoaded = true;
+        observer.disconnect();
       }
     });
   }
@@ -124,9 +126,14 @@
     setTimeout(detect, 100);
   }
 
-  // 监听 SPA 导航
+  // 监听 SPA 导航（一旦检测到 Discourse 并加载主脚本后断开）
   let lastUrl = location.href;
+  let scriptsLoaded = false;
   const observer = new MutationObserver(() => {
+    if (scriptsLoaded) {
+      observer.disconnect();
+      return;
+    }
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       setTimeout(detect, 500);

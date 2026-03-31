@@ -1,4 +1,4 @@
-// Discourse Saver - Background Script V4.3.5
+// Discourse Saver - Background Script V5.1
 // 处理飞书/Notion API请求（解决CORS问题）+ 动态脚本注入
 // V3.5: 支持上传MD文件作为附件
 // V3.5.2: 支持飞书国内版和Lark国际版
@@ -2510,6 +2510,140 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // 保持消息通道开放
   }
 
+  // V4.7: 通过 Obsidian Local REST API 下载图片/视频到 Vault
+  if (request.action === 'downloadMediaFiles') {
+    (async () => {
+      try {
+        const { mediaUrls, vaultPath, restApiKey, restApiPort } = request;
+        // vaultPath: Vault 内的媒体文件夹路径（如 "Discourse收集箱/LinuxDo/帖子标题"）
+        // mediaUrls: [{ url, type: 'image'|'video', alt }]
+
+        if (!mediaUrls || mediaUrls.length === 0) {
+          sendResponse({ success: true, results: [] });
+          return;
+        }
+
+        const apiBase = `https://127.0.0.1:${restApiPort || 27124}`;
+        console.log(`[Discourse Saver] 开始写入 ${mediaUrls.length} 个媒体文件到 Vault: ${vaultPath}/`);
+
+        const results = [];
+
+        for (let i = 0; i < mediaUrls.length; i++) {
+          const media = mediaUrls[i];
+          try {
+            // 1. 获取图片/视频的二进制数据
+            const fetchResp = await fetch(media.url);
+            if (!fetchResp.ok) {
+              throw new Error(`HTTP ${fetchResp.status}`);
+            }
+            const blob = await fetchResp.blob();
+
+            // 2. 从 URL 提取文件名
+            const urlObj = new URL(media.url);
+            let fileName = urlObj.pathname.split('/').pop() || `media_${i}`;
+            fileName = fileName.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
+            if (!fileName.includes('.')) {
+              fileName += media.type === 'video' ? '.mp4' : '.jpg';
+            }
+
+            // 去重
+            const existingNames = results.map(r => r.localName);
+            let finalName = fileName;
+            let counter = 1;
+            while (existingNames.includes(finalName)) {
+              const dotIdx = fileName.lastIndexOf('.');
+              if (dotIdx > 0) {
+                finalName = fileName.substring(0, dotIdx) + `_${counter}` + fileName.substring(dotIdx);
+              } else {
+                finalName = fileName + `_${counter}`;
+              }
+              counter++;
+            }
+
+            // 3. 通过 REST API 写入 Vault
+            const filePath = `${vaultPath}/${finalName}`;
+            const putResp = await fetch(`${apiBase}/vault/${encodeURIComponent(filePath)}`, {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${restApiKey}`,
+                'Content-Type': 'application/octet-stream'
+              },
+              body: blob
+            });
+
+            if (!putResp.ok) {
+              throw new Error(`REST API ${putResp.status}: ${await putResp.text()}`);
+            }
+
+            console.log(`[Discourse Saver] 写入 Vault [${i + 1}/${mediaUrls.length}]: ${filePath}`);
+
+            // relativePath 是相对于 Markdown 文件所在目录的路径
+            // Markdown 在 vaultPath 的上一级，媒体文件在 vaultPath/ 下
+            const folderName = vaultPath.split('/').pop();
+            results.push({
+              originalUrl: media.url,
+              localName: finalName,
+              relativePath: `${folderName}/${finalName}`,
+              success: true
+            });
+          } catch (dlError) {
+            console.warn(`[Discourse Saver] 写入媒体失败: ${media.url}`, dlError);
+            results.push({
+              originalUrl: media.url,
+              localName: null,
+              relativePath: null,
+              success: false,
+              error: dlError.message
+            });
+          }
+        }
+
+        const successCount = results.filter(r => r.success).length;
+        console.log(`[Discourse Saver] 媒体写入完成: ${successCount}/${mediaUrls.length} 成功`);
+
+        sendResponse({ success: true, results });
+      } catch (error) {
+        console.error('[Discourse Saver] 媒体写入失败:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  }
+
+  // V4.7: 测试 Obsidian Local REST API 连接
+  if (request.action === 'testRestApiConnection') {
+    (async () => {
+      try {
+        const { restApiKey, restApiPort } = request.config;
+        const apiBase = `https://127.0.0.1:${restApiPort || 27124}`;
+
+        // 调用根路径检查服务状态
+        const resp = await fetch(`${apiBase}/`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${restApiKey}`
+          }
+        });
+
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+        }
+
+        const data = await resp.json();
+        sendResponse({
+          success: true,
+          message: `连接成功！Obsidian REST API 可用（认证通过）`
+        });
+      } catch (error) {
+        sendResponse({
+          success: false,
+          error: error.message || '无法连接到 Obsidian Local REST API，请确认 Obsidian 已运行且插件已启用'
+        });
+      }
+    })();
+    return true;
+  }
+
   // V3.6.0: 处理动态脚本注入请求（来自 detector.js）
   if (request.action === 'injectContentScript') {
     console.log('[Discourse Saver] 收到脚本注入请求，URL:', request.tabUrl);
@@ -2814,6 +2948,157 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse(result);
       } catch (error) {
         console.error('[Discourse Saver→Notion] 测试连接失败:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+
+    return true;
+  }
+
+  // 思源笔记保存
+  if (request.action === 'saveToSiyuan') {
+    console.log('[Discourse Saver→思源] 收到保存请求');
+    console.log('[Discourse Saver→思源] 标题:', request.postData.title);
+
+    (async () => {
+      try {
+        const { config, postData } = request;
+        const baseUrl = config.siyuanApiUrl || 'http://127.0.0.1:6806';
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+        if (config.siyuanToken) {
+          headers['Authorization'] = `Token ${config.siyuanToken}`;
+        }
+
+        // 构建保存路径
+        const savePath = config.siyuanSavePath
+          ? config.siyuanSavePath.replace(/\/$/, '')
+          : '';
+        const sanitizedTitle = postData.title
+          .replace(/[\/\\:*?"<>|#\[\]{}()]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .substring(0, 80);
+        const docPath = savePath ? `${savePath}/${sanitizedTitle}` : `/${sanitizedTitle}`;
+
+        console.log('[Discourse Saver→思源] 文档路径:', docPath);
+
+        // 调用思源 API 创建文档
+        const createResponse = await fetch(`${baseUrl}/api/filetree/createDocWithMd`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            notebook: config.siyuanNotebook,
+            path: docPath,
+            markdown: postData.content
+          })
+        });
+
+        const createData = await createResponse.json();
+
+        if (createData.code !== 0) {
+          throw new Error(createData.msg || '创建文档失败');
+        }
+
+        const docId = createData.data;
+        console.log('[Discourse Saver→思源] 文档创建成功, ID:', docId);
+
+        // 设置文档属性（来源URL、作者等）
+        if (docId) {
+          try {
+            const attrs = {
+              'custom-source-url': postData.url,
+              'custom-author': postData.author || '',
+              'custom-category': postData.category || '',
+              'custom-tags': Array.isArray(postData.tags) ? postData.tags.join(', ') : (postData.tags || ''),
+              'custom-comment-count': String(postData.commentCount || 0),
+              'custom-saved-date': new Date().toISOString()
+            };
+
+            await fetch(`${baseUrl}/api/attr/setBlockAttrs`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                id: docId,
+                attrs: attrs
+              })
+            });
+            console.log('[Discourse Saver→思源] 文档属性设置成功');
+          } catch (attrError) {
+            console.warn('[Discourse Saver→思源] 设置属性失败（不影响保存）:', attrError);
+          }
+        }
+
+        sendResponse({ success: true, action: 'created', docId });
+      } catch (error) {
+        console.error('[Discourse Saver→思源] 保存失败:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+
+    return true;
+  }
+
+  // 思源笔记测试连接
+  if (request.action === 'testSiyuanConnection') {
+    console.log('[Discourse Saver→思源] 收到测试连接请求');
+
+    (async () => {
+      try {
+        const { siyuanApiUrl, siyuanToken, siyuanNotebook } = request.config;
+        const baseUrl = siyuanApiUrl || 'http://127.0.0.1:6806';
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+        if (siyuanToken) {
+          headers['Authorization'] = `Token ${siyuanToken}`;
+        }
+
+        // 步骤1: 检查思源笔记是否在运行
+        console.log('[Discourse Saver→思源] 步骤1: 检查连接...');
+        let versionResponse;
+        try {
+          versionResponse = await fetch(`${baseUrl}/api/system/version`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({})
+          });
+        } catch (fetchError) {
+          throw new Error('无法连接到思源笔记\n\n可能原因：\n- 思源笔记未启动\n- API 地址不正确\n- 防火墙阻止了连接');
+        }
+
+        const versionData = await versionResponse.json();
+        if (versionData.code !== 0) {
+          throw new Error('连接失败: ' + (versionData.msg || '未知错误'));
+        }
+        console.log('[Discourse Saver→思源] 思源版本:', versionData.data);
+
+        // 步骤2: 验证笔记本ID
+        console.log('[Discourse Saver→思源] 步骤2: 验证笔记本...');
+        const notebooksResponse = await fetch(`${baseUrl}/api/notebook/lsNotebooks`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({})
+        });
+        const notebooksData = await notebooksResponse.json();
+
+        if (notebooksData.code !== 0) {
+          throw new Error('获取笔记本列表失败: ' + (notebooksData.msg || '未知错误'));
+        }
+
+        const notebooks = notebooksData.data?.notebooks || [];
+        const targetNotebook = notebooks.find(nb => nb.id === siyuanNotebook);
+
+        if (!targetNotebook) {
+          const nbNames = notebooks.map(nb => `  - ${nb.name} (${nb.id})`).join('\n');
+          throw new Error(`笔记本 ID "${siyuanNotebook}" 不存在\n\n可用笔记本：\n${nbNames}`);
+        }
+
+        const message = `连接成功！\n思源版本: ${versionData.data}\n笔记本: ${targetNotebook.name}`;
+        sendResponse({ success: true, message });
+      } catch (error) {
+        console.error('[Discourse Saver→思源] 测试连接失败:', error);
         sendResponse({ success: false, error: error.message });
       }
     })();

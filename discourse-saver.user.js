@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Discourse Saver (油猴版)
 // @namespace    https://github.com/discourse-saver
-// @version      4.6.24
-// @description  通用Discourse论坛内容保存工具 - 支持Obsidian/Notion/HTML，评论、用户名超链接、折叠模式
+// @version      5.1
+// @description  通用Discourse论坛内容保存工具 - 支持Obsidian/Notion/思源笔记/HTML，评论、用户名超链接、折叠模式
 // @author       阿成
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=obsidian.md
 // @match        https://linux.do/*
@@ -46,9 +46,6 @@
 // @match        https://community.bitwarden.com/*
 // @match        https://discuss.emberjs.com/*
 // @include      *://*discourse*/*
-// @include      *://*forum*/*
-// @include      *://*discuss*/*
-// @include      *://*community*/*
 // @require      https://cdn.jsdelivr.net/npm/turndown@7.1.2/dist/turndown.js
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -92,6 +89,13 @@
       notionPropTags: '标签',
       notionPropSavedDate: '保存日期',
       notionPropCommentCount: '评论数',
+
+      // 思源笔记设置
+      saveToSiyuan: false,
+      siyuanApiUrl: 'http://127.0.0.1:6806',
+      siyuanToken: '',
+      siyuanNotebook: '',
+      siyuanSavePath: '/Discourse收集箱',
 
       // HTML 导出设置
       htmlExportFolder: 'Discourse导出',
@@ -3392,6 +3396,195 @@ ${tagsYaml}
       });
     }
 
+    // 保存到思源笔记（使用 GM_xmlhttpRequest 调用本地 API）
+    async function saveToSiyuan(markdown, metadata, config) {
+      const apiUrl = (config.siyuanApiUrl || 'http://127.0.0.1:6806').replace(/\/+$/, '');
+      const token = config.siyuanToken || '';
+      const notebook = config.siyuanNotebook;
+      const rawPath = config.siyuanSavePath || '/Discourse收集箱';
+
+      if (!notebook) {
+        throw new Error('请先配置思源笔记笔记本 ID');
+      }
+
+      // 构建保存路径：basePath/siteName/title
+      const siteName = new URL(metadata.url).hostname.replace(/^www\./, '');
+      const safeTitle = metadata.title
+        .replace(/[\/\\:*?"<>|]/g, '-')
+        .replace(/\s+/g, '-')
+        .substring(0, 80) || 'Discourse-' + Date.now();
+
+      // 确保路径以 / 开头
+      const basePath = rawPath.startsWith('/') ? rawPath : '/' + rawPath;
+      const fullPath = `${basePath}/${siteName}/${safeTitle}`;
+
+      console.log('[Discourse Saver] 思源保存路径:', fullPath);
+
+      // 调用 createDocWithMd API
+      const createResult = await new Promise((resolve, reject) => {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Token ${token}`;
+
+        GM_xmlhttpRequest({
+          method: 'POST',
+          url: `${apiUrl}/api/filetree/createDocWithMd`,
+          headers: headers,
+          data: JSON.stringify({
+            notebook: notebook,
+            path: fullPath,
+            markdown: markdown
+          }),
+          onload: function(response) {
+            try {
+              const data = JSON.parse(response.responseText);
+              if (data.code === 0) {
+                console.log('[Discourse Saver] 思源文档创建成功:', data.data);
+                resolve(data.data);
+              } else {
+                reject(new Error(data.msg || '创建文档失败'));
+              }
+            } catch (e) {
+              reject(new Error('解析响应失败: ' + response.responseText.substring(0, 200)));
+            }
+          },
+          onerror: function(err) {
+            reject(new Error('网络请求失败，请确保思源笔记已启动'));
+          }
+        });
+      });
+
+      // 设置文档属性（来源 URL 等）
+      if (createResult) {
+        try {
+          const docId = typeof createResult === 'string' ? createResult : createResult.id || createResult;
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Token ${token}`;
+
+          await new Promise((resolve) => {
+            GM_xmlhttpRequest({
+              method: 'POST',
+              url: `${apiUrl}/api/attr/setBlockAttrs`,
+              headers: headers,
+              data: JSON.stringify({
+                id: docId,
+                attrs: {
+                  'custom-source-url': metadata.url,
+                  'custom-author': metadata.author || '',
+                  'custom-saved-by': 'Discourse Saver V5.1'
+                }
+              }),
+              onload: () => resolve(),
+              onerror: () => resolve() // 属性设置失败不影响主流程
+            });
+          });
+        } catch (e) {
+          console.warn('[Discourse Saver] 设置思源文档属性失败:', e);
+        }
+      }
+
+      return createResult;
+    }
+
+    // 测试思源笔记连接
+    async function testSiyuanConnection(apiUrl, token, notebookId) {
+      apiUrl = (apiUrl || 'http://127.0.0.1:6806').replace(/\/+$/, '');
+
+      // 先测试 API 可用性
+      const versionResult = await new Promise((resolve, reject) => {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Token ${token}`;
+
+        GM_xmlhttpRequest({
+          method: 'POST',
+          url: `${apiUrl}/api/system/version`,
+          headers: headers,
+          data: '{}',
+          timeout: 5000,
+          onload: function(response) {
+            try {
+              const data = JSON.parse(response.responseText);
+              if (data.code === 0) {
+                resolve({ success: true, version: data.data });
+              } else {
+                reject(new Error(data.msg || '连接失败'));
+              }
+            } catch (e) {
+              reject(new Error('响应解析失败'));
+            }
+          },
+          onerror: function() {
+            reject(new Error('无法连接到思源笔记，请确保已启动'));
+          },
+          ontimeout: function() {
+            reject(new Error('连接超时'));
+          }
+        });
+      });
+
+      // 验证笔记本是否存在
+      if (notebookId) {
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Token ${token}`;
+
+        const nbResult = await new Promise((resolve) => {
+          GM_xmlhttpRequest({
+            method: 'POST',
+            url: `${apiUrl}/api/notebook/lsNotebooks`,
+            headers: headers,
+            data: '{}',
+            onload: function(response) {
+              try {
+                const data = JSON.parse(response.responseText);
+                if (data.code === 0 && data.data && data.data.notebooks) {
+                  const found = data.data.notebooks.find(nb => nb.id === notebookId);
+                  if (found) {
+                    resolve({ found: true, name: found.name });
+                  } else {
+                    resolve({ found: false });
+                  }
+                } else {
+                  resolve({ found: false });
+                }
+              } catch (e) {
+                resolve({ found: false });
+              }
+            },
+            onerror: () => resolve({ found: false })
+          });
+        });
+
+        return {
+          success: true,
+          version: versionResult.version,
+          notebook: nbResult.found ? nbResult.name : null,
+          notebookFound: nbResult.found
+        };
+      }
+
+      return { success: true, version: versionResult.version };
+    }
+
+    // 独立导出：仅保存到思源笔记
+    async function saveToSiyuanOnly(targetPostNumber = null) {
+      try {
+        const config = ConfigModule.get();
+        if (!config.siyuanNotebook) {
+          throw new Error('请先配置思源笔记笔记本 ID');
+        }
+
+        UtilModule.showNotification('正在准备保存到思源笔记...', 'info');
+        const { markdown, metadata, comments } = await prepareData(targetPostNumber);
+        await saveToSiyuan(markdown, metadata, config);
+        const commentInfo = comments.length > 0 ? `（含${comments.length}条评论）` : '';
+        UtilModule.showNotification(`已保存到思源笔记${commentInfo}`, 'success');
+        return { success: true, target: '思源笔记' };
+      } catch (error) {
+        console.error('[Discourse Saver] 思源笔记保存失败:', error);
+        UtilModule.showNotification('思源笔记保存失败: ' + error.message, 'error');
+        return { success: false, target: '思源笔记', error: error.message };
+      }
+    }
+
     // 准备保存数据（公共函数）
     async function prepareData(targetPostNumber = null) {
       const config = ConfigModule.get();
@@ -3502,7 +3695,7 @@ ${tagsYaml}
         console.log('[Discourse Saver] 配置:', config);
 
         // 检查是否至少选择了一个保存目标
-        if (!config.saveToObsidian && !config.saveToNotion && !config.exportHtml) {
+        if (!config.saveToObsidian && !config.saveToNotion && !config.saveToSiyuan && !config.exportHtml) {
           UtilModule.showNotification('请在设置中至少选择一个保存目标', 'warning');
           return;
         }
@@ -3536,6 +3729,15 @@ ${tagsYaml}
               .catch(e => ({ success: false, target: 'HTML', error: e.message }))
           );
           taskNames.push('HTML');
+        }
+
+        if (config.saveToSiyuan && config.siyuanNotebook) {
+          tasks.push(
+            saveToSiyuan(markdown, metadata, config)
+              .then(() => ({ success: true, target: '思源笔记' }))
+              .catch(e => ({ success: false, target: '思源笔记', error: e.message }))
+          );
+          taskNames.push('思源笔记');
         }
 
         // 记录是否需要保存到 Obsidian（最后执行）
@@ -3632,8 +3834,10 @@ ${tagsYaml}
       save,                    // 根据配置保存（并行）
       saveToObsidianOnly,      // 仅保存到 Obsidian
       saveToNotionOnly,        // 仅保存到 Notion
+      saveToSiyuanOnly,        // 仅保存到思源笔记
       exportHtmlOnly,          // 仅导出 HTML
       testNotionConnection,    // 测试 Notion 连接
+      testSiyuanConnection,    // 测试思源笔记连接
       downloadLastLargeFile    // 备选：下载大文件
     };
   })();
@@ -3937,7 +4141,7 @@ ${tagsYaml}
       overlay.className = 'ds-settings-overlay';
       overlay.innerHTML = `
         <div class="ds-settings-panel">
-          <h2>📝 Discourse Saver 设置 (V4.6.24)</h2>
+          <h2>📝 Discourse Saver 设置 (V5.1)</h2>
 
           <div class="ds-section-title">自定义站点</div>
 
@@ -3957,6 +4161,11 @@ ${tagsYaml}
           <div class="ds-form-group ds-checkbox-group">
             <input type="checkbox" id="ds-save-notion" ${config.saveToNotion ? 'checked' : ''}>
             <label for="ds-save-notion">保存到 Notion</label>
+          </div>
+
+          <div class="ds-form-group ds-checkbox-group">
+            <input type="checkbox" id="ds-save-siyuan" ${config.saveToSiyuan ? 'checked' : ''}>
+            <label for="ds-save-siyuan">保存到思源笔记</label>
           </div>
 
           <div class="ds-form-group ds-checkbox-group">
@@ -4010,6 +4219,35 @@ ${tagsYaml}
           <div class="ds-form-group" style="display: flex; gap: 8px;">
             <button class="ds-btn ds-btn-secondary" id="ds-test-notion" style="flex: none; padding: 8px 16px;">测试连接</button>
             <span id="ds-notion-status" style="line-height: 36px; color: #6b7280; font-size: 13px;"></span>
+          </div>
+
+          <div class="ds-section-title">思源笔记设置</div>
+
+          <div class="ds-form-group">
+            <label>API 地址</label>
+            <input type="text" id="ds-siyuan-url" value="${config.siyuanApiUrl}" placeholder="http://127.0.0.1:6806">
+            <div class="ds-hint">思源笔记内核 API 地址，默认 http://127.0.0.1:6806</div>
+          </div>
+
+          <div class="ds-form-group">
+            <label>API Token（可选）</label>
+            <input type="text" id="ds-siyuan-token" value="${config.siyuanToken}" placeholder="未开启鉴权可留空">
+          </div>
+
+          <div class="ds-form-group">
+            <label>笔记本 ID</label>
+            <input type="text" id="ds-siyuan-notebook" value="${config.siyuanNotebook}" placeholder="20210808180117-czj9bvb">
+            <div class="ds-hint">右键笔记本 → 设置 中获取</div>
+          </div>
+
+          <div class="ds-form-group">
+            <label>保存路径</label>
+            <input type="text" id="ds-siyuan-path" value="${config.siyuanSavePath}" placeholder="/Discourse收集箱">
+          </div>
+
+          <div class="ds-form-group" style="display: flex; gap: 8px;">
+            <button class="ds-btn ds-btn-secondary" id="ds-test-siyuan" style="flex: none; padding: 8px 16px;">测试连接</button>
+            <span id="ds-siyuan-status" style="line-height: 36px; color: #6b7280; font-size: 13px;"></span>
           </div>
 
           <div class="ds-section-title">HTML 导出设置</div>
@@ -4118,6 +4356,32 @@ ${tagsYaml}
         }
       });
 
+      // 测试思源笔记连接
+      overlay.querySelector('#ds-test-siyuan').addEventListener('click', async () => {
+        const apiUrl = overlay.querySelector('#ds-siyuan-url').value.trim();
+        const token = overlay.querySelector('#ds-siyuan-token').value.trim();
+        const notebookId = overlay.querySelector('#ds-siyuan-notebook').value.trim();
+        const statusEl = overlay.querySelector('#ds-siyuan-status');
+
+        statusEl.textContent = '测试中...';
+        statusEl.style.color = '#6b7280';
+
+        try {
+          const result = await SaveModule.testSiyuanConnection(apiUrl, token, notebookId);
+          if (result.success) {
+            let msg = `连接成功! 版本: ${result.version}`;
+            if (notebookId) {
+              msg += result.notebookFound ? ` | 笔记本: ${result.notebook}` : ' | 笔记本ID未找到';
+            }
+            statusEl.textContent = msg;
+            statusEl.style.color = result.notebookFound !== false ? '#22c55e' : '#f59e0b';
+          }
+        } catch (e) {
+          statusEl.textContent = '连接失败: ' + e.message;
+          statusEl.style.color = '#ef4444';
+        }
+      });
+
       // OB 测试按钮（使用 v4.3.8 验证过的剪贴板方式）
       overlay.querySelector('#ds-test-ob').addEventListener('click', async () => {
         const vaultName = overlay.querySelector('#ds-vault').value.trim();
@@ -4170,6 +4434,7 @@ ${tagsYaml}
           // 保存目标
           saveToObsidian: overlay.querySelector('#ds-save-obsidian').checked,
           saveToNotion: overlay.querySelector('#ds-save-notion').checked,
+          saveToSiyuan: overlay.querySelector('#ds-save-siyuan').checked,
           exportHtml: overlay.querySelector('#ds-export-html').checked,
           // Obsidian设置
           vaultName: overlay.querySelector('#ds-vault').value.trim(),
@@ -4180,6 +4445,11 @@ ${tagsYaml}
           // Notion设置
           notionToken: overlay.querySelector('#ds-notion-token').value.trim(),
           notionDatabaseId: overlay.querySelector('#ds-notion-db').value.trim(),
+          // 思源笔记设置
+          siyuanApiUrl: overlay.querySelector('#ds-siyuan-url').value.trim() || 'http://127.0.0.1:6806',
+          siyuanToken: overlay.querySelector('#ds-siyuan-token').value.trim(),
+          siyuanNotebook: overlay.querySelector('#ds-siyuan-notebook').value.trim(),
+          siyuanSavePath: overlay.querySelector('#ds-siyuan-path').value.trim() || '/Discourse收集箱',
           // HTML设置
           htmlExportFolder: overlay.querySelector('#ds-html-folder').value.trim() || 'Discourse导出',
           // 评论设置
@@ -4225,6 +4495,7 @@ ${tagsYaml}
       GM_registerMenuCommand('📥 保存当前帖子（全部目标）', () => SaveModule.save(null));
       GM_registerMenuCommand('📝 仅保存到 Obsidian', () => SaveModule.saveToObsidianOnly(null));
       GM_registerMenuCommand('📑 仅保存到 Notion', () => SaveModule.saveToNotionOnly(null));
+      GM_registerMenuCommand('📔 仅保存到思源笔记', () => SaveModule.saveToSiyuanOnly(null));
       GM_registerMenuCommand('📄 仅导出为 HTML', () => SaveModule.exportHtmlOnly(null));
       GM_registerMenuCommand('💾 下载大文件（备选）', () => SaveModule.downloadLastLargeFile());
       GM_registerMenuCommand('🔍 调试信息', () => {
@@ -4246,7 +4517,7 @@ ${tagsYaml}
               '找到帖子流: ' + info.hasPostStream);
       });
 
-      console.log('[Discourse Saver] 油猴脚本已加载 (V4.5.6)');
+      console.log('[Discourse Saver] 油猴脚本已加载 (V5.1)');
     }
 
     return { init, showSettingsPanel };
