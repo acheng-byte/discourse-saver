@@ -88,7 +88,10 @@
     // V4.2.6: HTML 导出设置
     exportHtml: false,
     feishuUploadHtml: false,
-    htmlExportFolder: 'Discourse导出'  // V4.3.6: HTML 导出文件夹
+    htmlExportFolder: 'Discourse导出',  // V4.3.6: HTML 导出文件夹
+
+    // 媒体文件夹名称
+    mediaFolderName: 'media'
   };
 
   // V4.2.3: Notion 属性的语言相关默认值

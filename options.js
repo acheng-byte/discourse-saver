@@ -95,7 +95,10 @@ const DEFAULT_CONFIG = {
   // V4.3.7: 楼层范围设置
   useFloorRange: false,
   floorFrom: 1,
-  floorTo: 100
+  floorTo: 100,
+
+  // 媒体文件夹名称
+  mediaFolderName: 'media'
 };
 
 // 折叠/展开面板
@@ -274,6 +277,7 @@ function loadOptions() {
     document.getElementById('imageMaxWidth').value = config.imageMaxWidth;
     document.getElementById('imageQuality').value = config.imageQuality;
     document.getElementById('imageSkipGif').checked = config.imageSkipGif;
+    document.getElementById('mediaFolderName').value = config.mediaFolderName || 'media';
 
     // 评论设置
     document.getElementById('saveComments').checked = config.saveComments;
@@ -450,6 +454,7 @@ function saveOptions(e) {
     imageMaxWidth: parseInt(document.getElementById('imageMaxWidth').value) || 1920,
     imageQuality: parseFloat(document.getElementById('imageQuality').value) || 0.9,
     imageSkipGif: document.getElementById('imageSkipGif').checked,
+    mediaFolderName: document.getElementById('mediaFolderName').value.trim() || 'media',
 
     // 评论设置
     saveComments: document.getElementById('saveComments').checked,

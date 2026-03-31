@@ -228,7 +228,9 @@ const i18n = {
       restApiStep3: '3. 将 API Key 粘贴到上方输入框',
       restApiStep4: '4. 点击「测试连接」确认可用',
       downloadVideos: '同时下载视频文件',
-      downloadVideosHelp: '启用后也会下载帖子中嵌入的视频文件'
+      downloadVideosHelp: '启用后也会下载帖子中嵌入的视频文件',
+      mediaFolderName: '媒体文件夹名称',
+      mediaFolderHelp: '媒体文件保存到 Vault 中此文件夹下，默认 media'
     },
     comments: {
       saveComments: '保存评论区',
@@ -535,7 +537,9 @@ const i18n = {
       restApiStep3: '3. Paste API Key in the input above',
       restApiStep4: '4. Click "Test Connection" to verify',
       downloadVideos: 'Also download video files',
-      downloadVideosHelp: 'Also download embedded video files from posts'
+      downloadVideosHelp: 'Also download embedded video files from posts',
+      mediaFolderName: 'Media Folder Name',
+      mediaFolderHelp: 'Media files are saved under this folder in your Vault, default: media'
     },
     comments: {
       saveComments: 'Save Comment Section',

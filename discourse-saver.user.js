@@ -113,6 +113,7 @@
       downloadVideos: true,
       restApiKey: '',
       restApiPort: 27124,
+      mediaFolderName: 'media',
 
       // 评论设置
       saveComments: false,
@@ -520,8 +521,9 @@
       console.log(`[Discourse Saver] 找到 ${mediaUrls.length} 个媒体文件，开始通过 REST API 写入...`);
       showNotification(`正在下载 ${mediaUrls.length} 个媒体文件到 Vault...`, 'info');
 
-      // 媒体文件夹路径：{siteFolderPath}/media
-      const vaultPath = siteFolderPath ? `${siteFolderPath}/media` : 'media';
+      // 媒体文件夹路径：{siteFolderPath}/{mediaFolderName}
+      const mediaFolderName = config.mediaFolderName || 'media';
+      const vaultPath = siteFolderPath ? `${siteFolderPath}/${mediaFolderName}` : mediaFolderName;
 
       // 优先使用 HTTP (27123) 避免自签名证书问题
       const configPort = config.restApiPort || 27124;
@@ -618,7 +620,7 @@
           results.push({
             originalUrl: media.url,
             localName: finalName,
-            relativePath: `media/${finalName}`,
+            relativePath: `${mediaFolderName}/${finalName}`,
             success: true
           });
         } catch (dlError) {
@@ -4471,6 +4473,11 @@ ${tagsYaml}
               <input type="checkbox" id="ds-download-videos" ${config.downloadVideos ? 'checked' : ''}>
               <label for="ds-download-videos">同时下载视频文件</label>
             </div>
+            <div class="ds-form-group">
+              <label>媒体文件夹名称</label>
+              <input type="text" id="ds-media-folder-name" value="${config.mediaFolderName || 'media'}" placeholder="media">
+              <span class="ds-hint">媒体文件保存到 Vault 中此文件夹下，默认 media</span>
+            </div>
           </div>
 
           <div class="ds-section-title">Notion 设置</div>
@@ -4746,6 +4753,7 @@ ${tagsYaml}
           downloadVideos: overlay.querySelector('#ds-download-videos').checked,
           restApiKey: overlay.querySelector('#ds-rest-api-key').value.trim(),
           restApiPort: parseInt(overlay.querySelector('#ds-rest-api-port').value) || 27124,
+          mediaFolderName: overlay.querySelector('#ds-media-folder-name').value.trim() || 'media',
           // Notion设置
           notionToken: overlay.querySelector('#ds-notion-token').value.trim(),
           notionDatabaseId: overlay.querySelector('#ds-notion-db').value.trim(),
