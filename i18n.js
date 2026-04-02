@@ -3,7 +3,7 @@ const i18n = {
   zh: {
     header: {
       title: 'Discourse Saver - 设置',
-      subtitle: '保存 Discourse 论坛帖子到 Obsidian、飞书、Notion、思源笔记、语雀，或导出 HTML V5.3'
+      subtitle: '保存 Discourse 论坛帖子到 Obsidian、飞书、Notion、思源笔记、语雀，或导出 HTML V5.3.1'
     },
     tabs: {
       general: '通用',
@@ -96,6 +96,7 @@ const i18n = {
       tableIdHelp: 'URL 中 ?table= 后面的字符串（以 tbl 开头）',
       tableIdPlaceholder: 'tblxxxxxxxxxxxxxxxx',
       tableIdHelpDetail: '从 URL 中获取：?table=tblxxx&view=...',
+      uploadContent: '上传正文到「正文」字段',
       uploadMd: '上传 MD 附件（需额外权限，可选）',
       uploadMdHelp: '将完整内容作为 .md 文件上传到飞书',
       uploadMdHelpDetail: '不勾选则只保存文本摘要，无需 drive 权限',
@@ -344,7 +345,7 @@ const i18n = {
   en: {
     header: {
       title: 'Discourse Saver - Settings',
-      subtitle: 'Save Discourse Forum Posts to Obsidian, Feishu, Notion, SiYuan Note, Yuque or Export HTML V5.3'
+      subtitle: 'Save Discourse Forum Posts to Obsidian, Feishu, Notion, SiYuan Note, Yuque or Export HTML V5.3.1'
     },
     tabs: {
       general: 'General',
@@ -437,6 +438,7 @@ const i18n = {
       tableIdHelp: 'String after ?table= in URL (starts with tbl)',
       tableIdPlaceholder: 'tblxxxxxxxxxxxxxxxx',
       tableIdHelpDetail: 'Get from URL: ?table=tblxxx&view=...',
+      uploadContent: 'Upload body text to "Content" field',
       uploadMd: 'Upload MD Attachment (extra permission, optional)',
       uploadMdHelp: 'Upload complete content as .md file to Feishu',
       uploadMdHelpDetail: 'If unchecked, only save text summary without drive permission',

@@ -1,6 +1,6 @@
-# Discourse Saver V4.6.24 - 一键保存任意Discourse论坛帖子到Obsidian/飞书/Notion
+# Discourse Saver V5.3.1 - 一键保存任意Discourse论坛帖子到Obsidian/飞书/Notion/语雀/思源笔记
 
-> 支持所有Discourse论坛（56+站点验证），单击保存帖子+评论到Obsidian、飞书多维表格或Notion Database。支持Chrome扩展和油猴脚本两种安装方式，覆盖所有主流浏览器。
+> 支持所有Discourse论坛（56+站点验证），单击保存帖子+评论到Obsidian、飞书多维表格、Notion Database、语雀知识库或思源笔记。支持Chrome扩展和油猴脚本两种安装方式，覆盖所有主流浏览器。
 
 ## 前言
 
@@ -9,7 +9,7 @@
 于是我开发了 **Discourse Saver**——一个支持所有Discourse论坛的帖子保存工具。
 
 它可以：
-- **一键保存到三大平台**：Obsidian、飞书多维表格、Notion Database
+- **一键保存到五大平台**：Obsidian、飞书多维表格、Notion Database、语雀知识库、思源笔记
 - **自动检测Discourse**：四层检测机制，访问任意Discourse站点自动激活
 - **保留完整格式**：颜色、代码高亮、表格样式、图片全部保留
 - **HTML导出**：5种主题、图片Lightbox、表格复制、PWA离线查看、PDF导出
@@ -21,8 +21,9 @@
 
 | 功能 | 说明 |
 |-----|------|
-| 三平台保存 | Obsidian + 飞书多维表格 + Notion Database |
-| 油猴脚本版（V4.6.24） | 支持 Tampermonkey/Greasemonkey，跨浏览器通用 |
+| 五平台保存 | Obsidian + 飞书多维表格 + Notion + 语雀 + 思源笔记 |
+| 飞书上传独立控制（V5.3.1） | 正文/MD附件/HTML附件三项独立勾选 |
+| 油猴脚本版 | 支持 Tampermonkey/Greasemonkey，跨浏览器通用 |
 | HTML导出增强（V4.3.5） | 图片Lightbox、表格全屏/复制、5种主题、PWA、PDF导出 |
 | 评论用户名超链接（V4.3.8） | 点击用户名跳转到用户主页 |
 | 支持56+论坛 | 自动检测 + 自定义站点管理 |
@@ -90,8 +91,10 @@
 | 选项 | 说明 |
 |-----|------|
 | 保存到 Obsidian | 保存为Markdown笔记 |
-| 保存到飞书多维表格 | 同步到飞书，支持MD文件附件 |
+| 保存到飞书多维表格 | 同步到飞书，支持正文/MD附件/HTML附件独立控制 |
 | 保存到 Notion Database | 保存到Notion数据库 |
+| 保存到语雀 | 保存到语雀知识库 |
+| 保存到思源笔记 | 通过本地内核API保存 |
 | HTML导出 | 导出为独立HTML文件（含5种主题） |
 
 ### Obsidian 设置
@@ -151,7 +154,7 @@
 
 | 操作 | 效果 |
 |-----|------|
-| **单击** 书签/链接按钮 | 保存帖子到Obsidian/飞书/Notion |
+| **单击** 书签/链接按钮 | 保存帖子到Obsidian/飞书/Notion/语雀/思源笔记 |
 | **双击** 书签/链接按钮 | 触发原生收藏/复制链接 |
 | **Ctrl+Shift+S** | 快捷键保存帖子 |
 
@@ -228,7 +231,7 @@
 |-------|----------|------------|
 | 浏览器支持 | 所有主流浏览器 | 仅Chromium浏览器 |
 | 安装方式 | 需要Tampermonkey | 开发者模式加载 |
-| 保存目标 | Obsidian + Notion + HTML | Obsidian + 飞书 + Notion |
+| 保存目标 | Obsidian + Notion + 语雀 + 思源笔记 + HTML | Obsidian + 飞书 + Notion + 语雀 + 思源笔记 |
 | 飞书支持 | 不支持 | 支持 |
 
 ---

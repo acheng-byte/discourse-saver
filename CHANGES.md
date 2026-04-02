@@ -3,8 +3,8 @@
 ## 版本信息
 
 - **原版本**: v3.6.0
-- **最新版本**: v4.6.24
-- **更新日期**: 2026-03-30
+- **最新版本**: v5.3.1
+- **更新日期**: 2026-04-02
 - **更新内容**:
   1. 油猴脚本版 - 支持 Tampermonkey/Greasemonkey，跨浏览器通用
   2. 评论用户名超链接 - 点击用户名跳转到用户主页
@@ -14,6 +14,37 @@
   6. 响应式设计 - 完美适配手机、平板、桌面
   7. 设置页面优化 - HTML 导出提示
   8. 性能优化 - 评论/Notion/飞书批处理
+
+---
+
+## V5.3.1 修复 + 新功能 (2026-04-02)
+
+### 新功能
+- **飞书上传选项独立控制**：新增「上传正文」复选框（默认勾选），用户可独立控制三项：正文 / MD附件 / HTML附件。三者互不干扰，按需勾选
+
+### Bug 修复（全面审计，14项修复）
+
+#### P0 - 会导致数据异常
+- **修复保存评论卡死问题**：`extractCommentsViaAPI` 的两个 `fetch` 调用新增 `cache: 'no-store'`，防止浏览器缓存旧的 `post_stream.stream` 导致获取到错误的评论 ID 列表，在 linux.do 等站点出现卡死现象
+- **修复飞书附件上传静默失败**：上传错误不再被 catch 吞掉，改为收集到 `uploadErrors[]` 并返回前端；HTML 附件 null 时给出明确提示而非静默跳过
+- **修复飞书搜索失败静默返回 null**：`findFeishuRecord` 搜索/解析失败时改为 `throw Error`，避免搜索失败后误创建重复记录
+- **修复 Notion 搜索失败静默返回 null**：`searchNotionRecord` 异常时改为 `throw Error`，防止重复创建页面
+- **修复飞书/Notion 上传警告未显示给用户**：`content.js` 响应处理完全重写，正确消费 `uploadWarnings` / `contentWarnings`，部分失败时显示黄色警告而非绿色成功
+
+#### P1 - 影响用户体验
+- **Notion 批量追加内容失败静默丢弃**：新增 `contentWarnings[]` 收集每批次失败信息，返回前端显示
+- **Notion 归档旧页面失败未通知**：`oldPageArchived` 状态传递到前端，归档失败时提示用户
+- **配置不完整时静默跳过保存**：飞书/Notion/语雀/思源 配置缺失时显示黄色警告并列出缺少的配置项
+- **init() Promise 异常未捕获**：新增 `.catch()` 处理，异常后继续重试
+
+#### P2 - 缓存导致数据过期
+- **7处 GET 请求新增 `cache: 'no-store'`**：Notion children/database 查询、飞书 fields/records 查询、Obsidian 媒体下载、语雀 API GET、图片 blob 下载
+
+### 日志增强
+- **飞书保存详情**：记录目标 appToken/tableId、标题、URL、上传选项（正文/MD/HTML）、附件文件名和大小
+- **Obsidian 保存详情**：记录文件名、完整保存路径、Vault 名称、文件夹、内容大小
+- **Obsidian 媒体详情**：记录媒体文件名、Vault 路径、文件大小
+- **Notion 保存详情**：记录标题、URL、Database ID
 
 ---
 

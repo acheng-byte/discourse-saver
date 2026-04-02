@@ -56,6 +56,7 @@ const DEFAULT_CONFIG = {
   feishuAppSecret: '',
   feishuAppToken: '',
   feishuTableId: '',
+  feishuUploadContent: true,  // V5.3.1: 默认上传正文
   feishuUploadAttachment: false,
 
   // Notion 设置 (V4.0.1)
@@ -247,6 +248,7 @@ function loadOptions() {
     document.getElementById('feishuAppSecret').value = config.feishuAppSecret;
     document.getElementById('feishuAppToken').value = config.feishuAppToken;
     document.getElementById('feishuTableId').value = config.feishuTableId;
+    document.getElementById('feishuUploadContent').checked = config.feishuUploadContent !== false;  // V5.3.1: 默认true
     document.getElementById('feishuUploadAttachment').checked = config.feishuUploadAttachment;
     document.getElementById('feishuUploadHtml').checked = config.feishuUploadHtml || false;
 
@@ -450,6 +452,7 @@ function saveOptions(e) {
     feishuAppSecret: document.getElementById('feishuAppSecret').value.trim(),
     feishuAppToken: document.getElementById('feishuAppToken').value.trim(),
     feishuTableId: document.getElementById('feishuTableId').value.trim(),
+    feishuUploadContent: document.getElementById('feishuUploadContent').checked,  // V5.3.1
     feishuUploadAttachment: document.getElementById('feishuUploadAttachment').checked,
     feishuUploadHtml: document.getElementById('feishuUploadHtml').checked,
 

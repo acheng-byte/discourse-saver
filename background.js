@@ -637,7 +637,7 @@ async function uploadMdFile(token, appToken, title, mdContent, apiDomain = 'feis
     throw new Error(`上传文件失败: ${data.msg}`);
   }
 
-  console.log('[Discourse Saver→飞书] 文件上传成功，file_token:', data.data.file_token);
+  console.log('[Discourse Saver→飞书] MD文件上传成功: 文件名=' + fileName + ', 大小=' + blob.size + 'B, file_token=' + data.data.file_token);
   return data.data.file_token;
 }
 
@@ -680,14 +680,21 @@ async function uploadHtmlFile(token, appToken, title, htmlContent, apiDomain = '
     throw new Error(`上传HTML文件失败: ${data.msg}`);
   }
 
-  console.log('[Discourse Saver→飞书] HTML文件上传成功，file_token:', data.data.file_token);
+  console.log('[Discourse Saver→飞书] HTML文件上传成功: 文件名=' + fileName + ', 大小=' + blob.size + 'B, file_token=' + data.data.file_token);
   return data.data.file_token;
 }
 
 // 保存到飞书多维表格（可选MD/HTML附件）
 async function saveToFeishu(config, postData) {
-  const { apiDomain, appId, appSecret, appToken, tableId, uploadAttachment, uploadHtmlAttachment } = config;
+  const { apiDomain, appId, appSecret, appToken, tableId, uploadContent, uploadAttachment, uploadHtmlAttachment } = config;
   const domain = apiDomain || 'feishu';
+
+  // V5.3.1: 详细保存日志
+  console.log('[Discourse Saver→飞书] === 新建记录开始 ===');
+  console.log('[Discourse Saver→飞书] 目标: 飞书多维表格 (appToken: ' + appToken + ', tableId: ' + tableId + ')');
+  console.log('[Discourse Saver→飞书] 标题:', postData.title);
+  console.log('[Discourse Saver→飞书] URL:', postData.url);
+  console.log('[Discourse Saver→飞书] 选项: 正文=' + (uploadContent !== false) + ', MD附件=' + !!uploadAttachment + ', HTML附件=' + !!uploadHtmlAttachment);
 
   // 验证必填参数
   validateFeishuConfig(config);
@@ -712,6 +719,7 @@ async function saveToFeishu(config, postData) {
 
   // V4.2.6: 收集所有附件
   const attachments = [];
+  const uploadErrors = [];  // V5.3.1: 收集上传错误，不再静默吞掉
 
   // 根据配置决定是否上传MD附件
   if (uploadAttachment) {
@@ -722,17 +730,24 @@ async function saveToFeishu(config, postData) {
       console.log('[Discourse Saver→飞书] MD附件上传成功');
     } catch (uploadError) {
       console.warn('[Discourse Saver→飞书] MD文件上传失败:', uploadError.message);
+      uploadErrors.push('MD附件: ' + uploadError.message);
     }
   }
 
   // V4.2.6: 根据配置决定是否上传HTML附件
-  if (uploadHtmlAttachment && postData.htmlContent) {
-    try {
-      const htmlFileToken = await uploadHtmlFile(token, appToken, postData.title, postData.htmlContent, domain);
-      attachments.push({ file_token: htmlFileToken });
-      console.log('[Discourse Saver→飞书] HTML附件上传成功');
-    } catch (uploadError) {
-      console.warn('[Discourse Saver→飞书] HTML文件上传失败:', uploadError.message);
+  if (uploadHtmlAttachment) {
+    if (postData.htmlContent) {
+      try {
+        const htmlFileToken = await uploadHtmlFile(token, appToken, postData.title, postData.htmlContent, domain);
+        attachments.push({ file_token: htmlFileToken });
+        console.log('[Discourse Saver→飞书] HTML附件上传成功');
+      } catch (uploadError) {
+        console.warn('[Discourse Saver→飞书] HTML文件上传失败:', uploadError.message);
+        uploadErrors.push('HTML附件: ' + uploadError.message);
+      }
+    } else {
+      console.warn('[Discourse Saver→飞书] HTML内容为空，跳过HTML附件上传');
+      uploadErrors.push('HTML附件: 内容生成失败（marked.js可能未加载）');
     }
   }
 
@@ -741,11 +756,13 @@ async function saveToFeishu(config, postData) {
     fields['附件'] = attachments;
   }
 
-  // 如果没有上传任何附件，或者需要保存正文
-  if (attachments.length === 0) {
+  // V5.3.1: 根据用户设置决定是否上传正文（默认true，向后兼容）
+  if (uploadContent !== false) {
     const sanitizedContent = sanitizeFeishuTextContent(postData.content);
     console.log('[Discourse Saver→飞书] 正文内容长度:', sanitizedContent.length);
     fields['正文'] = sanitizedContent;
+  } else {
+    console.log('[Discourse Saver→飞书] 用户未勾选上传正文，跳过');
   }
 
   const record = { fields };
@@ -788,7 +805,13 @@ async function saveToFeishu(config, postData) {
   }
 
   console.log('[Discourse Saver→飞书] 保存成功，record_id:', data.data.record.record_id);
-  return data.data.record;
+
+  // V5.3.1: 返回上传错误信息（如果有），让前端能提示用户
+  const result = data.data.record;
+  if (uploadErrors.length > 0) {
+    result._uploadWarnings = uploadErrors;
+  }
+  return result;
 }
 
 // 验证飞书配置参数
@@ -908,14 +931,15 @@ async function findFeishuRecord(config, url, title) {
   try {
     data = await safeParseJson(response, '搜索记录');
   } catch (e) {
-    console.log('[Discourse Saver→飞书] 搜索记录失败:', e.message);
-    return null;
+    // V5.3.1: 搜索失败时抛出而非静默返回null，避免外层误判为"未找到"而创建重复记录
+    console.error('[Discourse Saver→飞书] 搜索记录解析失败:', e.message);
+    throw new Error(`飞书搜索记录失败: ${e.message}（可能导致重复记录，请检查后重试）`);
   }
 
   if (data.code !== 0) {
-    // 搜索API可能不可用，返回null表示未找到
-    console.log('[Discourse Saver→飞书] 搜索记录失败:', data.msg);
-    return null;
+    // V5.3.1: 搜索API失败时抛出，避免静默创建重复记录
+    console.error('[Discourse Saver→飞书] 搜索记录API失败:', data.msg);
+    throw new Error(`飞书搜索失败(code:${data.code}): ${data.msg}（请检查权限或稍后重试）`);
   }
 
   // V3.5.5: 在结果中精确匹配 URL，确保找到正确的记录
@@ -942,7 +966,7 @@ async function findFeishuRecord(config, url, title) {
 
 // 更新飞书记录（可选MD/HTML附件）
 async function updateFeishuRecord(config, recordId, postData) {
-  const { apiDomain, appId, appSecret, appToken, tableId, uploadAttachment, uploadHtmlAttachment } = config;
+  const { apiDomain, appId, appSecret, appToken, tableId, uploadContent, uploadAttachment, uploadHtmlAttachment } = config;
   const domain = apiDomain || 'feishu';
 
   const token = await getFeishuToken(appId, appSecret, domain);
@@ -964,6 +988,7 @@ async function updateFeishuRecord(config, recordId, postData) {
 
   // V4.2.6: 收集所有附件
   const attachments = [];
+  const uploadErrors = [];  // V5.3.1: 收集上传错误
 
   // 根据配置决定是否上传MD附件
   if (uploadAttachment) {
@@ -973,17 +998,24 @@ async function updateFeishuRecord(config, recordId, postData) {
       console.log('[Discourse Saver→飞书] MD附件更新成功');
     } catch (uploadError) {
       console.warn('[Discourse Saver→飞书] MD文件上传失败:', uploadError.message);
+      uploadErrors.push('MD附件: ' + uploadError.message);
     }
   }
 
   // V4.2.6: 根据配置决定是否上传HTML附件
-  if (uploadHtmlAttachment && postData.htmlContent) {
-    try {
-      const htmlFileToken = await uploadHtmlFile(token, appToken, postData.title, postData.htmlContent, domain);
-      attachments.push({ file_token: htmlFileToken });
-      console.log('[Discourse Saver→飞书] HTML附件更新成功');
-    } catch (uploadError) {
-      console.warn('[Discourse Saver→飞书] HTML文件上传失败:', uploadError.message);
+  if (uploadHtmlAttachment) {
+    if (postData.htmlContent) {
+      try {
+        const htmlFileToken = await uploadHtmlFile(token, appToken, postData.title, postData.htmlContent, domain);
+        attachments.push({ file_token: htmlFileToken });
+        console.log('[Discourse Saver→飞书] HTML附件更新成功');
+      } catch (uploadError) {
+        console.warn('[Discourse Saver→飞书] HTML文件上传失败:', uploadError.message);
+        uploadErrors.push('HTML附件: ' + uploadError.message);
+      }
+    } else {
+      console.warn('[Discourse Saver→飞书] HTML内容为空，跳过HTML附件上传');
+      uploadErrors.push('HTML附件: 内容生成失败（marked.js可能未加载）');
     }
   }
 
@@ -992,11 +1024,13 @@ async function updateFeishuRecord(config, recordId, postData) {
     fields['附件'] = attachments;
   }
 
-  // 如果没有上传任何附件，保存正文
-  if (attachments.length === 0) {
+  // V5.3.1: 根据用户设置决定是否上传正文
+  if (uploadContent !== false) {
     const sanitizedContent = sanitizeFeishuTextContent(postData.content);
     console.log('[Discourse Saver→飞书] 更新正文内容长度:', sanitizedContent.length);
     fields['正文'] = sanitizedContent;
+  } else {
+    console.log('[Discourse Saver→飞书] 用户未勾选上传正文，跳过');
   }
 
   const record = { fields };
@@ -1025,7 +1059,13 @@ async function updateFeishuRecord(config, recordId, postData) {
   }
 
   console.log('[Discourse Saver→飞书] 更新成功');
-  return data.data.record;
+
+  // V5.3.1: 返回上传错误信息
+  const result = data.data.record;
+  if (uploadErrors.length > 0) {
+    result._uploadWarnings = uploadErrors;
+  }
+  return result;
 }
 
 // ============================================
@@ -1194,8 +1234,9 @@ async function searchNotionRecord(token, databaseId, url, urlPropName) {
     console.log('[Discourse Saver→Notion] 未找到现有记录');
     return null;
   } catch (error) {
-    console.warn('[Discourse Saver→Notion] 搜索异常:', error);
-    return null;
+    // V5.3.1: 搜索失败时抛出而非静默返回null，避免外层误判为"未找到"而创建重复页面
+    console.error('[Discourse Saver→Notion] 搜索异常:', error);
+    throw new Error(`Notion 搜索记录失败: ${error.message}（可能导致重复页面，请检查后重试）`);
   }
 }
 
@@ -1214,6 +1255,7 @@ async function deleteNotionPageChildren(token, pageId) {
       }
 
       const response = await fetch(url, {
+        cache: 'no-store',  // V5.3.1: 获取最新子块列表
         headers: {
           'Authorization': `Bearer ${token}`,
           'Notion-Version': NOTION_API_VERSION
@@ -2320,9 +2362,13 @@ async function saveToNotion(postData, config) {
   const pageId = result.id;
   console.log('[Discourse Saver→Notion] 页面创建成功，ID:', pageId);
 
+  // V5.3.1: 收集内容追加警告
+  const contentWarnings = [];
+
   // 2. 如果有剩余children，分批追加
   if (remainingChildren.length > 0) {
-    console.log(`[Discourse Saver→Notion] 开始追加剩余 ${remainingChildren.length} 个块...`);
+    const totalBatches = Math.ceil(remainingChildren.length / NOTION_CHILDREN_LIMIT) + 1;
+    console.log(`[Discourse Saver→Notion] 开始追加剩余 ${remainingChildren.length} 个块 (共${totalBatches}批)...`);
 
     for (let i = 0; i < remainingChildren.length; i += NOTION_CHILDREN_LIMIT) {
       const batch = remainingChildren.slice(i, i + NOTION_CHILDREN_LIMIT);
@@ -2340,10 +2386,12 @@ async function saveToNotion(postData, config) {
         });
 
         if (!appendResponse.ok) {
-          console.warn(`[Discourse Saver→Notion] 批次${batchNum}追加失败:`, appendResponse.status);
+          const failMsg = `批次${batchNum}/${totalBatches}追加失败(HTTP ${appendResponse.status})`;
+          console.error(`[Discourse Saver→Notion] ${failMsg}`);
+          contentWarnings.push(failMsg);
           // 继续处理其他批次，不中断
         } else {
-          console.log(`[Discourse Saver→Notion] 批次${batchNum}追加成功 (${batch.length}个块)`);
+          console.log(`[Discourse Saver→Notion] 批次${batchNum}/${totalBatches}追加成功 (${batch.length}个块)`);
         }
 
         // 防止请求过快
@@ -2351,7 +2399,9 @@ async function saveToNotion(postData, config) {
           await new Promise(r => setTimeout(r, 200));
         }
       } catch (appendError) {
-        console.warn(`[Discourse Saver→Notion] 批次${batchNum}追加异常:`, appendError);
+        const failMsg = `批次${batchNum}/${totalBatches}追加异常: ${appendError.message}`;
+        console.error(`[Discourse Saver→Notion] ${failMsg}`);
+        contentWarnings.push(failMsg);
       }
     }
   }
@@ -2370,7 +2420,8 @@ async function saveToNotion(postData, config) {
       action: 'updated',
       pageId: result.id,
       url: result.url,
-      oldPageArchived: archived
+      oldPageArchived: archived,
+      contentWarnings  // V5.3.1: 传回内容追加警告
     };
   }
 
@@ -2380,7 +2431,8 @@ async function saveToNotion(postData, config) {
     success: true,
     action: 'created',
     pageId: result.id,
-    url: result.url
+    url: result.url,
+    contentWarnings  // V5.3.1: 传回内容追加警告
   };
 }
 
@@ -2405,6 +2457,7 @@ async function testNotionConnection(config) {
   try {
     response = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
       method: 'GET',
+      cache: 'no-store',  // V5.3.1
       headers: {
         'Authorization': `Bearer ${token}`,
         'Notion-Version': NOTION_API_VERSION
@@ -2662,11 +2715,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           // 更新现有记录
           console.log('[Discourse Saver→飞书] 找到现有记录，更新中...');
           result = await updateFeishuRecord(config, existingRecord.record_id, postData);
-          sendResponse({ success: true, action: 'updated', record: result });
+          sendResponse({ success: true, action: 'updated', record: result, uploadWarnings: result._uploadWarnings || [] });
         } else {
           // 新增记录
           result = await saveToFeishu(config, postData);
-          sendResponse({ success: true, action: 'created', record: result });
+          sendResponse({ success: true, action: 'created', record: result, uploadWarnings: result._uploadWarnings || [] });
         }
       } catch (error) {
         console.error('[Discourse Saver→飞书] 保存失败:', error);
@@ -2710,6 +2763,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         try {
           fieldsResponse = await fetch(fieldsUrl, {
             method: 'GET',
+            cache: 'no-store',  // V5.3.1
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -2807,6 +2861,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         try {
           recordsResponse = await fetch(recordsUrl, {
             method: 'GET',
+            cache: 'no-store',  // V5.3.1
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -2856,7 +2911,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // 保存到 Notion
   if (request.action === 'saveToNotion') {
-    console.log('[Discourse Saver→Notion] 收到保存请求');
+    console.log('[Discourse Saver→Notion] === 收到保存请求 ===');
+    console.log('[Discourse Saver→Notion] 标题:', request.postData?.title);
+    console.log('[Discourse Saver→Notion] URL:', request.postData?.url);
+    console.log('[Discourse Saver→Notion] 数据库ID:', request.config?.notionDatabaseId);
 
     (async () => {
       try {
@@ -2964,8 +3022,8 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
   for (let i = 0; i < mediaUrls.length; i++) {
     const media = mediaUrls[i];
     try {
-      // 1. 下载媒体文件
-      const response = await fetch(media.url);
+      // 1. 下载媒体文件（V5.3.1: 禁用缓存）
+      const response = await fetch(media.url, { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const binaryData = await response.arrayBuffer();
 
@@ -3012,6 +3070,9 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
       if (!putResponse.ok) {
         throw new Error(`REST API ${putResponse.status}`);
       }
+
+      // V5.3.1: 详细日志
+      bgLog('INFO', `媒体文件已保存: ${finalName} → Vault路径: ${filePath} (${binaryData.byteLength}B)`);
 
       results.push({
         originalUrl: media.url,
@@ -3062,6 +3123,10 @@ async function yuqueApiRequest(path, options = {}) {
   };
 
   const fetchOptions = { method, headers };
+  // V5.3.1: GET 请求禁用缓存
+  if (method === 'GET') {
+    fetchOptions.cache = 'no-store';
+  }
   if (body) {
     fetchOptions.body = JSON.stringify(body);
   }
@@ -3323,7 +3388,7 @@ async function saveToSiyuan(config, data) {
           attrs: {
             'custom-source-url': data.url || '',
             'custom-author': data.author || '',
-            'custom-saved-by': 'Discourse Saver V5.3'
+            'custom-saved-by': 'Discourse Saver V5.3.1'
           }
         })
       });
@@ -3381,4 +3446,4 @@ async function testSiyuanConnection(config) {
   return { success: true, message: message };
 }
 
-console.log('[Discourse Saver] Background script 已加载 (V5.3)');
+console.log('[Discourse Saver] Background script 已加载 (V5.3.1)');

@@ -1,4 +1,4 @@
-// Discourse Saver - Content Script V4.3.10
+// Discourse Saver - Content Script V4.3.11
 // 劫持链接按钮，保存帖子+评论到Obsidian（保留颜色样式）
 // V3.5: 支持同时保存到飞书多维表格（带MD附件）
 // V3.5.1: 单击保存到Obsidian，双击触发原生复制链接
@@ -568,7 +568,7 @@
       // 1. 获取帖子信息和所有评论ID
       if (progressCallback) progressCallback('正在获取帖子信息...');
       const topicUrl = `${baseUrl}/t/${topicId}.json`;
-      const topicResponse = await fetch(topicUrl, { credentials: 'include' });
+      const topicResponse = await fetch(topicUrl, { credentials: 'include', cache: 'no-store' });
 
       if (!topicResponse.ok) {
         throw new Error(`获取帖子信息失败: ${topicResponse.status}`);
@@ -608,7 +608,7 @@
           progressCallback(`正在加载评论 ${progress}/${targetCount}...`);
         }
 
-        const postsResponse = await fetch(postsUrl, { credentials: 'include' });
+        const postsResponse = await fetch(postsUrl, { credentials: 'include', cache: 'no-store' });
         if (!postsResponse.ok) {
           console.warn(`[Discourse Saver] 批次请求失败: ${postsResponse.status}`);
           continue;
@@ -1324,10 +1324,11 @@
         return null;
       }
 
-      // 获取图片
+      // 获取图片（V5.3.1: 禁用缓存确保获取最新版本）
       const response = await fetch(url, {
         mode: 'cors',
-        credentials: 'omit'
+        credentials: 'omit',
+        cache: 'no-store'
       });
 
       if (!response.ok) {
@@ -1914,10 +1915,16 @@ tags: [${tagsStr}]
       uri += 'overwrite=true&';
       uri += 'content=' + encodeURIComponent(markdown);
 
-      console.log('[Discourse Saver] 生成的URI长度:', uri.length);
-      console.log('[Discourse Saver] 文件路径:', filePath);
+      // V5.3.1: 增强保存详情日志
+      console.log('[Discourse Saver] === Obsidian 保存详情 ===');
+      console.log('[Discourse Saver] 文件名:', fileName + '.md');
+      console.log('[Discourse Saver] 保存路径:', filePath + '.md');
+      console.log('[Discourse Saver] Vault:', config.vaultName || '(默认)');
+      console.log('[Discourse Saver] 文件夹:', config.folderPath || '(根目录)');
+      console.log('[Discourse Saver] 内容大小:', markdown.length + '字符');
       console.log('[Discourse Saver] 评论数量:', comments.length);
       console.log('[Discourse Saver] 使用Advanced URI:', config.useAdvancedUri);
+      console.log('[Discourse Saver] URI长度:', uri.length);
 
       // V3.5: 检查是否需要保存到 Obsidian
       const shouldSaveToObsidian = config.saveToObsidian !== false; // 默认为 true
@@ -2073,9 +2080,28 @@ tags: [${tagsStr}]
         config.feishuAppToken &&
         config.feishuTableId;
 
+      // V5.3.1: 配置不完整时提示用户，而非静默跳过
+      if (config.saveToFeishu && !feishuConfigComplete) {
+        const missing = [];
+        if (!config.feishuAppId) missing.push('App ID');
+        if (!config.feishuAppSecret) missing.push('App Secret');
+        if (!config.feishuAppToken) missing.push('App Token');
+        if (!config.feishuTableId) missing.push('Table ID');
+        showNotification('飞书配置不完整，缺少: ' + missing.join(', '), 'warning');
+        rlog('WARN', '飞书保存跳过: 配置不完整，缺少 ' + missing.join(', '));
+      }
+
       const notionConfigComplete = config.saveToNotion &&
         config.notionToken &&
         config.notionDatabaseId;
+
+      if (config.saveToNotion && !notionConfigComplete) {
+        const missing = [];
+        if (!config.notionToken) missing.push('API Token');
+        if (!config.notionDatabaseId) missing.push('Database ID');
+        showNotification('Notion 配置不完整，缺少: ' + missing.join(', '), 'warning');
+        rlog('WARN', 'Notion 保存跳过: 配置不完整，缺少 ' + missing.join(', '));
+      }
 
       // 构建并行保存任务
       const remoteSaveTasks = [];
@@ -2123,6 +2149,7 @@ tags: [${tagsStr}]
             appSecret: config.feishuAppSecret,
             appToken: config.feishuAppToken,
             tableId: config.feishuTableId,
+            uploadContent: config.feishuUploadContent !== false,  // V5.3.1: 默认true
             uploadAttachment: config.feishuUploadAttachment || false,
             uploadHtmlAttachment: config.feishuUploadHtml || false  // V4.2.6
           },
@@ -2195,6 +2222,14 @@ tags: [${tagsStr}]
         config.yuqueToken &&
         config.yuqueRepoNamespace;
 
+      if (config.saveToYuque && !yuqueConfigComplete) {
+        const missing = [];
+        if (!config.yuqueToken) missing.push('Token');
+        if (!config.yuqueRepoNamespace) missing.push('知识库 Namespace');
+        showNotification('语雀配置不完整，缺少: ' + missing.join(', '), 'warning');
+        rlog('WARN', '语雀保存跳过: 配置不完整，缺少 ' + missing.join(', '));
+      }
+
       if (yuqueConfigComplete) {
         console.log('[Discourse Saver→语雀] 检测到语雀配置，准备保存...');
         showNotification('正在保存到语雀...', 'info');
@@ -2235,6 +2270,11 @@ tags: [${tagsStr}]
       // 思源笔记保存
       const siyuanConfigComplete = config.saveToSiyuan &&
         config.siyuanNotebook;
+
+      if (config.saveToSiyuan && !siyuanConfigComplete) {
+        showNotification('思源笔记配置不完整，缺少: 笔记本ID', 'warning');
+        rlog('WARN', '思源保存跳过: 配置不完整，缺少笔记本ID');
+      }
 
       if (siyuanConfigComplete) {
         let cleanSiyuanUrl = url.replace(/#.*$/, '').replace(/\?.*$/, '');
@@ -2277,11 +2317,18 @@ tags: [${tagsStr}]
             if (result.status === 'fulfilled') {
               const { target, response } = result.value;
 
+              // V5.3.1: 统一处理各平台响应，消费 uploadWarnings/contentWarnings 并展示给用户
               if (target === 'feishu') {
                 if (response && response.success) {
                   const actionText = response.action === 'updated' ? '已更新' : '已保存';
-                  showNotification(`飞书${actionText}成功`, 'success');
-                  rlog('INFO', '运行成功，帖子已保存到飞书 (' + actionText + ')');
+                  const warnings = response.uploadWarnings || [];
+                  if (warnings.length > 0) {
+                    showNotification(`飞书${actionText}成功，但部分内容未上传: ${warnings.join('; ')}`, 'warning');
+                    rlog('WARN', '飞书' + actionText + '成功但有警告: ' + warnings.join('; '));
+                  } else {
+                    showNotification(`飞书${actionText}成功`, 'success');
+                  }
+                  rlog('INFO', '帖子已保存到飞书 (' + actionText + '), 标题: ' + title);
                 } else {
                   console.error('[Discourse Saver→飞书] 保存失败:', response?.error);
                   showNotification('飞书保存失败: ' + (response?.error || '未知错误'), 'error');
@@ -2289,8 +2336,16 @@ tags: [${tagsStr}]
               } else if (target === 'notion') {
                 if (response && response.success) {
                   const actionText = response.action === 'updated' ? '已更新' : '已保存';
-                  showNotification(`Notion ${actionText}成功`, 'success');
-                  rlog('INFO', '运行成功，帖子已保存到 Notion (' + actionText + ')');
+                  const warnings = response.contentWarnings || [];
+                  const archiveWarning = (response.action === 'updated' && response.oldPageArchived === false) ? '旧页面归档失败' : '';
+                  const allWarnings = warnings.concat(archiveWarning ? [archiveWarning] : []);
+                  if (allWarnings.length > 0) {
+                    showNotification(`Notion ${actionText}成功，但: ${allWarnings.join('; ')}`, 'warning');
+                    rlog('WARN', 'Notion ' + actionText + '成功但有警告: ' + allWarnings.join('; '));
+                  } else {
+                    showNotification(`Notion ${actionText}成功`, 'success');
+                  }
+                  rlog('INFO', '帖子已保存到 Notion (' + actionText + '), 标题: ' + title + (response.url ? ', URL: ' + response.url : ''));
                 } else {
                   console.error('[Discourse Saver→Notion] 保存失败:', response?.error);
                   showNotification('Notion 保存失败: ' + (response?.error || '未知错误'), 'error');
@@ -2299,7 +2354,7 @@ tags: [${tagsStr}]
                 if (response && response.success) {
                   const actionText = response.action === 'updated' ? '已更新' : '已保存';
                   showNotification(`语雀${actionText}成功`, 'success');
-                  rlog('INFO', '运行成功，帖子已保存到语雀 (' + actionText + ')');
+                  rlog('INFO', '帖子已保存到语雀 (' + actionText + '), 标题: ' + title + (response.slug ? ', slug: ' + response.slug : ''));
                 } else {
                   console.error('[Discourse Saver→语雀] 保存失败:', response?.error);
                   showNotification('语雀保存失败: ' + (response?.error || '未知错误'), 'error');
@@ -2307,7 +2362,7 @@ tags: [${tagsStr}]
               } else if (target === 'siyuan') {
                 if (response && response.success) {
                   showNotification('思源笔记保存成功', 'success');
-                  rlog('INFO', '运行成功，帖子已保存到思源笔记');
+                  rlog('INFO', '帖子已保存到思源笔记, 标题: ' + title + (response.path ? ', 路径: ' + response.path : ''));
                 } else {
                   console.error('[Discourse Saver→思源] 保存失败:', response?.error);
                   showNotification('思源笔记保存失败: ' + (response?.error || '未知错误'), 'error');
@@ -4071,6 +4126,12 @@ tags: [${tagsStr}]
       attempts++;
       init().then(() => {
         if (!pluginInitialized && attempts < maxRetries) {
+          setTimeout(tryInit, delay);
+        }
+      }).catch(err => {
+        // V5.3.1: 捕获init异常，避免unhandled rejection导致重试中断
+        console.error('[Discourse Saver] init() 异常:', err);
+        if (attempts < maxRetries) {
           setTimeout(tryInit, delay);
         }
       });

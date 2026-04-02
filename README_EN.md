@@ -1,10 +1,16 @@
-# Discourse Saver V5.1
+# Discourse Saver V5.3.1
 
 **[中文](README.md) | English**
 
-Save **any Discourse forum** posts and comments to **Obsidian**, **Feishu Bitable**, **Notion**, **SiYuan Note**, or export as **HTML files** with one click. Also available as a **Tampermonkey userscript** for cross-browser support.
+Save **any Discourse forum** posts and comments to **Obsidian**, **Feishu Bitable**, **Notion**, **Yuque**, **SiYuan Note**, or export as **HTML files** with one click. Also available as a **Tampermonkey userscript** for cross-browser support.
 
+> **V5.3.1 Updates** (2026-04-02):
+> - **Independent Feishu Upload Controls** - Body/MD attachment/HTML attachment can be toggled independently
+> - **Comprehensive Bug Audit (14 fixes)** - Silent failures, cache-related freezing, missing warnings
+> - **Enhanced Logging** - Save path, filename, file size all recorded
+>
 > **V5.1 Updates**:
+> - **Yuque Support** - Save posts to Yuque knowledge base
 > - **SiYuan Note Support** - Save posts to SiYuan Note via local kernel API
 > - **Tab Layout** - Settings page redesigned with tab navigation
 > - **Three Theme Modes** - Light/Dark/System theme switching
@@ -199,7 +205,7 @@ For privately deployed or undetected Discourse sites, you can manually add them 
 |---------|-------------|
 | **Cross-browser** | Supports Chrome, Edge, Firefox, Safari via Tampermonkey/Greasemonkey |
 | **40+ Forums** | Built-in @match rules for popular Discourse sites |
-| **Five Platforms** | Save to Obsidian / Feishu / Notion / SiYuan Note / HTML export |
+| **Five Platforms** | Save to Obsidian / Feishu / Notion / Yuque / SiYuan Note / HTML export |
 | **Comments** | Comment saving, collapse mode, username hyperlinks |
 | **One-click Install** | [Install page](https://acheng-byte.github.io/discourse-saver/install.html) with one-click copy |
 
@@ -304,7 +310,7 @@ For privately deployed or undetected Discourse sites, you can manually add them 
 1. Visit any **Discourse forum** (LinuxDo, Discourse Meta, etc.) post page
 2. Plugin will **auto-detect** and activate (first visit will show prompt)
 3. Find the **link button** (chain icon) in the bottom right of post/comment
-4. **Single click** → Save to all enabled platforms (Obsidian/Feishu/Notion/SiYuan Note)
+4. **Single click** → Save to all enabled platforms (Obsidian/Feishu/Notion/Yuque/SiYuan Note)
 5. **Double click** → Copy link to clipboard
 
 ### File Naming Rules
@@ -351,6 +357,7 @@ Settings page supports Chinese/English toggle, click **中文 / EN** button in t
 | Save to Obsidian | Enable Obsidian save |
 | Save to Feishu Bitable | Enable Feishu sync |
 | Save to Notion Database | Enable Notion sync (V4.0.1) |
+| Save to Yuque | Enable Yuque knowledge base sync (V5.1) |
 | Save to SiYuan Note | Enable SiYuan Note sync (V5.1) |
 | Export HTML File | Save as standalone HTML file (V4.3.5) |
 
@@ -401,7 +408,9 @@ When "Download images/videos to Vault folder" is checked, saving posts will auto
 | App Secret | Feishu Open Platform application secret |
 | app_token | Bitable token (string after `/base/` in URL) |
 | table_id | Data table ID (string after `?table=` in URL) |
+| Upload Body Content | Upload post body text to Feishu text field (V5.3.1) |
 | Upload MD Attachment | Upload complete content as MD file attachment |
+| Upload HTML Attachment | Upload HTML format attachment (V5.3.1) |
 
 ### Notion Settings (V4.0.2)
 
@@ -423,6 +432,18 @@ When "Download images/videos to Vault folder" is checked, saving posts will auto
 | 评论数 (Comments) | Number | |
 
 > **Detailed Configuration Tutorial**: See [NOTION-GUIDE.html](NOTION-GUIDE.html)
+
+### Yuque Settings (V5.1)
+
+| Option | Description |
+|--------|-------------|
+| Access Token | Yuque personal access token |
+| Knowledge Base | Target knowledge base (namespace or ID) |
+| Save Folder | Folder path within the knowledge base |
+
+**Prerequisites:**
+1. Get your personal access token from Yuque developer settings
+2. Ensure the knowledge base exists and the token has write access
 
 ### SiYuan Note Settings (V5.1)
 
@@ -725,7 +746,7 @@ See [NOTION-GUIDE.html](NOTION-GUIDE.html)
 
 ### Q10: Do Notion and Obsidian/Feishu conflict?
 
-**A:** No conflict! All save targets (Obsidian, Feishu, Notion, SiYuan Note, HTML Export) are completely independent. You can enable all platforms simultaneously, save to multiple places with one click. Any platform save failure won't affect other platforms.
+**A:** No conflict! All save targets (Obsidian, Feishu, Notion, Yuque, SiYuan Note, HTML Export) are completely independent. You can enable all platforms simultaneously, save to multiple places with one click. Any platform save failure won't affect other platforms.
 
 ### Q11: SiYuan Note save failed?
 
@@ -748,6 +769,23 @@ See [NOTION-GUIDE.html](NOTION-GUIDE.html)
 ---
 
 ## Changelog
+
+### v5.3.1 (2026-04-02)
+
+- **New**: Independent Feishu upload controls - Body/MD attachment/HTML attachment toggle independently
+- **Fix**: Comprehensive bug audit with 14 fixes
+  - P0: Comment saving freeze (cache causing wrong ID list), Feishu attachment upload silent failure, Feishu/Notion search failure silently returning null causing duplicate records, upload warnings not shown to user
+  - P1: Notion batch append failure silently discarded, archive old page failure not notified, incomplete config silently skipped, init() exception uncaught
+  - P2: 7 GET requests added `cache: 'no-store'` to prevent browser caching stale data
+- **Enhanced**: Detailed logging - Feishu/Obsidian/Notion save path, filename, file size all recorded
+
+### v5.1 (2026-03-30)
+
+- **New**: Yuque support - Save posts to Yuque knowledge base
+- **New**: SiYuan Note support - Save posts via local kernel API
+- **New**: Tab layout - Settings page redesigned with tab navigation
+- **New**: Three theme modes - Light/Dark/System theme switching
+- **New**: Path normalization - Cross-platform path handling (Windows/Mac/Linux)
 
 ### v4.6.24 (2026-03-30)
 

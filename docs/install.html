@@ -311,7 +311,7 @@
     <h1>Discourse Saver</h1>
     <p>通用 Discourse 论坛内容保存工具 - 油猴脚本版<br>支持 Obsidian / Notion / HTML 导出，评论保存、折叠模式</p>
     <div class="badge-row">
-      <span class="badge"><span class="dot"></span>V4.6.24</span>
+      <span class="badge"><span class="dot"></span>V5.3.1</span>
       <span class="badge">Tampermonkey</span>
       <span class="badge">40+ 论坛</span>
     </div>
@@ -409,7 +409,7 @@
         codeBlock.textContent = scriptContent;
         const lines = scriptContent.split('\n').length;
         const sizeKB = (new Blob([scriptContent]).size / 1024).toFixed(1);
-        codeInfo.textContent = `${lines} 行  |  ${sizeKB} KB  |  V4.6.24`;
+        codeInfo.textContent = `${lines} 行  |  ${sizeKB} KB  |  V5.3.1`;
       } catch (error) {
         codeBlock.innerHTML = '<span style="color:#f87171;">加载失败，请直接点击「Raw 文件」下载</span>';
         codeInfo.textContent = '加载失败';
