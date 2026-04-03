@@ -3,7 +3,7 @@ const i18n = {
   zh: {
     header: {
       title: 'Discourse Saver - 设置',
-      subtitle: '保存 Discourse 论坛帖子到 Obsidian、飞书、Notion、思源笔记、语雀，或导出 HTML V5.3.1'
+      subtitle: '保存 Discourse 论坛帖子到 Obsidian、飞书、Notion、思源笔记、语雀，或导出 HTML V5.3.2'
     },
     tabs: {
       general: '通用',
@@ -345,7 +345,7 @@ const i18n = {
   en: {
     header: {
       title: 'Discourse Saver - Settings',
-      subtitle: 'Save Discourse Forum Posts to Obsidian, Feishu, Notion, SiYuan Note, Yuque or Export HTML V5.3.1'
+      subtitle: 'Save Discourse Forum Posts to Obsidian, Feishu, Notion, SiYuan Note, Yuque or Export HTML V5.3.2'
     },
     tabs: {
       general: 'General',

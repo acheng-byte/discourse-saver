@@ -3013,8 +3013,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFolderName) {
   const port = config.restApiPort || 27124;
-  // Local REST API 默认 HTTPS:27124，需用 https 协议
-  const apiBase = `https://127.0.0.1:${port}`;
+  let apiBase = `https://127.0.0.1:${port}`;
+
+  // V5.3.2: 尝试 HTTPS，失败时自动降级到 HTTP（匹配 options.js 的测试逻辑）
+  let useHttps = true;
+  try {
+    // 先测试 HTTPS 连接
+    await fetch(`${apiBase}/`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${config.restApiKey}` }
+    });
+  } catch (e) {
+    // HTTPS 失败，降级到 HTTP
+    useHttps = false;
+    apiBase = `http://127.0.0.1:${port}`;
+    bgLog('WARN', `HTTPS 连接失败，自动降级到 HTTP: ${apiBase}`);
+  }
+
   bgLog('INFO', `媒体下载开始: ${mediaUrls.length}个文件, API=${apiBase}, path=${vaultMediaPath}`);
   const results = [];
   const existingNames = [];
@@ -3071,8 +3086,8 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
         throw new Error(`REST API ${putResponse.status}`);
       }
 
-      // V5.3.1: 详细日志
-      bgLog('INFO', `媒体文件已保存: ${finalName} → Vault路径: ${filePath} (${binaryData.byteLength}B)`);
+      // V5.3.2: 详细日志，记录协议类型
+      bgLog('INFO', `媒体文件已保存: ${finalName} → Vault路径: ${filePath} (${binaryData.byteLength}B, 协议: ${useHttps ? 'HTTPS' : 'HTTP'})`);
 
       results.push({
         originalUrl: media.url,
@@ -3388,7 +3403,7 @@ async function saveToSiyuan(config, data) {
           attrs: {
             'custom-source-url': data.url || '',
             'custom-author': data.author || '',
-            'custom-saved-by': 'Discourse Saver V5.3.1'
+            'custom-saved-by': 'Discourse Saver V5.3.2'
           }
         })
       });
@@ -3446,4 +3461,4 @@ async function testSiyuanConnection(config) {
   return { success: true, message: message };
 }
 
-console.log('[Discourse Saver] Background script 已加载 (V5.3.1)');
+console.log('[Discourse Saver] Background script 已加载 (V5.3.2)');
