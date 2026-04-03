@@ -1938,25 +1938,7 @@ tags: [${tagsStr}]
         console.log('[Discourse Saver] 使用 Advanced URI 插件（始终模式）');
 
         try {
-          // V5.3.2: 先尝试现代 clipboard API，失败时降级到 execCommand
-          // content script 中多次 await 后用户手势上下文可能过期，execCommand 更可靠
-          let clipboardOk = false;
-          try {
-            await navigator.clipboard.writeText(markdown);
-            await new Promise(resolve => setTimeout(resolve, 150));
-            clipboardOk = true;
-          } catch (clipErr) {
-            console.warn('[Discourse Saver] clipboard API 失败，尝试 execCommand:', clipErr);
-            const ta = document.createElement('textarea');
-            ta.value = markdown;
-            ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none';
-            document.body.appendChild(ta);
-            ta.focus();
-            ta.select();
-            clipboardOk = document.execCommand('copy');
-            document.body.removeChild(ta);
-            if (!clipboardOk) throw new Error('execCommand copy 也失败了');
-          }
+          await navigator.clipboard.writeText(markdown);
 
           // 构建 Advanced URI
           let advancedUri = 'obsidian://advanced-uri?' + vaultParam;
