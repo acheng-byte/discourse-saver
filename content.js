@@ -227,22 +227,29 @@
                 (svg.querySelector('use')?.getAttribute('xlink:href') || '');
     }
 
+    // ========== 排除：帖子正文内的普通链接 ==========
+    // 如果点击的是 .cooked 内容区域（帖子正文）中的 <a>，直接放行
+    if (element.closest('.cooked, .post-body, .topic-body .regular')) {
+      return { isLink: false, postNumber: null };
+    }
+
     // ========== 第一级：精确 class 匹配（最可靠） ==========
     const level1 = className.includes('post-action-menu__copy-link');
 
     // ========== 第二级：属性 + 结构匹配 ==========
+    // V5.3.2: 收紧检测，避免误拦截普通链接
     const hasShareUrl = !!dataShareUrl;
-    const hasCopyLinkClass = className.includes('copy-link') || className.includes('share');
-    const hasLinkTitle = title.includes('链接') || title.includes('复制') ||
-                         title.includes('copy') || title.includes('share') ||
-                         title.includes('剪贴板') || title.includes('clipboard');
-    const hasLinkAria = ariaLabel.includes('链接') || ariaLabel.includes('复制') ||
-                        ariaLabel.includes('分享') || ariaLabel.includes('share') ||
-                        ariaLabel.includes('copy') || ariaLabel.includes('clipboard');
+    const hasCopyLinkClass = className.includes('copy-link') ||
+                              className.includes('post-action-menu__share');
+    // 必须同时在操作栏内 + 有关键词匹配
+    const hasLinkTitle = title.includes('复制链接') || title.includes('copy link') ||
+                         title.includes('share this post') || title.includes('分享此帖');
+    const hasLinkAria = ariaLabel.includes('复制链接') || ariaLabel.includes('分享此帖') ||
+                        ariaLabel.includes('copy link') || ariaLabel.includes('share post');
     const level2 = hasShareUrl || hasCopyLinkClass || hasLinkTitle || hasLinkAria;
 
     // ========== 第三级：SVG 图标特征（兜底） ==========
-    const level3 = /d-post-share|d-icon-link|share|copy-link|clipboard/.test(svgHint);
+    const level3 = /d-post-share|d-icon-link|copy-link/.test(svgHint);
 
     // 必须命中至少一级
     const hitLevel = level1 ? 1 : (level2 ? 2 : (level3 ? 3 : 0));
@@ -250,14 +257,12 @@
       return { isLink: false, postNumber: null };
     }
 
-    // 位置验证（第一级精确匹配可以放宽位置要求）
-    const postContainer = element.closest('.topic-post, article[data-post-id], .boxed, .container');
+    // 位置验证：必须在帖子操作栏区域内（移除过于宽泛的 .container）
+    const postContainer = element.closest('.topic-post, article[data-post-id], .boxed');
     const controlsArea = element.closest('.post-controls, .post-menu-area, .actions, nav.post-controls, .post-actions, .discourse-reactions-actions');
 
-    if (hitLevel >= 2 && !postContainer) {
-      return { isLink: false, postNumber: null };
-    }
-    if (hitLevel === 3 && !controlsArea) {
+    // 第二级和第三级都必须在帖子操作栏内
+    if (hitLevel >= 2 && !controlsArea) {
       return { isLink: false, postNumber: null };
     }
 
@@ -467,22 +472,69 @@
     const author = authorElement ? authorElement.textContent.trim() : '未知作者';
     const topicId = window.location.pathname.match(/\/t\/[^/]+\/(\d+)/)?.[1] || null;
 
-    // V4.3.7: 提取分类信息
+    // V5.3.2: 提取分类信息（兼容多种Discourse版本DOM结构）
     let category = '';
-    const categoryBadge = document.querySelector('.topic-category .badge-category__name, .badge-category-bg .badge-category__name');
-    if (categoryBadge) {
-      category = categoryBadge.textContent.trim();
+    const categorySelectors = [
+      // 新版Discourse（2.9+）
+      '.topic-category .badge-category__name',
+      '.badge-category-bg .badge-category__name',
+      // 经典Discourse
+      '.topic-header-extra .badge-category .category-name',
+      '.title-wrapper .badge-category .category-name',
+      '.topic-category .category-name',
+      // 面包屑导航中的分类
+      '.topic-header-extra .badge-category-parent-bg + .badge-category-bg .badge-category',
+      '.categories-list .badge-category',
+      // Linux.do 等定制站点
+      '#topic-title .badge-category-bg .badge-category',
+      '#topic-title .badge-category__wrapper .badge-category__name',
+      '.topic-header-extra .badge-wrapper .badge-category__name',
+      '.topic-meta-data .badge-category__name',
+      // 通配兜底
+      '.badge-category__name',
+      '.category-name'
+    ];
+    for (const sel of categorySelectors) {
+      const el = document.querySelector(sel);
+      if (el) {
+        const text = el.textContent.trim();
+        if (text && text !== '分类' && text !== 'category') {
+          category = text;
+          break;
+        }
+      }
     }
 
-    // V4.3.7: 提取标签信息
+    // V5.3.2: 提取标签信息（兼容多种Discourse版本DOM结构）
     const tags = [];
-    const tagElements = document.querySelectorAll('.discourse-tags .discourse-tag, .list-tags .discourse-tag, .topic-header-extra .discourse-tag');
-    tagElements.forEach(tag => {
-      const tagText = tag.textContent.trim();
-      if (tagText && !tags.includes(tagText)) {
-        tags.push(tagText);
+    const tagSelectors = [
+      // 新版Discourse
+      '.discourse-tags .discourse-tag',
+      '.list-tags .discourse-tag',
+      '.topic-header-extra .discourse-tag',
+      // 经典Discourse
+      '.tag-list .tag-badge-wrapper a',
+      '.discourse-tag-list .tag-badge a',
+      // Linux.do 等定制站点
+      '#topic-title .discourse-tag',
+      '.title-wrapper .discourse-tag',
+      '.topic-meta-data .discourse-tag',
+      // 通配兜底
+      'a.discourse-tag',
+      '.tag-badge-wrapper .tag-badge'
+    ];
+    for (const sel of tagSelectors) {
+      const elements = document.querySelectorAll(sel);
+      if (elements.length > 0) {
+        elements.forEach(tag => {
+          const tagText = tag.textContent.trim();
+          if (tagText && !tags.includes(tagText)) {
+            tags.push(tagText);
+          }
+        });
+        break;  // 找到一组就够了，避免重复
       }
-    });
+    }
 
     return { title, contentHTML, url, author, topicId, category, tags };
   }
