@@ -2168,7 +2168,9 @@ tags: [${tagsStr}]
             feishuHtmlContent = convertMarkdownToHtml(originalMarkdown, {
               title: feishuTitle,
               author: author,
-              url: feishuUrl
+              url: feishuUrl,
+              category: category,
+              tags: tags
             });
             console.log('[Discourse Saver→飞书] HTML 内容已生成，准备上传');
           } catch (htmlErr) {
