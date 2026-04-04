@@ -467,22 +467,54 @@
     const author = authorElement ? authorElement.textContent.trim() : '未知作者';
     const topicId = window.location.pathname.match(/\/t\/[^/]+\/(\d+)/)?.[1] || null;
 
-    // V4.3.7: 提取分类信息
+    // V5.3.2: 提取分类信息（兼容多种Discourse版本DOM结构）
     let category = '';
-    const categoryBadge = document.querySelector('.topic-category .badge-category__name, .badge-category-bg .badge-category__name');
-    if (categoryBadge) {
-      category = categoryBadge.textContent.trim();
+    const categorySelectors = [
+      '.topic-category .badge-category__name',
+      '.badge-category-bg .badge-category__name',
+      '.topic-header-extra .badge-category .category-name',
+      '.title-wrapper .badge-category .category-name',
+      '.topic-category .category-name',
+      '#topic-title .badge-category__wrapper .badge-category__name',
+      '.topic-meta-data .badge-category__name',
+      '.badge-category__name',
+      '.category-name'
+    ];
+    for (const sel of categorySelectors) {
+      const el = document.querySelector(sel);
+      if (el) {
+        const text = el.textContent.trim();
+        if (text && text !== '分类' && text !== 'category') {
+          category = text;
+          break;
+        }
+      }
     }
 
-    // V4.3.7: 提取标签信息
+    // V5.3.2: 提取标签信息（兼容多种Discourse版本DOM结构）
     const tags = [];
-    const tagElements = document.querySelectorAll('.discourse-tags .discourse-tag, .list-tags .discourse-tag, .topic-header-extra .discourse-tag');
-    tagElements.forEach(tag => {
-      const tagText = tag.textContent.trim();
-      if (tagText && !tags.includes(tagText)) {
-        tags.push(tagText);
+    const tagSelectors = [
+      '.discourse-tags .discourse-tag',
+      '.list-tags .discourse-tag',
+      '.topic-header-extra .discourse-tag',
+      '#topic-title .discourse-tag',
+      '.title-wrapper .discourse-tag',
+      '.topic-meta-data .discourse-tag',
+      'a.discourse-tag',
+      '.tag-list .tag-badge-wrapper a'
+    ];
+    for (const sel of tagSelectors) {
+      const elements = document.querySelectorAll(sel);
+      if (elements.length > 0) {
+        elements.forEach(tag => {
+          const tagText = tag.textContent.trim();
+          if (tagText && !tags.includes(tagText)) {
+            tags.push(tagText);
+          }
+        });
+        break;
       }
-    });
+    }
 
     return { title, contentHTML, url, author, topicId, category, tags };
   }
