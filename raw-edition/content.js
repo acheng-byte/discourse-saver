@@ -54,7 +54,19 @@
 
     vaultName: '',
     folderPath: 'Discourse收集箱',
-    addMetadata: true,
+    addMetadata: false,
+    // 元数据字段独立勾选 + 自定义字段名（仅影响 Obsidian/语雀/思源 frontmatter，飞书/Notion 字段不受影响）
+    metaSource: true,       metaSourceKey: '来源',
+    metaTitle: true,        metaTitleKey: '标题',
+    metaAuthor: true,       metaAuthorKey: '作者',
+    metaAuthorUrl: true,    metaAuthorUrlKey: '作者主页',
+    metaCategory: true,     metaCategoryKey: '类别',
+    metaTags: true,                              // key 固定为 tags（Obsidian 标准字段）
+    metaSaveTime: true,     metaSaveTimeKey: '保存时间',
+    metaPlatform: true,     metaPlatformKey: '平台',
+    metaReadStatus: true,   metaReadStatusKey: '阅读状态',
+    metaOrganize: true,     metaOrganizeKey: '整理',
+    metaCommentCount: true, metaCommentCountKey: '评论数',
     includeImages: true,
     saveComments: false,
     commentCount: 100,
@@ -332,6 +344,24 @@
         font-size: 13px;
       }
       #ds-fab-menu .ds-floor-btn:hover { background: #357abd; }
+      #ds-fab-menu .ds-menu-toggle {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 6px 12px; font-size: 13px; color: var(--ds-text, #333);
+      }
+      #ds-fab-menu .ds-toggle-switch {
+        position: relative; display: inline-block; width: 34px; height: 18px; flex-shrink: 0;
+      }
+      #ds-fab-menu .ds-toggle-switch input { opacity: 0; width: 0; height: 0; }
+      #ds-fab-menu .ds-toggle-slider {
+        position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+        background: #ccc; border-radius: 18px; transition: .2s;
+      }
+      #ds-fab-menu .ds-toggle-slider:before {
+        position: absolute; content: ""; height: 12px; width: 12px;
+        left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .2s;
+      }
+      #ds-fab-menu .ds-toggle-switch input:checked + .ds-toggle-slider { background: #4a90e2; }
+      #ds-fab-menu .ds-toggle-switch input:checked + .ds-toggle-slider:before { transform: translateX(16px); }
     `;
     document.head.appendChild(style);
     document.body.appendChild(btn);
@@ -479,6 +509,14 @@
         <span>保存整个帖子</span>
       </div>
       <div class="ds-menu-divider"></div>
+      <div class="ds-menu-toggle">
+        <span>保存评论</span>
+        <label class="ds-toggle-switch">
+          <input type="checkbox" id="ds-fab-save-comments">
+          <span class="ds-toggle-slider"></span>
+        </label>
+      </div>
+      <div class="ds-menu-divider"></div>
       <div class="ds-floor-input">
         <input type="text" id="ds-floor-num" placeholder="如: 5 或 2-8 或 1,3,5-7" style="width:140px" />
         <button class="ds-floor-btn" id="ds-floor-go">保存</button>
@@ -511,6 +549,15 @@
       saveToObsidian(null).finally(() => {
         anchorBtn.classList.remove('ds-fab-saving');
       });
+    });
+
+    // 保存评论 toggle：读取当前状态并监听变更写回 storage
+    const saveCommentsToggle = menu.querySelector('#ds-fab-save-comments');
+    chrome.storage.sync.get({ saveComments: false }, (result) => {
+      saveCommentsToggle.checked = result.saveComments;
+    });
+    saveCommentsToggle.addEventListener('change', () => {
+      chrome.storage.sync.set({ saveComments: saveCommentsToggle.checked });
     });
 
     // 楼层保存
@@ -656,7 +703,79 @@
     return desc + '楼';
   }
 
-  // 提取帖子内容
+  // V5.5.7: 通过 API 提取主帖内容（不依赖 DOM，任意滚动位置均可保存）
+  // 与评论的 extractCommentsViaAPI 逻辑对称，返回与 extractContent() 相同的字段结构
+  async function extractContentViaAPI(topicId) {
+    if (!topicId) return null;
+    try {
+      const res = await fetch(`${window.location.origin}/t/${topicId}.json`, {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      if (!res.ok) {
+        console.warn('[Discourse Saver] extractContentViaAPI: /t/' + topicId + '.json 返回', res.status);
+        return null;
+      }
+      const data = await res.json();
+      const firstPost = data.post_stream?.posts?.[0];
+      if (!firstPost) return null;
+
+      const title = data.title || '';
+      const contentHTML = firstPost.cooked || '';
+      const rawMarkdown = firstPost.raw || null;
+      const author = firstPost.display_username || firstPost.username || '未知作者';
+      const url = window.location.href;
+
+      // 分类：优先用 category_slug → 再用 category_id 反查或 DOM 补充
+      let category = '';
+      if (data.category_id) {
+        const catEl = document.querySelector('.badge-category__name, .category-name');
+        if (catEl) category = catEl.textContent.trim();
+      }
+
+      // 标签：优先用 API 返回值，若为空则从 DOM 提取（linux.do 等实例 API 可能不返回 tags）
+      let tags = Array.isArray(data.tags) ? data.tags.filter(t => typeof t === 'string' && t.trim()) : [];
+      if (tags.length === 0) {
+        const tagEls = document.querySelectorAll('.discourse-tags .discourse-tag, .list-tags .discourse-tag, a.discourse-tag');
+        tagEls.forEach(el => {
+          const text = el.textContent.trim();
+          if (text && !tags.includes(text)) tags.push(text);
+        });
+        if (tags.length > 0) console.log('[Discourse Saver] tags 从 DOM 补充:', tags);
+      }
+
+      // 作者主页 URL
+      const authorUsername = firstPost.username || '';
+      const authorUrl = authorUsername ? `${window.location.origin}/u/${authorUsername}` : '';
+      // 发帖时间（北京时间用 toBeijingTimeStr 在 frontmatter 生成时转换）
+      const createdAt = firstPost.created_at || data.created_at || null;
+
+      console.log('[Discourse Saver] API 提取主帖成功:', title, '作者:', author, 'raw长度:', rawMarkdown?.length);
+      return { title, contentHTML, rawMarkdown, url, author, authorUrl, createdAt, topicId, category, tags };
+    } catch (e) {
+      console.warn('[Discourse Saver] extractContentViaAPI 失败:', e);
+      return null;
+    }
+  }
+
+  // 自动识别平台名称（基于 hostname）
+  function detectPlatform() {
+    const hostname = window.location.hostname.toLowerCase();
+    const platformMap = {
+      'linux.do': 'LINUX DO',
+      'meta.discourse.org': 'Discourse Meta',
+      'discuss.python.org': 'Python',
+      'community.cloudflare.com': 'Cloudflare Community',
+      'discourse.mozilla.org': 'Mozilla',
+      'forums.swift.org': 'Swift Forums',
+      'community.openai.com': 'OpenAI Community',
+    };
+    if (platformMap[hostname]) return platformMap[hostname];
+    // 自定义站点：尝试从域名推断
+    return hostname.replace(/^www\./, '').split('.').slice(0, -1).join('.').toUpperCase() || hostname.toUpperCase();
+  }
+
+  // 提取帖子内容（DOM 方式，作为 API 的 fallback）
   function extractContent() {
     // 多选择器兼容不同 Discourse 主题和版本
     const titleElement = document.querySelector('#topic-title h1') ||
@@ -1653,10 +1772,11 @@
         return null;
       }
 
-      // 获取图片（V5.3.1: 禁用缓存确保获取最新版本）
+      // 获取图片：same-origin 请求携带 Cookie（保证同域登录内容可访问）
+      // 跨域 CDN（cdn3.linux.do 等）不带 Cookie，兼容 Access-Control-Allow-Origin: * 的 CDN
+      // credentials: 'include' 与 CDN 通配符 CORS 不兼容，会导致 Failed to fetch
       const response = await fetch(url, {
-        mode: 'cors',
-        credentials: 'omit',
+        credentials: 'same-origin',
         cache: 'no-store'
       });
 
@@ -1732,8 +1852,19 @@
   }
 
   // V5.3: 通过 background.js 下载媒体文件到 Vault 并替换 Markdown 路径
-  async function downloadAndReplaceMedia(markdown, config) {
-    const mediaFolderName = config.mediaFolderName || 'media';
+  // postTitle 用于替换 mediaFolderName 中的 {title} 变量
+  async function downloadAndReplaceMedia(markdown, config, postTitle = '') {
+    // 支持 {title} 变量：用帖子标题替换，过滤 OB 非法字符（\ / : * ? " < > |）
+    const safeTitle = postTitle
+      ? postTitle.replace(/[\\/:*?"<>|《》]/g, '').replace(/\s+/g, '-').replace(/^[-\s]+|[-\s]+$/g, '').substring(0, 60)
+      : '';
+    const rawFolderTemplate = config.mediaFolderName || 'media';
+    // {title} 变量替换（手动写入路径时生效）
+    let mediaFolderName = rawFolderTemplate.replace(/\{title\}/g, safeTitle || 'untitled');
+    // mediaFolderPerTitle 勾选框：路径中未手动使用 {title} 时才追加子目录，避免重复
+    if (config.mediaFolderPerTitle && safeTitle && !rawFolderTemplate.includes('{title}')) {
+      mediaFolderName = mediaFolderName.replace(/\/+$/, '') + '/' + safeTitle;
+    }
     const includeVideos = config.downloadVideos !== false;
 
     // 收集图片URL
@@ -1767,7 +1898,30 @@
     // 媒体文件夹从 Vault 根目录起算，不拼保存文件夹
     const vaultMediaPath = mediaFolderName;
 
-    // 通过 background.js 处理下载（避免 CORS 限制）
+    // V5.5.7: 在 content.js（页面上下文）中预先 fetch 二进制数据，携带 Cookie
+    // background.js Service Worker 无法获取页面 Cookie，必须在此处提前下载
+    const mediaUrlsWithData = await Promise.all(mediaUrls.map(async (media) => {
+      try {
+        // same-origin 带 Cookie，跨域 CDN 不带 Cookie（兼容 CDN 通配符 CORS）
+        const res = await fetch(media.url, { credentials: 'same-origin', cache: 'no-store' });
+        if (!res.ok) {
+          rlog('WARN', `预取媒体失败 HTTP ${res.status}: ${media.url}`);
+          return { ...media, binaryBase64: null };
+        }
+        const buf = await res.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        const binaryBase64 = btoa(binary);
+        const mimeType = res.headers.get('content-type') || '';
+        return { ...media, binaryBase64, mimeType };
+      } catch (e) {
+        rlog('WARN', `预取媒体异常: ${e.message} | ${media.url}`);
+        return { ...media, binaryBase64: null };
+      }
+    }));
+
+    // 通过 background.js 处理写入 Obsidian（已含二进制数据，background 无需再 fetch）
     try {
       const response = await sendMessageAsync({
         action: 'downloadMediaToVault',
@@ -1775,7 +1929,7 @@
           restApiKey: config.restApiKey,
           restApiPort: config.restApiPort || 27124
         },
-        mediaUrls: mediaUrls,
+        mediaUrls: mediaUrlsWithData,
         vaultMediaPath: vaultMediaPath,
         mediaFolderName: mediaFolderName,
         forumOrigin: window.location.origin
@@ -1818,8 +1972,18 @@
   }
 
   // V5.3: 后台静默下载媒体（fire-and-forget，不阻塞保存）
-  function fireAndForgetMediaDownload(markdown, config) {
-    const mediaFolderName = config.mediaFolderName || 'media';
+  // postTitle 用于替换 mediaFolderName 中的 {title} 变量（同 downloadAndReplaceMedia）
+  function fireAndForgetMediaDownload(markdown, config, postTitle = '') {
+    const safeTitle = postTitle
+      ? postTitle.replace(/[\\/:*?"<>|《》]/g, '').replace(/\s+/g, '-').replace(/^[-\s]+|[-\s]+$/g, '').substring(0, 60)
+      : '';
+    const rawFolderTemplate = config.mediaFolderName || 'media';
+    // {title} 变量替换（手动写入路径时生效）
+    let mediaFolderName = rawFolderTemplate.replace(/\{title\}/g, safeTitle || 'untitled');
+    // mediaFolderPerTitle 勾选框：路径中未手动使用 {title} 时才追加子目录，避免重复
+    if (config.mediaFolderPerTitle && safeTitle && !rawFolderTemplate.includes('{title}')) {
+      mediaFolderName = mediaFolderName.replace(/\/+$/, '') + '/' + safeTitle;
+    }
     const includeVideos = config.downloadVideos !== false;
 
     // 收集媒体URL
@@ -1881,6 +2045,58 @@
       console.warn('[Discourse Saver] 后台媒体下载异常:', err);
       rlog('ERROR', '后台媒体下载异常: ' + err.message);
     }
+  }
+
+  // V5.5.7: 解析图片外链的真实 CDN URL
+  // 使用 credentials: 'include' 跟踪跳转，把 short-url / 内部 URL 换成可直接访问的 CDN URL
+  // 如果论坛使用 CDN（如 global.discourse-cdn.com），最终 URL 是公开的，Obsidian 可直接显示
+  async function resolveImageUrlsInMarkdown(markdown) {
+    const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    const urlSet = new Set();
+    let match;
+    while ((match = imageRegex.exec(markdown)) !== null) {
+      const url = match[2];
+      if (url && url.startsWith('http') && !url.startsWith('data:')) urlSet.add(url);
+    }
+    if (urlSet.size === 0) return markdown;
+
+    // 并行请求，获取跳转后的最终 URL（HEAD 失败则降级 GET，兼容不支持 HEAD 的服务器）
+    const resolved = new Map();
+    await Promise.all([...urlSet].map(async (url) => {
+      try {
+        let res = await fetch(url, {
+          method: 'HEAD',
+          credentials: 'include',
+          cache: 'no-store',
+          redirect: 'follow'
+        });
+        // 某些服务器不支持 HEAD（返回 405），降级用 GET
+        if (res.status === 405) {
+          res = await fetch(url, {
+            method: 'GET',
+            credentials: 'include',
+            cache: 'no-store',
+            redirect: 'follow'
+          });
+        }
+        if (res.ok && res.url && res.url !== url) {
+          resolved.set(url, res.url);
+          rlog('INFO', `外链解析: ${url.slice(-40)} → ${res.url.slice(-40)}`);
+        }
+      } catch (_) {
+        // 解析失败保留原链接，不影响主流程
+      }
+    }));
+
+    if (resolved.size === 0) return markdown;
+
+    let result = markdown;
+    for (const [original, final] of resolved) {
+      const escaped = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      result = result.replace(new RegExp(`!\\[([^\\]]*)\\]\\(${escaped}\\)`, 'g'), `![$1](${final})`);
+    }
+    console.log(`[Discourse Saver] 外链解析完成: ${resolved.size}/${urlSet.size} 条已替换为真实 CDN URL`);
+    return result;
   }
 
   // 处理 Markdown 中的所有图片，转换为 Base64
@@ -2014,40 +2230,71 @@
     // 构建完整Markdown
     let markdown = '';
 
-    // 添加中文frontmatter
+    // 添加 frontmatter（仅影响 Obsidian/语雀/思源，飞书/Notion 字段独立，不受此处影响）
     if (config.addMetadata) {
-      // V3.5.6: 使用北京时间格式
+      // 保存时间（北京时间）
       const now = new Date();
       const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
       const timeStr = beijingTime.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
 
-      // V4.3.7: 动态标签（合并论坛标签 + linuxdo）
-      // 格式：YAML 数组格式放在 frontmatter 元数据中
-      const allTags = ['linuxdo'];
+      // 动态标签（跳过非字符串对象）
+      const allTags = [];
       if (metadata.tags && metadata.tags.length > 0) {
         metadata.tags.forEach(tag => {
-          const cleanTag = String(tag).trim();
-          if (cleanTag && !allTags.includes(cleanTag)) {
-            allTags.push(cleanTag);
-          }
+          // 只接受字符串类型，跳过 API 偶尔返回的对象（如 tag_groups）
+          if (typeof tag !== 'string') return;
+          const cleanTag = tag.trim();
+          if (cleanTag && !allTags.includes(cleanTag)) allTags.push(cleanTag);
         });
       }
-      // Obsidian tags 格式：使用标准 tags 字段名（英文），Obsidian 会自动识别
-      // 格式兼容：单行数组 tags: [tag1, tag2]
-      const tagsArray = allTags.map(t => t.replace(/[,\[\]]/g, '')).filter(t => t);
+      // 去掉 YAML 内联数组不安全的字符：逗号、方括号、引号
+      const tagsArray = allTags.map(t => t.replace(/[,\[\]"']/g, '')).filter(t => t);
       const tagsStr = tagsArray.join(', ');
 
-      markdown += `---
-来源: ${metadata.url}
-标题: ${metadata.title}
-作者: ${metadata.author}
-分类: ${metadata.category || '未分类'}
-tags: [${tagsStr}]
-保存时间: ${timeStr}
-评论数: ${comments.length}
----
+      // 字段名（用户可自定义，默认中文；tags 固定为英文）
+      const k = {
+        source:      config.metaSourceKey      || '来源',
+        title:       config.metaTitleKey       || '标题',
+        author:      config.metaAuthorKey      || '作者',
+        category:    config.metaCategoryKey    || '类别',
+        saveTime:    config.metaSaveTimeKey    || '保存时间',
+        platform:    config.metaPlatformKey    || '平台',
+        readStatus:  config.metaReadStatusKey  || '阅读状态',
+        organize:    config.metaOrganizeKey    || '整理',
+        commentCount:config.metaCommentCountKey|| '评论数',
+      };
 
-`;
+      // YAML 安全字符串：含特殊字符时用双引号包裹，内部 " 转义
+      function yamlStr(val) {
+        if (val === null || val === undefined) return '""';
+        const s = String(val);
+        // 以下情况需要引号：含 YAML 特殊字符、首尾空白、空字符串
+        if (!s || /[:\[\]{}#&*!|>'"%@`,\n\r\\]/.test(s) || /^\s|\s$/.test(s)) {
+          return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+        }
+        return s;
+      }
+
+      let fm = '---\n';
+      // URL 可能含 # 锚点，YAML 中 # 前有空格会被解析为注释，必须引号包裹
+      if (config.metaSource !== false)       fm += `${k.source}: ${yamlStr(metadata.url)}\n`;
+      if (config.metaTitle !== false)        fm += `${k.title}: ${yamlStr(metadata.title)}\n`;
+      // 作者：有主页URL时合并为 [作者名](URL) 格式，Obsidian 阅读模式可点击
+      if (config.metaAuthor !== false) {
+        const authorVal = (config.metaAuthorUrl !== false && metadata.authorUrl)
+          ? `"[${metadata.author.replace(/"/g, '\\"')}](${metadata.authorUrl})"`
+          : yamlStr(metadata.author);
+        fm += `${k.author}: ${authorVal}\n`;
+      }
+      if (config.metaCategory !== false)     fm += `${k.category}: ${yamlStr(metadata.category || '未分类')}\n`;
+      if (config.metaTags !== false)         fm += `tags: [${tagsStr}]\n`;
+      if (config.metaSaveTime !== false)     fm += `${k.saveTime}: ${timeStr}\n`;
+      if (config.metaPlatform !== false)     fm += `${k.platform}: "${detectPlatform()}"\n`;
+      if (config.metaReadStatus !== false)   fm += `${k.readStatus}: false\n`;
+      if (config.metaOrganize !== false)     fm += `${k.organize}: false\n`;
+      if (config.metaCommentCount !== false) fm += `${k.commentCount}: ${comments.length}\n`;
+      fm += '---\n\n';
+      markdown += fm;
     }
 
     // 添加标题和正文
@@ -2135,23 +2382,35 @@ tags: [${tagsStr}]
       console.log('[Discourse Saver] UI语言:', uiLang);
       console.log('[Discourse Saver] 目标楼层:', targetPostNumber || '主帖');
 
-      // 提取正文内容（带重试，SPA页面内容可能延迟渲染）
-      let extracted = extractContent();
+      // V5.5.7: 优先从 URL 获取 topicId，再调 API 提取主帖（不依赖 DOM，任意滚动位置均可）
+      const topicIdFromUrl = window.location.pathname.match(/\/t\/[^/]+\/(\d+)/)?.[1] || null;
+      let extracted = null;
+
+      if (topicIdFromUrl) {
+        showNotification('正在通过 API 获取帖子内容...', 'info');
+        extracted = await extractContentViaAPI(topicIdFromUrl);
+      }
+
+      // API 失败时降级到 DOM（兼容非标准 Discourse 或 API 被限流的情况）
       if (!extracted) {
-        for (let retry = 1; retry <= 3; retry++) {
-          console.log(`[Discourse Saver] 内容提取失败，第${retry}次重试...`);
-          await new Promise(r => setTimeout(r, 500 * retry));
+        console.log('[Discourse Saver] API 提取失败，回退 DOM...');
+        extracted = extractContent();
+        if (!extracted) {
+          // 短暂等待 SPA 渲染后再试一次
+          await new Promise(r => setTimeout(r, 600));
           extracted = extractContent();
-          if (extracted) break;
         }
       }
+
       if (!extracted) {
-        showNotification('无法提取帖子内容（页面可能未加载完成，请稍后再试）', 'error');
-        rlog('WARN', '内容提取失败: title=' + !!document.querySelector('#topic-title h1') + ' content=' + !!document.querySelector('.topic-body .cooked'));
+        showNotification('无法提取帖子内容，请确认当前在帖子页面', 'error');
+        rlog('WARN', '内容提取失败: topicId=' + topicIdFromUrl + ' DOM title=' + !!document.querySelector('#topic-title h1'));
         return;
       }
 
-      const { title, contentHTML, url, author, topicId, category, tags } = extracted;
+      const { title, contentHTML, url, author, authorUrl, createdAt, topicId, category, tags } = extracted;
+      // V5.5.7: API 提取时 rawMarkdown 已内含，不需要后面再单独 fetchRawMainPost
+      const preloadedRaw = extracted.rawMarkdown || null;
 
       // V3.5.3: 根据目标楼层决定评论处理方式
       // V5.4.2: targetPostNumber 可以是数组（多楼层合并保存）
@@ -2288,23 +2547,37 @@ tags: [${tagsStr}]
         ? { ...config, saveComments: true, foldComments: false }
         : config;
 
-      // V5.5-raw: 尝试获取主帖原始 Markdown（仅在保存主帖时使用）
+      // V5.5-raw: 获取主帖原始 Markdown（仅在保存主帖时使用）
+      // V5.5.7: API 提取路径已包含 raw，preloadedRaw 直接复用，避免重复请求
       let rawMainContent = null;
       let apiCookedHtml = null;
-      if (!isSingleCommentMode && !isMultiFloor && topicId) {
-        const fetched = await fetchRawMainPost(topicId);
-        rawMainContent = fetched.rawText;
-        apiCookedHtml = fetched.cookedHtml; // 含折叠 details 内图片的完整 cooked HTML
+      if (!isSingleCommentMode && !isMultiFloor) {
+        if (preloadedRaw) {
+          rawMainContent = preloadedRaw;
+          apiCookedHtml = contentHTML; // API 提取时 contentHTML 就是 cooked HTML
+          console.log('[Discourse Saver] 使用预加载 raw Markdown，跳过 fetchRawMainPost');
+        } else if (topicId) {
+          const fetched = await fetchRawMainPost(topicId);
+          rawMainContent = fetched.rawText;
+          apiCookedHtml = fetched.cookedHtml;
+        }
       }
 
       let markdown = convertToMarkdownWithComments(
         contentHTML,
-        { title, url, author, topicId, category, tags },
+        { title, url, author, authorUrl: authorUrl || '', createdAt: createdAt || null, topicId, category, tags },
         comments,
         effectiveConfig,
         rawMainContent,
         apiCookedHtml
       );
+
+      // V5.5.7: 先解析 short-url 跳转为真实 CDN URL（全平台通用，必须在 originalMarkdown 赋值前执行）
+      // 飞书MD附件、HTML导出没有图片库，只能用外链 —— CDN URL 是公开的，short-url 需要登录
+      // OB 如果开了 embedImages，后续从 CDN URL 做 Base64 反而更稳（CDN 无需认证）
+      if (config.includeImages) {
+        markdown = await resolveImageUrlsInMarkdown(markdown);
+      }
 
       // V5.3.2: 保留原始markdown（原链接），供飞书/Notion/HTML等非OB平台使用
       const originalMarkdown = markdown;
@@ -2313,9 +2586,12 @@ tags: [${tagsStr}]
       console.log('[Discourse Saver] 媒体下载检查: downloadImages=' + config.downloadImages + ', restApiKey=' + (config.restApiKey ? '已设置(' + config.restApiKey.length + '字符)' : '未设置'));
       if (config.downloadImages && config.restApiKey) {
         rlog('INFO', '下载媒体到Vault, port=' + (config.restApiPort || 27123));
-        const _mediaPreviewPath = config.mediaFolderName || 'media';
+        const _safeTitle = title ? title.replace(/[\\/:*?"<>|《》]/g, '').replace(/\s+/g, '-').replace(/^[-\s]+|[-\s]+$/g, '').substring(0, 60) : '';
+        const _rawTpl = config.mediaFolderName || 'media';
+        let _mediaPreviewPath = _rawTpl.replace(/\{title\}/g, _safeTitle || 'untitled');
+        if (config.mediaFolderPerTitle && _safeTitle && !_rawTpl.includes('{title}')) _mediaPreviewPath = _mediaPreviewPath.replace(/\/+$/, '') + '/' + _safeTitle;
         showNotification(`正在下载媒体文件到 ${_mediaPreviewPath}...`, 'info');
-        markdown = await downloadAndReplaceMedia(markdown, config);
+        markdown = await downloadAndReplaceMedia(markdown, config, title);
       } else if (config.downloadImages && !config.restApiKey) {
         console.warn('[Discourse Saver] 已勾选下载媒体但未填写 REST API Key');
         rlog('WARN', '媒体下载跳过: 未填写 REST API Key');
@@ -2390,7 +2666,15 @@ tags: [${tagsStr}]
           advancedUri += 'clipboard=true&';  // 自动从剪贴板读取内容
           advancedUri += 'mode=overwrite';
 
-          window.location.href = advancedUri;
+          // V5.5.7: 用隐藏 <a> 点击代替 window.location.href
+          // window.location.href 会导致当前页卸载，Chrome 可能吊销剪贴板权限
+          // 隐藏 <a> 点击触发 obsidian:// 协议，当前页保持不动，剪贴板读取更可靠
+          const tempLink = document.createElement('a');
+          tempLink.href = advancedUri;
+          tempLink.style.display = 'none';
+          document.body.appendChild(tempLink);
+          tempLink.click();
+          setTimeout(() => document.body.removeChild(tempLink), 1000);
 
           // 显示成功提示
           let msg;
@@ -2428,7 +2712,13 @@ tags: [${tagsStr}]
         showAdvancedUriPrompt(markdown, filePath, vaultParam, title, comments.length);
       } else if (shouldSaveToObsidian) {
         // 未启用 Advanced URI 且内容不大，使用普通 URI
-        window.location.href = uri;
+        // V5.5.7: 同样用隐藏 <a> 点击，避免页面卸载导致 Obsidian 协议处理异常
+        const tempLink2 = document.createElement('a');
+        tempLink2.href = uri;
+        tempLink2.style.display = 'none';
+        document.body.appendChild(tempLink2);
+        tempLink2.click();
+        setTimeout(() => document.body.removeChild(tempLink2), 1000);
 
         // 显示成功提示
         let msg;

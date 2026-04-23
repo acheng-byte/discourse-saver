@@ -216,8 +216,11 @@ const i18n = {
       configStepsTip: '<strong>配置步骤：</strong><br>1. 创建 Internal Integration 并复制 Token<br>2. 创建 Database 并添加以上属性列<br>3. 在 Database 页面「...」→「Connections」→ 添加 Integration<br>4. 从 Database 链接中复制 ID'
     },
     content: {
-      addMetadata: '添加元数据（来源、作者、时间等）',
+      addMetadata: '添加元数据到笔记（Frontmatter）',
+      metadataNote: '仅影响 Obsidian / 语雀 / 思源的 Frontmatter 字段，飞书多维表格和 Notion 数据库字段不受影响。',
+      metadataFieldsHint: '勾选字段 / 可自定义字段名（tags 固定为英文）',
       keepImages: '保留图片链接',
+      includeImagesHelp: '必须勾选才能使用"图片嵌入 Base64"和"下载图片/视频到 Vault"功能。取消勾选将移除正文中所有图片。',
       embedImages: '将图片嵌入笔记（Base64）',
       embedImagesHelp: '图片转为 Base64 嵌入 Markdown，单文件完整保存（需启用 Advanced URI）',
       embedWarning1Title: '注意：',
@@ -260,7 +263,9 @@ const i18n = {
       downloadVideos: '同时下载视频文件',
       downloadVideosHelp: '启用后也会下载帖子中嵌入的视频文件',
       mediaFolderName: '媒体文件夹名称',
-      mediaFolderHelp: '媒体文件保存到 Vault 中此文件夹下，默认 media'
+      mediaFolderHelp: '媒体文件保存的文件夹路径，默认 media。可用 {title} 代表帖子标题，例：media/{title}',
+      mediaFolderPerTitle: '按帖子标题建立子文件夹',
+      mediaFolderPerTitleHelp: '勾选后每篇帖子的图片单独存入以标题命名的子文件夹'
     },
     comments: {
       saveComments: '保存评论区',
@@ -284,6 +289,21 @@ const i18n = {
       fetchExplain2: '• 评论数 >30 条或勾选"保存全部"：通过API获取（完整，解决懒加载问题）',
       fetchExplain3: '• 超过500条评论时会显示加载进度',
       fetchExplainTip: '<strong>获取说明：</strong><br>&#8226; ≤30条：从页面提取（快速）<br>&#8226; >30条或保存全部：通过 API 获取（完整）<br>&#8226; 超500条时显示加载进度'
+    },
+    meta: {
+      source: '来源 URL',
+      title: '标题',
+      author: '作者',
+      authorUrl: '作者字段附带主页链接（[名](URL) 格式，可点击）',
+      category: '类别',
+      tags: '标签',
+      saveTime: '保存时间',
+      createTime: '创建时间',
+      publishTime: '发布时间',
+      platform: '平台（自动识别）',
+      readStatus: '阅读状态（默认 false）',
+      organize: '整理（默认 false）',
+      commentCount: '评论数',
     },
     buttons: {
       save: '保存设置',
@@ -560,8 +580,11 @@ const i18n = {
       configStepsTip: '<strong>Configuration Steps:</strong><br>1. Create Internal Integration and copy Token<br>2. Create Database and add the property columns above<br>3. On Database page click "..." → "Connections" → Add Integration<br>4. Copy ID from Database link'
     },
     content: {
-      addMetadata: 'Add metadata (source, author, time, etc.)',
+      addMetadata: 'Add metadata to notes (Frontmatter)',
+      metadataNote: 'Only affects Frontmatter in Obsidian / Yuque / Siyuan. Feishu table and Notion database fields are not affected.',
+      metadataFieldsHint: 'Toggle fields / Customize field names (tags key is fixed)',
       keepImages: 'Keep image links',
+      includeImagesHelp: 'Must be checked to use "Embed images (Base64)" and "Download media to Vault". Unchecking removes all images from content.',
       embedImages: 'Embed images in notes (Base64)',
       embedImagesHelp: 'Convert images to Base64 embedded in Markdown, complete single-file save (requires Advanced URI)',
       embedWarning1Title: 'Note:',
@@ -604,7 +627,9 @@ const i18n = {
       downloadVideos: 'Also download video files',
       downloadVideosHelp: 'Also download embedded video files from posts',
       mediaFolderName: 'Media Folder Name',
-      mediaFolderHelp: 'Media files are saved under this folder in your Vault, default: media'
+      mediaFolderHelp: 'Folder path for media files, default: media. Use {title} for post title, e.g. media/{title}',
+      mediaFolderPerTitle: 'Create subfolder per post title',
+      mediaFolderPerTitleHelp: 'Each post\'s media will be saved in its own subfolder named after the post title'
     },
     comments: {
       saveComments: 'Save Comment Section',
@@ -628,6 +653,21 @@ const i18n = {
       fetchExplain2: '• >30 comments or "Save All" checked: Fetch via API (complete, solves lazy-loading)',
       fetchExplain3: '• Shows loading progress when >500 comments',
       fetchExplainTip: '<strong>Fetching Info:</strong><br>&#8226; ≤30 comments: Extract from page (fast)<br>&#8226; >30 or Save All: Fetch via API (complete)<br>&#8226; Shows progress when >500 comments'
+    },
+    meta: {
+      source: 'Source URL',
+      title: 'Title',
+      author: 'Author',
+      authorUrl: 'Include author profile link ([name](URL) format, clickable)',
+      category: 'Category',
+      tags: 'Tags',
+      saveTime: 'Save Time',
+      createTime: 'Created At',
+      publishTime: 'Published At',
+      platform: 'Platform (auto-detected)',
+      readStatus: 'Read Status (default false)',
+      organize: 'Organize (default false)',
+      commentCount: 'Comment Count',
     },
     buttons: {
       save: 'Save Settings',

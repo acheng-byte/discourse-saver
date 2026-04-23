@@ -3064,10 +3064,23 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
       continue;
     }
     try {
-      // 1. 下载媒体文件（V5.3.1: 禁用缓存，V5.5.4: 携带Cookie访问需登录的论坛图片）
-      const response = await fetch(fetchUrl, { cache: 'no-store', credentials: 'include' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const binaryData = await response.arrayBuffer();
+      // 1. 下载媒体文件
+      // V5.5.7: 优先使用 content.js 预取的二进制数据（已携带页面 Cookie）
+      // Service Worker 的 credentials: 'include' 不带页面 Cookie，必须由 content.js 预取
+      let binaryData;
+      if (media.binaryBase64) {
+        const binaryStr = atob(media.binaryBase64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+        binaryData = bytes.buffer;
+        bgLog('INFO', `使用预取数据: ${fetchUrl} (${binaryData.byteLength}B)`);
+      } else {
+        // 兜底：直接 fetch（仅对无需认证的公开图片有效）
+        bgLog('WARN', `无预取数据，直接 fetch（可能因缺少 Cookie 失败）: ${fetchUrl}`);
+        const response = await fetch(fetchUrl, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        binaryData = await response.arrayBuffer();
+      }
 
       // 2. 提取文件名（使用实际 fetch URL，避免 upload:// 无法解析）
       let fileName;
