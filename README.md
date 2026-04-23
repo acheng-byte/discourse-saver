@@ -1,6 +1,6 @@
 # Discourse Saver V5.5.3
 
-> **维护说明**：当前仅维护 **Raw Edition 特别版**（`raw-edition/` 目录）。
+> **维护说明**：当前不定期维护 **Raw Edition 特别版**（`raw-edition/` 目录）。
 > 稳定版（根目录）和油猴脚本（`.user.js`）**不再更新**，代码保留供参考。
 > 请使用 [Raw Edition](raw-edition/) 获取最新功能与 Bug 修复。
 > 油猴脚本一键安装：[discourse-saver-raw.user.js](https://raw.githubusercontent.com/acheng-byte/discourse-saver/main/raw-edition/discourse-saver.user.js)
