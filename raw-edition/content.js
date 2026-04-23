@@ -901,8 +901,29 @@
     }
   }
 
+  // Discourse Base62 解码：将 upload:// token 还原为 SHA1 hex
+  // Discourse 使用 charset "0-9 a-z A-Z" 对 SHA1 做 Base62 编码生成 upload:// 短链
+  // 解码后即可与 CDN URL 中的 hex SHA1 精确匹配
+  function base62ToSha1Hex(base62Str) {
+    const CHARSET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    try {
+      let num = 0n;
+      for (const ch of base62Str) {
+        const idx = CHARSET.indexOf(ch);
+        if (idx === -1) return null;
+        num = num * 62n + BigInt(idx);
+      }
+      const hex = num.toString(16).padStart(40, '0');
+      // SHA1 固定 40 位 hex；超长说明输入不合法
+      return hex.length === 40 ? hex : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // V5.5-raw: 将 cooked HTML 中的图片 URL 映射回 raw 的 upload:// token
   // V5.5.4: 修复当 cookedHtml 为空时直接返回导致 upload:// 残留的 bug
+  // V5.5.5: Base62→SHA1 精确匹配，大幅提升 CDN URL 命中率
   function resolveUploadUrls(rawMarkdown, cookedHtml) {
     if (!rawMarkdown) return rawMarkdown;
     // 找出 raw 中所有 upload:// token
@@ -910,24 +931,40 @@
     if (!uploadTokens || uploadTokens.length === 0) return rawMarkdown;
 
     // 从 cooked HTML 提取所有 CDN URL（img src、a href、audio/source/video src）
+    // 匹配 /uploads/、/original/、/optimized/ 三种路径格式：
+    //   标准 Discourse:  https://site.com/uploads/default/original/1X/sha1.ext
+    //   CDN 模式 (如 linux.do): https://cdn3.linux.do/original/4X/sha1.ext
     const imgUrls = [];
-    const allUrlRegex = /(?:src|href)="(https?:\/\/[^"]+\/uploads\/[^"]+)"/g;
+    const allUrlRegex = /(?:src|href)="(https?:\/\/[^"]+\/(?:uploads|original|optimized)\/[^"]+)"/g;
     let m;
     while ((m = allUrlRegex.exec(cookedHtml)) !== null) {
       if (!imgUrls.includes(m[1])) imgUrls.push(m[1]);
     }
 
     let resolved = rawMarkdown;
-    uploadTokens.forEach((token, idx) => {
+    // 去重避免重复处理同一 token
+    const uniqueTokens = [...new Set(uploadTokens)];
+    uniqueTokens.forEach((token) => {
       // 取 upload:// 后的 hash（去掉扩展名）
       const tokenBody = token.replace('upload://', '');
       const hashPart = tokenBody.split('.')[0];
 
-      // 优先：在 URL 中找到包含此 hash 的完整 URL
-      const matchedUrl = imgUrls.find(u => u.includes(hashPart));
+      let matchedUrl = null;
+
+      // 策略1: Base62 解码为 SHA1 hex，精确匹配 CDN URL（命中率最高）
+      // upload://6DIL0Ab7QpYNqdW6kf54aAZQ9x0 → sha1 hex → 在 CDN URL 中查找
+      const sha1Hex = base62ToSha1Hex(hashPart);
+      if (sha1Hex) {
+        matchedUrl = imgUrls.find(u => u.includes(sha1Hex));
+      }
+
+      // 策略2: token hash 子串直接匹配（兼容非标准 URL 格式）
+      if (!matchedUrl) {
+        matchedUrl = imgUrls.find(u => u.includes(hashPart));
+      }
+
       // V5.5.3: fallback → /uploads/short-url/ 确保 upload:// 一定被替换
       const replacement = matchedUrl ||
-        (idx < imgUrls.length ? imgUrls[idx] : null) ||
         window.location.origin + '/uploads/short-url/' + tokenBody;
       resolved = resolved.split(token).join(replacement);
     });
