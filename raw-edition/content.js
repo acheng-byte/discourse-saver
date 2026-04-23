@@ -1708,6 +1708,20 @@
   // V3.2: 清理Markdown中的残留语法（保守版，不破坏正常链接和图片）
   // V3.6.0: 添加 keepGif 参数，在启用图片嵌入时保留 GIF 链接
   function cleanupMarkdown(markdown, keepGif = false) {
+    // 0. 处理论坛自定义 BBCode，尽量保留可读文本
+    markdown = markdown.replace(/\[date=([^\]\s]+)([^\]]*)\]/gi, (_, dateValue, attrs = '') => {
+      const timeMatch = attrs.match(/\btime=([^\s\]]+)/i);
+      const timezoneMatch = attrs.match(/\btimezone=(?:"([^"]+)"|([^\s\]]+))/i);
+      const parts = [dateValue];
+      if (timeMatch && timeMatch[1]) parts.push(timeMatch[1].replace(/^"|"$/g, ''));
+      const timezoneValue = timezoneMatch ? (timezoneMatch[1] || timezoneMatch[2] || '') : '';
+      if (timezoneValue) parts.push(`(${timezoneValue})`);
+      return parts.join(' ');
+    });
+    markdown = markdown.replace(/\[\/date\]/gi, '');
+    markdown = markdown.replace(/\[(?:color|bgcolor|size|font|align|float|left|center|right|justify)(?:=[^\]]*)?\]/gi, '');
+    markdown = markdown.replace(/\[\/(?:color|bgcolor|size|font|align|float|left|center|right|justify)\]/gi, '');
+
     // 0. 移除 Discourse 专有折叠语法 [details] / [/details]，保留内容
     markdown = markdown.replace(/\[details=[^\]]*\]/g, '');
     markdown = markdown.replace(/\[\/details\]/g, '');
@@ -1760,6 +1774,30 @@
     markdown = markdown.replace(/\n{3,}/g, '\n\n');
 
     return markdown;
+  }
+
+  // 某些 Discourse 站点（如 Linux DO）会在 raw 中返回论坛自定义 BBCode。
+  // 这些标签无法稳定转成 Markdown，继续使用 raw 反而会把源码原样保存下来。
+  function containsUnsupportedForumBbcode(markdown) {
+    if (!markdown) return false;
+    return /\[(?:\/)?(?:color|bgcolor|date|time|datetime|size|font|align|float|left|center|right|justify)\b[^\]]*\]/i.test(markdown);
+  }
+
+  function convertRawOrCookedToMarkdown(rawMarkdown, cookedHtml, turndownService, keepGif = false, scopeLabel = '内容') {
+    const safeCookedHtml = cookedHtml || '';
+    if (!rawMarkdown) {
+      const cookedMarkdown = turndownService.turndown(safeCookedHtml);
+      return cleanupMarkdown(cookedMarkdown, keepGif).trim();
+    }
+
+    const resolvedRaw = resolveUploadUrls(rawMarkdown, safeCookedHtml).trim();
+    if (safeCookedHtml && containsUnsupportedForumBbcode(resolvedRaw)) {
+      console.log(`[Discourse Saver] ${scopeLabel}检测到论坛自定义 BBCode，回退到 cooked HTML 转 Markdown`);
+      const cookedMarkdown = turndownService.turndown(safeCookedHtml);
+      return cleanupMarkdown(cookedMarkdown, keepGif).trim();
+    }
+
+    return cleanupMarkdown(resolvedRaw, keepGif).trim();
   }
 
   // V3.6.0: 图片转 Base64 功能
@@ -2216,15 +2254,25 @@
 
     // V5.5-raw: 优先使用原始 Markdown，回退到 Turndown
     // apiCookedHtml（来自 /t/{id}.json）包含折叠 details 内的图片，优先使用
+    const keepGif = config.embedImages && config.imageSkipGif;
     let mainContent;
     if (rawMainContent) {
-      mainContent = resolveUploadUrls(rawMainContent, apiCookedHtml || contentHTML || '').trim();
-      mainContent = cleanupMarkdown(mainContent, config.embedImages && config.imageSkipGif);
-      console.log('[Discourse Saver] 使用原始 Markdown（跳过 Turndown 转换）');
+      mainContent = convertRawOrCookedToMarkdown(
+        rawMainContent,
+        apiCookedHtml || contentHTML || '',
+        turndownService,
+        keepGif,
+        '主帖'
+      );
+      console.log('[Discourse Saver] 主帖优先尝试原始 Markdown，必要时回退 cooked HTML');
     } else {
-      mainContent = turndownService.turndown(contentHTML);
-      mainContent = cleanupMarkdown(mainContent, config.embedImages && config.imageSkipGif);
-      mainContent = mainContent.trim();
+      mainContent = convertRawOrCookedToMarkdown(
+        null,
+        contentHTML,
+        turndownService,
+        keepGif,
+        '主帖'
+      );
     }
 
     // 构建完整Markdown
@@ -2310,12 +2358,21 @@
         // V5.5-raw: 优先使用 post.raw，回退到 Turndown
         let commentContent;
         if (comment.rawMarkdown) {
-          commentContent = resolveUploadUrls(comment.rawMarkdown, comment.contentHTML);
-          commentContent = cleanupMarkdown(commentContent, config.embedImages && config.imageSkipGif).trim();
+          commentContent = convertRawOrCookedToMarkdown(
+            comment.rawMarkdown,
+            comment.contentHTML,
+            turndownService,
+            keepGif,
+            `评论#${comment.position || ''}`
+          );
         } else {
-          commentContent = turndownService.turndown(comment.contentHTML);
-          commentContent = cleanupMarkdown(commentContent, config.embedImages && config.imageSkipGif);
-          commentContent = commentContent.trim();
+          commentContent = convertRawOrCookedToMarkdown(
+            null,
+            comment.contentHTML,
+            turndownService,
+            keepGif,
+            `评论#${comment.position || ''}`
+          );
         }
 
         // V4.3.8: 用户名支持超链接，点击跳转到用户主页
@@ -5171,4 +5228,3 @@
   });
 
 })();
-
