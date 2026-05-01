@@ -494,7 +494,7 @@
         </div>
       </div>
       <h1>Discourse Saver</h1>
-      <p data-i18n="header.subtitle">保存 Discourse 论坛帖子到 Obsidian、飞书、Notion、思源笔记、语雀，或导出 HTML V5.3.2</p>
+      <p data-i18n="header.subtitle">保存 Discourse 论坛帖子到 Obsidian、飞书、Notion，或导出 HTML V5.6.3</p>
     </div>
 
     <!-- Tab Navigation -->
@@ -514,7 +514,7 @@
         <!-- Plugin Status -->
         <div class="checkbox-row" style="margin-bottom: 16px;">
           <input type="checkbox" id="pluginEnabled" checked>
-          <label for="pluginEnabled" data-i18n="pluginStatus.enabled">启用插件（关闭后链接按钮恢复原功能）</label>
+          <label for="pluginEnabled" data-i18n="pluginStatus.enabled">启用插件</label>
         </div>
         <div class="help-text" style="margin-bottom: 20px;" data-i18n="pluginStatus.help">关闭后需刷新页面生效</div>
 
@@ -568,12 +568,152 @@
         <div class="form-group" style="margin-top: 20px;">
           <label style="font-weight: 600; font-size: 14px; margin-bottom: 12px;" data-i18n="sections.content">内容设置</label>
           <div class="checkbox-row">
-            <input type="checkbox" id="addMetadata" checked>
-            <label for="addMetadata" data-i18n="content.addMetadata">添加元数据（来源、作者、时间等）</label>
+            <input type="checkbox" id="addMetadata">
+            <label for="addMetadata" data-i18n="content.addMetadata">添加元数据到笔记（Frontmatter）</label>
           </div>
-          <div class="checkbox-row">
+          <div class="checkbox-row" style="margin-top: 8px;">
+            <input type="checkbox" id="addPostInfoCallout">
+            <label for="addPostInfoCallout">添加“帖子信息”引用框（Obsidian Callout）</label>
+          </div>
+          <div id="postInfoCalloutPanel" style="display:none; margin-left:24px; margin-top:8px; padding:12px 14px; background:var(--sub-bg); border:1px solid var(--input-border); border-radius:8px;">
+            <div class="checkbox-row" style="margin-bottom:8px;">
+              <input type="checkbox" id="calloutFollowMetadata" checked>
+              <label for="calloutFollowMetadata">字段跟随元数据设置（默认）</label>
+            </div>
+            <div class="help-text" style="margin-bottom:8px; color:var(--text-muted); font-size:12px;">
+              关闭上面的选项后，可独立选择引用框字段；可只选 1 条或任意多条。
+            </div>
+            <div id="calloutFieldsPanel" style="display:none; margin-top:8px;">
+              <div style="display:grid; gap:6px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutSource" checked style="flex-shrink:0;">
+                  <label for="calloutSource" style="min-width:70px;font-size:13px;">来源</label>
+                  <input type="text" id="calloutSourceKey" value="来源" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutTitle" checked style="flex-shrink:0;">
+                  <label for="calloutTitle" style="min-width:70px;font-size:13px;">标题</label>
+                  <input type="text" id="calloutTitleKey" value="标题" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutAuthor" checked style="flex-shrink:0;">
+                  <label for="calloutAuthor" style="min-width:70px;font-size:13px;">作者</label>
+                  <input type="text" id="calloutAuthorKey" value="作者" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutCategory" checked style="flex-shrink:0;">
+                  <label for="calloutCategory" style="min-width:70px;font-size:13px;">类别</label>
+                  <input type="text" id="calloutCategoryKey" value="类别" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutTags" checked style="flex-shrink:0;">
+                  <label for="calloutTags" style="min-width:70px;font-size:13px;">标签</label>
+                  <input type="text" disabled value="tags" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--sub-bg);color:var(--text-muted);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutSaveTime" checked style="flex-shrink:0;">
+                  <label for="calloutSaveTime" style="min-width:70px;font-size:13px;">保存时间</label>
+                  <input type="text" id="calloutSaveTimeKey" value="保存时间" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutPlatform" checked style="flex-shrink:0;">
+                  <label for="calloutPlatform" style="min-width:70px;font-size:13px;">平台</label>
+                  <input type="text" id="calloutPlatformKey" value="平台" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutCommentCount" checked style="flex-shrink:0;">
+                  <label for="calloutCommentCount" style="min-width:70px;font-size:13px;">评论数</label>
+                  <input type="text" id="calloutCommentCountKey" value="评论数" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 元数据字段子面板，勾选"添加元数据"后展开 -->
+          <div id="metadataFieldsPanel" style="display:none; margin-left:24px; margin-top:10px; padding:12px 14px; background:var(--sub-bg); border:1px solid var(--input-border); border-radius:8px;">
+            <div class="help-text" style="margin-bottom:10px; color:var(--text-muted); font-size:12px;" data-i18n="content.metadataNote">
+              仅影响 Obsidian / 语雀 / 思源的 Frontmatter 字段，飞书多维表格和 Notion 数据库字段不受影响。
+            </div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;" data-i18n="content.metadataFieldsHint">勾选字段 / 可自定义字段名（tags 固定为英文）</div>
+
+            <!-- 字段列表：checkbox + 自定义字段名输入框 -->
+            <div style="display:grid; gap:6px;">
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="metaSource" checked style="flex-shrink:0;">
+                <label for="metaSource" style="min-width:70px;font-size:13px;" data-i18n="meta.source">来源 URL</label>
+                <input type="text" id="metaSourceKey" value="来源" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="metaTitle" checked style="flex-shrink:0;">
+                <label for="metaTitle" style="min-width:70px;font-size:13px;" data-i18n="meta.title">标题</label>
+                <input type="text" id="metaTitleKey" value="标题" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="metaAuthor" checked style="flex-shrink:0;">
+                <label for="metaAuthor" style="min-width:70px;font-size:13px;" data-i18n="meta.author">作者</label>
+                <input type="text" id="metaAuthorKey" value="作者" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="metaAuthorUrl" checked style="flex-shrink:0;">
+                <label for="metaAuthorUrl" style="font-size:13px;" data-i18n="meta.authorUrl">作者字段附带主页链接（[名](URL) 格式，可点击）</label>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="metaCategory" checked style="flex-shrink:0;">
+                <label for="metaCategory" style="min-width:70px;font-size:13px;" data-i18n="meta.category">类别</label>
+                <input type="text" id="metaCategoryKey" value="类别" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="metaTags" checked style="flex-shrink:0;">
+                <label for="metaTags" style="min-width:70px;font-size:13px;" data-i18n="meta.tags">标签</label>
+                <input type="text" disabled value="tags" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--sub-bg);color:var(--text-muted);" title="tags 字段名固定，Obsidian 标准字段">
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="metaSaveTime" checked style="flex-shrink:0;">
+                <label for="metaSaveTime" style="min-width:70px;font-size:13px;" data-i18n="meta.saveTime">保存时间</label>
+                <input type="text" id="metaSaveTimeKey" value="保存时间" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+              </div>
+
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="metaPlatform" checked style="flex-shrink:0;">
+                <label for="metaPlatform" style="min-width:70px;font-size:13px;" data-i18n="meta.platform">平台（自动识别）</label>
+                <input type="text" id="metaPlatformKey" value="平台" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="metaReadStatus" checked style="flex-shrink:0;">
+                <label for="metaReadStatus" style="min-width:70px;font-size:13px;" data-i18n="meta.readStatus">阅读状态（默认 false）</label>
+                <input type="text" id="metaReadStatusKey" value="阅读状态" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="metaOrganize" checked style="flex-shrink:0;">
+                <label for="metaOrganize" style="min-width:70px;font-size:13px;" data-i18n="meta.organize">整理（默认 false）</label>
+                <input type="text" id="metaOrganizeKey" value="整理" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="metaCommentCount" checked style="flex-shrink:0;">
+                <label for="metaCommentCount" style="min-width:70px;font-size:13px;" data-i18n="meta.commentCount">评论数</label>
+                <input type="text" id="metaCommentCountKey" value="评论数" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+              </div>
+
+            </div>
+          </div>
+
+          <div class="checkbox-row" style="margin-top:12px;">
             <input type="checkbox" id="includeImages" checked>
             <label for="includeImages" data-i18n="content.keepImages">保留图片链接</label>
+          </div>
+          <div class="help-text" style="margin-left:24px; margin-top:4px;" data-i18n="content.includeImagesHelp">
+            必须勾选才能使用"图片嵌入 Base64"和"下载图片/视频到 Vault"功能。取消勾选将移除正文中所有图片。
           </div>
         </div>
 
@@ -613,7 +753,7 @@
           <div class="form-group">
             <label data-i18n="obsidian.folder">保存文件夹</label>
             <input type="text" id="folderPath" value="Discourse收集箱" data-i18n="obsidian.folderPlaceholder" placeholder="Discourse收集箱">
-            <div class="help-text" data-i18n="obsidian.folderHelpDetail2">支持多种路径格式：智囊团/子目录、D:\Vault\文件夹、/Users/me/vault/folder</div>
+            <div class="help-text" data-i18n="obsidian.folderHelpDetail2">支持多种路径格式：Linux do/子目录、D:\Vault\文件夹、/Users/me/vault/folder</div>
           </div>
 
           <div class="checkbox-row">
@@ -684,8 +824,13 @@
             <div class="form-group" style="margin-top: 10px;">
               <label data-i18n="content.mediaFolderName">媒体文件夹名称</label>
               <input type="text" id="mediaFolderName" value="media" placeholder="media">
-              <div class="help-text" data-i18n="content.mediaFolderHelp">媒体文件保存到 Vault 中此文件夹下，默认 media</div>
+              <div class="help-text" data-i18n="content.mediaFolderHelp">媒体文件保存的文件夹路径，默认 media。可用 {title} 代表帖子标题，例：media/{title}</div>
             </div>
+            <div class="checkbox-row" style="margin-top: 6px;">
+              <input type="checkbox" id="mediaFolderPerTitle">
+              <label for="mediaFolderPerTitle" data-i18n="content.mediaFolderPerTitle">按帖子标题建立子文件夹</label>
+            </div>
+            <div class="help-text" style="margin-top: 4px; padding-left: 22px;" data-i18n="content.mediaFolderPerTitleHelp">勾选后每篇帖子的图片单独存入以标题命名的子文件夹</div>
           </div>
         </div>
       </div>
@@ -935,7 +1080,7 @@
     <!-- Usage Tips -->
     <div style="padding: 0 24px 16px;">
       <div class="tip-box">
-        <p data-i18n="usage.tip"><strong>使用方法：</strong><br>- 单击链接按钮 → 保存到各平台<br>- 双击链接按钮 → 复制链接<br>- Ctrl+Shift+S (Mac: ⌘+Shift+S) → 快捷键保存</p>
+        <p data-i18n="usage.tip"><strong>使用方法：</strong><br>- 点击悬浮保存按钮 → 保存整个帖子<br>- 长按悬浮按钮 → 选择楼层保存<br>- Ctrl+Shift+S (Mac: ⌘+Shift+S) → 快捷键保存</p>
       </div>
     </div>
 
@@ -944,7 +1089,7 @@
       <a href="https://github.com/acheng-byte/discourse-saver" target="_blank">GitHub</a> |
       <a href="https://linux.do" target="_blank">LinuxDo</a> |
       <a href="https://obsidian.md" target="_blank">Obsidian</a> |
-      Discourse Saver V5.3.2 &copy; 2026 acheng-byte
+      Discourse Saver V5.6.3 &copy; 2026 acheng-byte
     </div>
   </div>
 
@@ -966,3 +1111,4 @@
   <script src="options.js"></script>
 </body>
 </html>
+

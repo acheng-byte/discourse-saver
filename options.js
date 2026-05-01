@@ -79,7 +79,29 @@ const DEFAULT_CONFIG = {
   htmlExportFolder: 'Discourse导出',  // V4.3.6: HTML 导出文件夹
 
   // 内容设置
-  addMetadata: true,
+  addMetadata: false,
+  addPostInfoCallout: false,
+  calloutFollowMetadata: true,
+  calloutSource: true,       calloutSourceKey: '来源',
+  calloutTitle: true,        calloutTitleKey: '标题',
+  calloutAuthor: true,       calloutAuthorKey: '作者',
+  calloutCategory: true,     calloutCategoryKey: '类别',
+  calloutTags: true,
+  calloutSaveTime: true,     calloutSaveTimeKey: '保存时间',
+  calloutPlatform: true,     calloutPlatformKey: '平台',
+  calloutCommentCount: true, calloutCommentCountKey: '评论数',
+  // 元数据字段独立勾选 + 自定义字段名（仅影响 Obsidian/语雀/思源 frontmatter，飞书/Notion 字段不受影响）
+  metaSource: true,       metaSourceKey: '来源',
+  metaTitle: true,        metaTitleKey: '标题',
+  metaAuthor: true,       metaAuthorKey: '作者',
+  metaAuthorUrl: true,                         // 控制作者字段是否附带主页链接
+  metaCategory: true,     metaCategoryKey: '类别',
+  metaTags: true,                              // key 固定为 tags
+  metaSaveTime: true,     metaSaveTimeKey: '保存时间',
+  metaPlatform: true,     metaPlatformKey: '平台',
+  metaReadStatus: true,   metaReadStatusKey: '阅读状态',
+  metaOrganize: true,     metaOrganizeKey: '整理',
+  metaCommentCount: true, metaCommentCountKey: '评论数',
   includeImages: true,
 
   // 图片嵌入设置 (V3.6.0)
@@ -104,6 +126,7 @@ const DEFAULT_CONFIG = {
   restApiKey: '',
   restApiPort: 27124,
   mediaFolderName: 'media',
+  mediaFolderPerTitle: false,
 
   // 语雀设置
   saveToYuque: false,
@@ -280,6 +303,54 @@ function loadOptions() {
 
     // 内容设置
     document.getElementById('addMetadata').checked = config.addMetadata;
+    document.getElementById('addPostInfoCallout').checked = config.addPostInfoCallout === true;
+    document.getElementById('calloutFollowMetadata').checked = config.calloutFollowMetadata !== false;
+    updateMetadataPanelVisibility(config.addMetadata);
+    updatePostInfoCalloutPanelVisibility(config.addPostInfoCallout === true);
+    updateCalloutFieldsPanelVisibility(config.calloutFollowMetadata !== false);
+
+    // 元数据字段独立勾选 + 自定义字段名
+    const metaFields = [
+      ['metaSource', 'metaSourceKey'],
+      ['metaTitle', 'metaTitleKey'],
+      ['metaAuthor', 'metaAuthorKey'],
+      ['metaAuthorUrl', null],              // 控制作者是否附带主页链接，无独立 key 输入
+      ['metaCategory', 'metaCategoryKey'],
+      ['metaTags', null],
+      ['metaSaveTime', 'metaSaveTimeKey'],
+      ['metaPlatform', 'metaPlatformKey'],
+      ['metaReadStatus', 'metaReadStatusKey'],
+      ['metaOrganize', 'metaOrganizeKey'],
+      ['metaCommentCount', 'metaCommentCountKey'],
+    ];
+    metaFields.forEach(([field, keyField]) => {
+      const chk = document.getElementById(field);
+      if (chk) chk.checked = config[field] !== false;
+      if (keyField) {
+        const inp = document.getElementById(keyField);
+        if (inp) inp.value = config[keyField] || DEFAULT_CONFIG[keyField] || '';
+      }
+    });
+
+    const calloutFields = [
+      ['calloutSource', 'calloutSourceKey'],
+      ['calloutTitle', 'calloutTitleKey'],
+      ['calloutAuthor', 'calloutAuthorKey'],
+      ['calloutCategory', 'calloutCategoryKey'],
+      ['calloutTags', null],
+      ['calloutSaveTime', 'calloutSaveTimeKey'],
+      ['calloutPlatform', 'calloutPlatformKey'],
+      ['calloutCommentCount', 'calloutCommentCountKey'],
+    ];
+    calloutFields.forEach(([field, keyField]) => {
+      const chk = document.getElementById(field);
+      if (chk) chk.checked = config[field] !== false;
+      if (keyField) {
+        const inp = document.getElementById(keyField);
+        if (inp) inp.value = config[keyField] || DEFAULT_CONFIG[keyField] || '';
+      }
+    });
+
     document.getElementById('includeImages').checked = config.includeImages;
 
     // 图片嵌入设置 (V3.6.0)
@@ -293,6 +364,7 @@ function loadOptions() {
     document.getElementById('restApiPort').value = config.restApiPort || 27124;
     document.getElementById('downloadVideos').checked = config.downloadVideos !== false;
     document.getElementById('mediaFolderName').value = config.mediaFolderName || 'media';
+    document.getElementById('mediaFolderPerTitle').checked = config.mediaFolderPerTitle === true;
     updateDownloadImagesVisibility();
 
     // 评论设置
@@ -312,6 +384,7 @@ function loadOptions() {
     updateCommentOptionsVisibility(config.saveComments);
     updateSaveAllCommentsVisibility(config.saveAllComments);
     updateImageSettingsVisibility(config.embedImages);
+    updateIncludeImagesConstraint();
     updateFloorRangeVisibility(config.useFloorRange);
     updateYuqueOptionsVisibility(config.saveToYuque);
     updateSiyuanOptionsVisibility(config.saveToSiyuan);
@@ -385,6 +458,28 @@ function updateSaveAllCommentsVisibility(enabled) {
   }
   if (warningEl) {
     warningEl.style.display = enabled ? 'block' : 'none';
+  }
+}
+
+// 元数据字段子面板显示/隐藏
+function updateMetadataPanelVisibility(enabled) {
+  const panel = document.getElementById('metadataFieldsPanel');
+  if (panel) {
+    panel.style.display = enabled ? 'block' : 'none';
+  }
+}
+
+function updatePostInfoCalloutPanelVisibility(enabled) {
+  const panel = document.getElementById('postInfoCalloutPanel');
+  if (panel) {
+    panel.style.display = enabled ? 'block' : 'none';
+  }
+}
+
+function updateCalloutFieldsPanelVisibility(followMetadata) {
+  const panel = document.getElementById('calloutFieldsPanel');
+  if (panel) {
+    panel.style.display = followMetadata ? 'none' : 'block';
   }
 }
 
@@ -483,6 +578,47 @@ function saveOptions(e) {
 
     // 内容设置
     addMetadata: document.getElementById('addMetadata').checked,
+    addPostInfoCallout: document.getElementById('addPostInfoCallout')?.checked === true,
+    calloutFollowMetadata: document.getElementById('calloutFollowMetadata')?.checked !== false,
+
+    // 元数据字段独立勾选 + 自定义字段名
+    metaSource:      document.getElementById('metaSource')?.checked !== false,
+    metaSourceKey:   document.getElementById('metaSourceKey')?.value.trim() || '来源',
+    metaTitle:       document.getElementById('metaTitle')?.checked !== false,
+    metaTitleKey:    document.getElementById('metaTitleKey')?.value.trim() || '标题',
+    metaAuthor:      document.getElementById('metaAuthor')?.checked !== false,
+    metaAuthorKey:   document.getElementById('metaAuthorKey')?.value.trim() || '作者',
+    metaAuthorUrl:   document.getElementById('metaAuthorUrl')?.checked !== false,
+    metaAuthorUrlKey:document.getElementById('metaAuthorUrlKey')?.value.trim() || '作者主页',
+    metaCategory:    document.getElementById('metaCategory')?.checked !== false,
+    metaCategoryKey: document.getElementById('metaCategoryKey')?.value.trim() || '类别',
+    metaTags:        document.getElementById('metaTags')?.checked !== false,
+    metaSaveTime:    document.getElementById('metaSaveTime')?.checked !== false,
+    metaSaveTimeKey: document.getElementById('metaSaveTimeKey')?.value.trim() || '保存时间',
+    metaPlatform:    document.getElementById('metaPlatform')?.checked !== false,
+    metaPlatformKey: document.getElementById('metaPlatformKey')?.value.trim() || '平台',
+    metaReadStatus:  document.getElementById('metaReadStatus')?.checked !== false,
+    metaReadStatusKey:document.getElementById('metaReadStatusKey')?.value.trim() || '阅读状态',
+    metaOrganize:    document.getElementById('metaOrganize')?.checked !== false,
+    metaOrganizeKey: document.getElementById('metaOrganizeKey')?.value.trim() || '整理',
+    metaCommentCount:document.getElementById('metaCommentCount')?.checked !== false,
+    metaCommentCountKey:document.getElementById('metaCommentCountKey')?.value.trim() || '评论数',
+    calloutSource:      document.getElementById('calloutSource')?.checked !== false,
+    calloutSourceKey:   document.getElementById('calloutSourceKey')?.value.trim() || '来源',
+    calloutTitle:       document.getElementById('calloutTitle')?.checked !== false,
+    calloutTitleKey:    document.getElementById('calloutTitleKey')?.value.trim() || '标题',
+    calloutAuthor:      document.getElementById('calloutAuthor')?.checked !== false,
+    calloutAuthorKey:   document.getElementById('calloutAuthorKey')?.value.trim() || '作者',
+    calloutCategory:    document.getElementById('calloutCategory')?.checked !== false,
+    calloutCategoryKey: document.getElementById('calloutCategoryKey')?.value.trim() || '类别',
+    calloutTags:        document.getElementById('calloutTags')?.checked !== false,
+    calloutSaveTime:    document.getElementById('calloutSaveTime')?.checked !== false,
+    calloutSaveTimeKey: document.getElementById('calloutSaveTimeKey')?.value.trim() || '保存时间',
+    calloutPlatform:    document.getElementById('calloutPlatform')?.checked !== false,
+    calloutPlatformKey: document.getElementById('calloutPlatformKey')?.value.trim() || '平台',
+    calloutCommentCount:document.getElementById('calloutCommentCount')?.checked !== false,
+    calloutCommentCountKey:document.getElementById('calloutCommentCountKey')?.value.trim() || '评论数',
+
     includeImages: document.getElementById('includeImages').checked,
 
     // 图片嵌入设置 (V3.6.0)
@@ -496,6 +632,7 @@ function saveOptions(e) {
     restApiKey: document.getElementById('restApiKey').value.trim(),
     restApiPort: parseInt(document.getElementById('restApiPort').value) || 27124,
     mediaFolderName: document.getElementById('mediaFolderName').value.trim() || 'media',
+    mediaFolderPerTitle: document.getElementById('mediaFolderPerTitle').checked,
 
     // 评论设置
     saveComments: document.getElementById('saveComments').checked,
@@ -813,20 +950,50 @@ async function testNotionConnection() {
   }
 }
 
-// 更新下载图片面板可见性
+// 更新下载图片面板可见性，并处理三个图片选项的互斥关系
 function updateDownloadImagesVisibility() {
-  const checked = document.getElementById('downloadImages').checked;
+  const downloadChecked = document.getElementById('downloadImages').checked;
   const panel = document.getElementById('downloadImagesPanel');
   if (panel) {
-    if (checked) {
-      panel.classList.remove('disabled');
-    } else {
-      panel.classList.add('disabled');
+    panel.classList.toggle('disabled', !downloadChecked);
+  }
+  // downloadImages 和 embedImages 互斥：勾选下载则取消嵌入
+  if (downloadChecked) {
+    const embedEl = document.getElementById('embedImages');
+    if (embedEl && embedEl.checked) {
+      embedEl.checked = false;
+      updateImageSettingsVisibility(false);
     }
   }
-  // downloadImages 和 embedImages 互斥
-  if (checked) {
-    document.getElementById('embedImages').checked = false;
+}
+
+// 当 includeImages 切换时，联动 embedImages/downloadImages 的可用状态
+function updateIncludeImagesConstraint() {
+  const includeChecked = document.getElementById('includeImages').checked;
+  const embedEl = document.getElementById('embedImages');
+  const downloadEl = document.getElementById('downloadImages');
+  const embedRow = embedEl ? embedEl.closest('.checkbox-row') : null;
+  const downloadRow = downloadEl ? downloadEl.closest('.checkbox-row') : null;
+
+  if (!includeChecked) {
+    // 不保留图片 → 嵌入和下载都失去意义，强制取消并灰显
+    if (embedEl && embedEl.checked) {
+      embedEl.checked = false;
+      updateImageSettingsVisibility(false);
+    }
+    if (downloadEl && downloadEl.checked) {
+      downloadEl.checked = false;
+      updateDownloadImagesVisibility();
+    }
+    if (embedRow) embedRow.style.opacity = '0.45';
+    if (downloadRow) downloadRow.style.opacity = '0.45';
+    if (embedEl) embedEl.disabled = true;
+    if (downloadEl) downloadEl.disabled = true;
+  } else {
+    if (embedRow) embedRow.style.opacity = '';
+    if (downloadRow) downloadRow.style.opacity = '';
+    if (embedEl) embedEl.disabled = false;
+    if (downloadEl) downloadEl.disabled = false;
   }
 }
 
@@ -1244,14 +1411,36 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('embedImages').addEventListener('change', (e) => {
     updateImageSettingsVisibility(e.target.checked);
 
-    // 启用图片嵌入时，自动启用 Advanced URI（必需）
     if (e.target.checked) {
+      // embedImages 和 downloadImages 互斥：勾选嵌入则取消下载
+      const downloadEl = document.getElementById('downloadImages');
+      if (downloadEl && downloadEl.checked) {
+        downloadEl.checked = false;
+        updateDownloadImagesVisibility();
+      }
+      // 启用图片嵌入时，自动启用 Advanced URI（必需）
       const advancedUriCheckbox = document.getElementById('useAdvancedUri');
       if (advancedUriCheckbox && !advancedUriCheckbox.checked) {
         advancedUriCheckbox.checked = true;
         showStatus('已自动启用 Advanced URI（图片嵌入必需）', 'info');
       }
     }
+  });
+
+  // 添加元数据：控制元数据字段子面板显示
+  document.getElementById('addMetadata').addEventListener('change', (e) => {
+    updateMetadataPanelVisibility(e.target.checked);
+  });
+  document.getElementById('addPostInfoCallout').addEventListener('change', (e) => {
+    updatePostInfoCalloutPanelVisibility(e.target.checked);
+  });
+  document.getElementById('calloutFollowMetadata').addEventListener('change', (e) => {
+    updateCalloutFieldsPanelVisibility(e.target.checked);
+  });
+
+  // 保留图片链接：控制 embedImages/downloadImages 是否可用
+  document.getElementById('includeImages').addEventListener('change', () => {
+    updateIncludeImagesConstraint();
   });
 
   // 移除文件夹路径首尾斜杠

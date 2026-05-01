@@ -36,7 +36,7 @@
   console.log('[Discourse Saver] content.js 开始执行，URL:', location.href);
 
   // 防止重复执行（扩展重新加载后版本号会变，允许重新注入）
-  const CONTENT_SCRIPT_VERSION = '4.3.11';
+  const CONTENT_SCRIPT_VERSION = '5.6.3';
   if (window.__discourseSaverVersion === CONTENT_SCRIPT_VERSION) {
     console.log('[Discourse Saver] content.js 已在运行（同版本），跳过');
     return;
@@ -54,7 +54,29 @@
 
     vaultName: '',
     folderPath: 'Discourse收集箱',
-    addMetadata: true,
+    addMetadata: false,
+    addPostInfoCallout: false,
+    calloutFollowMetadata: true,
+    calloutSource: true,       calloutSourceKey: '来源',
+    calloutTitle: true,        calloutTitleKey: '标题',
+    calloutAuthor: true,       calloutAuthorKey: '作者',
+    calloutCategory: true,     calloutCategoryKey: '类别',
+    calloutTags: true,
+    calloutSaveTime: true,     calloutSaveTimeKey: '保存时间',
+    calloutPlatform: true,     calloutPlatformKey: '平台',
+    calloutCommentCount: true, calloutCommentCountKey: '评论数',
+    // 元数据字段独立勾选 + 自定义字段名（仅影响 Obsidian/语雀/思源 frontmatter，飞书/Notion 字段不受影响）
+    metaSource: true,       metaSourceKey: '来源',
+    metaTitle: true,        metaTitleKey: '标题',
+    metaAuthor: true,       metaAuthorKey: '作者',
+    metaAuthorUrl: true,    metaAuthorUrlKey: '作者主页',
+    metaCategory: true,     metaCategoryKey: '类别',
+    metaTags: true,                              // key 固定为 tags（Obsidian 标准字段）
+    metaSaveTime: true,     metaSaveTimeKey: '保存时间',
+    metaPlatform: true,     metaPlatformKey: '平台',
+    metaReadStatus: true,   metaReadStatusKey: '阅读状态',
+    metaOrganize: true,     metaOrganizeKey: '整理',
+    metaCommentCount: true, metaCommentCountKey: '评论数',
     includeImages: true,
     saveComments: false,
     commentCount: 100,
@@ -105,7 +127,7 @@
     downloadImages: false,
     downloadVideos: true,
     restApiKey: '',
-    restApiPort: 27123,
+    restApiPort: 27124,
     mediaFolderName: 'media',
 
     // 语雀设置
@@ -203,6 +225,7 @@
   }
 
   // V5.4.0: 悬浮保存按钮（替代链接拦截）
+  // V5.4.1: 长按弹出操作菜单，支持指定楼层保存
   let floatingBtnAdded = false;
 
   function createFloatingButton() {
@@ -212,7 +235,7 @@
 
     const btn = document.createElement('div');
     btn.id = 'ds-fab';
-    btn.title = 'Discourse Saver - 点击保存帖子';
+    btn.title = '点击保存整帖 | 长按更多操作';
     btn.innerHTML = `
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
@@ -252,22 +275,126 @@
         background: #f0ad4e;
         animation: ds-fab-pulse 0.8s infinite;
       }
+      #ds-fab.ds-fab-longpress {
+        background: #5cb85c;
+        transform: scale(1.2);
+      }
       @keyframes ds-fab-pulse {
         0%, 100% { transform: scale(1); }
         50% { transform: scale(1.15); }
       }
+      #ds-fab-menu {
+        position: fixed;
+        z-index: 2147483647;
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+        padding: 12px;
+        min-width: 200px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 14px;
+        color: #333;
+      }
+      #ds-fab-menu .ds-menu-title {
+        font-weight: 600;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #eee;
+        color: #4a90d9;
+        font-size: 13px;
+      }
+      #ds-fab-menu .ds-menu-item {
+        padding: 8px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: background 0.15s;
+      }
+      #ds-fab-menu .ds-menu-item:hover {
+        background: #f0f4f8;
+      }
+      #ds-fab-menu .ds-menu-item svg {
+        flex-shrink: 0;
+        width: 16px;
+        height: 16px;
+      }
+      #ds-fab-menu .ds-menu-divider {
+        height: 1px;
+        background: #eee;
+        margin: 6px 0;
+      }
+      #ds-fab-menu .ds-floor-input {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+      }
+      #ds-fab-menu .ds-floor-input input {
+        width: 60px;
+        padding: 4px 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+        text-align: center;
+        outline: none;
+      }
+      #ds-fab-menu .ds-floor-input input:focus {
+        border-color: #4a90d9;
+        box-shadow: 0 0 0 2px rgba(74,144,217,0.2);
+      }
+      #ds-fab-menu .ds-floor-btn {
+        padding: 4px 12px;
+        background: #4a90d9;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      #ds-fab-menu .ds-floor-btn:hover { background: #357abd; }
+      #ds-fab-menu .ds-menu-toggle {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 6px 12px; font-size: 13px; color: var(--ds-text, #333);
+      }
+      #ds-fab-menu .ds-toggle-switch {
+        position: relative; display: inline-block; width: 34px; height: 18px; flex-shrink: 0;
+      }
+      #ds-fab-menu .ds-toggle-switch input { opacity: 0; width: 0; height: 0; }
+      #ds-fab-menu .ds-toggle-slider {
+        position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+        background: #ccc; border-radius: 18px; transition: .2s;
+      }
+      #ds-fab-menu .ds-toggle-slider:before {
+        position: absolute; content: ""; height: 12px; width: 12px;
+        left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .2s;
+      }
+      #ds-fab-menu .ds-toggle-switch input:checked + .ds-toggle-slider { background: #4a90e2; }
+      #ds-fab-menu .ds-toggle-switch input:checked + .ds-toggle-slider:before { transform: translateX(16px); }
     `;
     document.head.appendChild(style);
     document.body.appendChild(btn);
 
-    // 拖拽逻辑
+    // 拖拽 + 长按逻辑
     let isDragging = false;
     let dragStartX, dragStartY, btnStartX, btnStartY;
     let hasMoved = false;
+    let longPressTimer = null;
+    let isLongPress = false;
+
+    function clearLongPress() {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      btn.classList.remove('ds-fab-longpress');
+    }
 
     btn.addEventListener('mousedown', (e) => {
       isDragging = true;
       hasMoved = false;
+      isLongPress = false;
       dragStartX = e.clientX;
       dragStartY = e.clientY;
       const rect = btn.getBoundingClientRect();
@@ -276,16 +403,27 @@
       btn.style.cursor = 'grabbing';
       btn.style.transition = 'none';
       e.preventDefault();
+
+      // 长按计时（800ms）
+      longPressTimer = setTimeout(() => {
+        if (!hasMoved) {
+          isLongPress = true;
+          btn.classList.add('ds-fab-longpress');
+          showFabMenu(btn);
+        }
+      }, 800);
     });
 
     document.addEventListener('mousemove', (e) => {
       if (!isDragging) return;
       const dx = e.clientX - dragStartX;
       const dy = e.clientY - dragStartY;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        hasMoved = true;
+        clearLongPress();
+      }
       let newX = btnStartX + dx;
       let newY = btnStartY + dy;
-      // 边界限制
       const maxX = window.innerWidth - 50;
       const maxY = window.innerHeight - 50;
       newX = Math.max(0, Math.min(newX, maxX));
@@ -298,15 +436,16 @@
     document.addEventListener('mouseup', () => {
       if (!isDragging) return;
       isDragging = false;
+      clearLongPress();
       btn.style.cursor = 'grab';
       btn.style.transition = 'background 0.2s, transform 0.15s, box-shadow 0.2s';
     });
 
-    // 点击保存（非拖拽时）
+    // 点击保存（非拖拽、非长按时）
     btn.addEventListener('click', (e) => {
-      if (hasMoved) return; // 拖拽结束不触发
+      if (hasMoved || isLongPress) return;
       e.stopPropagation();
-      console.log('[Discourse Saver] 悬浮按钮点击，保存帖子');
+      console.log('[Discourse Saver] 悬浮按钮点击，保存整帖');
       rlog('INFO', '悬浮按钮触发保存');
       btn.classList.add('ds-fab-saving');
       saveToObsidian(null).finally(() => {
@@ -314,17 +453,26 @@
       });
     });
 
-    // 触屏拖拽支持
+    // 触屏拖拽 + 长按支持
     btn.addEventListener('touchstart', (e) => {
       const t = e.touches[0];
       isDragging = true;
       hasMoved = false;
+      isLongPress = false;
       dragStartX = t.clientX;
       dragStartY = t.clientY;
       const rect = btn.getBoundingClientRect();
       btnStartX = rect.left;
       btnStartY = rect.top;
       btn.style.transition = 'none';
+
+      longPressTimer = setTimeout(() => {
+        if (!hasMoved) {
+          isLongPress = true;
+          btn.classList.add('ds-fab-longpress');
+          showFabMenu(btn);
+        }
+      }, 800);
     }, { passive: true });
 
     document.addEventListener('touchmove', (e) => {
@@ -332,7 +480,10 @@
       const t = e.touches[0];
       const dx = t.clientX - dragStartX;
       const dy = t.clientY - dragStartY;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        hasMoved = true;
+        clearLongPress();
+      }
       let newX = btnStartX + dx;
       let newY = btnStartY + dy;
       newX = Math.max(0, Math.min(newX, window.innerWidth - 50));
@@ -345,6 +496,7 @@
     document.addEventListener('touchend', () => {
       if (!isDragging) return;
       isDragging = false;
+      clearLongPress();
       btn.style.transition = 'background 0.2s, transform 0.15s, box-shadow 0.2s';
     });
 
@@ -352,8 +504,178 @@
     rlog('INFO', '悬浮按钮已创建');
   }
 
+  // V5.4.1: 悬浮按钮长按菜单
+  function showFabMenu(anchorBtn) {
+    // 关闭已有菜单
+    closeFabMenu();
+
+    const menu = document.createElement('div');
+    menu.id = 'ds-fab-menu';
+
+    menu.innerHTML = `
+      <div class="ds-menu-title">Discourse Saver</div>
+      <div class="ds-menu-item" data-action="save-all">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        <span>保存整个帖子</span>
+      </div>
+      <div class="ds-menu-divider"></div>
+      <div class="ds-menu-toggle">
+        <span>保存评论</span>
+        <label class="ds-toggle-switch">
+          <input type="checkbox" id="ds-fab-save-comments">
+          <span class="ds-toggle-slider"></span>
+        </label>
+      </div>
+      <div class="ds-menu-divider"></div>
+      <div class="ds-floor-input">
+        <input type="text" id="ds-floor-num" placeholder="如: 5 或 2-8 或 1,3,5-7" style="width:140px" />
+        <button class="ds-floor-btn" id="ds-floor-go">保存</button>
+      </div>
+      <div id="ds-floor-hint" style="font-size:11px;color:#888;padding:0 10px 6px;"></div>
+    `;
+
+    document.body.appendChild(menu);
+
+    // 定位菜单：在按钮左侧弹出
+    const btnRect = anchorBtn.getBoundingClientRect();
+    const menuWidth = 220;
+    let menuLeft = btnRect.left - menuWidth - 10;
+    let menuTop = btnRect.top;
+    // 如果左边放不下，放右边
+    if (menuLeft < 10) {
+      menuLeft = btnRect.right + 10;
+    }
+    // 底部超出屏幕则上移
+    if (menuTop + 160 > window.innerHeight) {
+      menuTop = window.innerHeight - 170;
+    }
+    menu.style.left = menuLeft + 'px';
+    menu.style.top = menuTop + 'px';
+
+    // 保存整帖
+    menu.querySelector('[data-action="save-all"]').addEventListener('click', () => {
+      closeFabMenu();
+      anchorBtn.classList.add('ds-fab-saving');
+      saveToObsidian(null).finally(() => {
+        anchorBtn.classList.remove('ds-fab-saving');
+      });
+    });
+
+    // 保存评论 toggle：读取当前状态并监听变更写回 storage
+    const saveCommentsToggle = menu.querySelector('#ds-fab-save-comments');
+    chrome.storage.sync.get({ saveComments: false }, (result) => {
+      saveCommentsToggle.checked = result.saveComments;
+    });
+    saveCommentsToggle.addEventListener('change', () => {
+      chrome.storage.sync.set({ saveComments: saveCommentsToggle.checked });
+    });
+
+    // 楼层保存
+    const floorInput = menu.querySelector('#ds-floor-num');
+    const floorBtn = menu.querySelector('#ds-floor-go');
+    const floorHint = menu.querySelector('#ds-floor-hint');
+
+    // 解析楼层输入：支持 "5", "2-8", "1,3,5", "1-5,8,10-12"
+    function parseFloors(str) {
+      const floors = new Set();
+      const parts = str.replace(/\s/g, '').split(',');
+      for (const part of parts) {
+        if (!part) continue;
+        const rangeMatch = part.match(/^(\d+)-(\d+)$/);
+        if (rangeMatch) {
+          const from = parseInt(rangeMatch[1]);
+          const to = parseInt(rangeMatch[2]);
+          if (from > to || to - from > 200) return null; // 防止过大范围
+          for (let i = from; i <= to; i++) floors.add(i);
+        } else if (/^\d+$/.test(part)) {
+          floors.add(parseInt(part));
+        } else {
+          return null; // 格式错误
+        }
+      }
+      return floors.size > 0 ? Array.from(floors).sort((a, b) => a - b) : null;
+    }
+
+    // 实时提示解析结果
+    floorInput.addEventListener('input', () => {
+      const raw = floorInput.value.trim();
+      if (!raw) { floorHint.textContent = ''; return; }
+      const floors = parseFloors(raw);
+      if (!floors) {
+        floorHint.textContent = '格式错误';
+        floorHint.style.color = '#d9534f';
+      } else {
+        floorHint.textContent = `共 ${floors.length} 楼: ${floors.slice(0, 8).join(', ')}${floors.length > 8 ? '...' : ''}`;
+        floorHint.style.color = '#5cb85c';
+      }
+    });
+
+    function doFloorSave() {
+      const raw = floorInput.value.trim();
+      if (!raw) {
+        floorInput.style.borderColor = '#d9534f';
+        floorInput.focus();
+        return;
+      }
+      const floors = parseFloors(raw);
+      if (!floors) {
+        floorInput.style.borderColor = '#d9534f';
+        floorHint.textContent = '格式错误，请输入如: 5 或 2-8 或 1,3,5-7';
+        floorHint.style.color = '#d9534f';
+        return;
+      }
+      closeFabMenu();
+      console.log('[Discourse Saver] 菜单楼层保存:', floors);
+      rlog('INFO', '菜单楼层保存: ' + floors.join(','));
+      anchorBtn.classList.add('ds-fab-saving');
+
+      // V5.4.2: 多楼层合并为一个文件保存
+      if (floors.length === 1) {
+        // 单楼：按原逻辑
+        const postNum = floors[0] === 1 ? null : String(floors[0]);
+        saveToObsidian(postNum).finally(() => {
+          anchorBtn.classList.remove('ds-fab-saving');
+        });
+      } else {
+        // 多楼：传数组，合并为一个文件
+        saveToObsidian(floors).finally(() => {
+          anchorBtn.classList.remove('ds-fab-saving');
+        });
+      }
+    }
+
+    floorBtn.addEventListener('click', doFloorSave);
+    floorInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doFloorSave();
+      if (e.key === 'Escape') closeFabMenu();
+    });
+
+    // 点击菜单外部关闭
+    setTimeout(() => {
+      document.addEventListener('click', closeFabMenuOnOutsideClick);
+    }, 100);
+
+    // 自动聚焦输入框
+    setTimeout(() => floorInput.focus(), 50);
+  }
+
+  function closeFabMenuOnOutsideClick(e) {
+    const menu = document.getElementById('ds-fab-menu');
+    const fab = document.getElementById('ds-fab');
+    if (menu && !menu.contains(e.target) && !fab.contains(e.target)) {
+      closeFabMenu();
+    }
+  }
+
+  function closeFabMenu() {
+    const menu = document.getElementById('ds-fab-menu');
+    if (menu) menu.remove();
+    document.removeEventListener('click', closeFabMenuOnOutsideClick);
+  }
+
   // V5.4.0: 移除悬浮按钮（离开帖子页面时）
   function removeFloatingButton() {
+    closeFabMenu();
     const btn = document.getElementById('ds-fab');
     if (btn) {
       btn.remove();
@@ -362,13 +684,125 @@
     }
   }
 
-  // 提取帖子内容
+  // V5.4.2: 将楼层数组格式化为简洁描述（用于文件名）
+  // [2,3,4,5] → "2至5楼"
+  // [2,3,5,8] → "2-3,5,8楼"
+  // [5] → "5楼"
+  function formatFloorRange(floors) {
+    if (floors.length === 0) return '';
+    if (floors.length === 1) return floors[0] + '楼';
+    const sorted = [...floors].sort((a, b) => a - b);
+    // 如果是完全连续的
+    if (sorted[sorted.length - 1] - sorted[0] === sorted.length - 1) {
+      return `${sorted[0]}至${sorted[sorted.length - 1]}楼`;
+    }
+    // 分段压缩：连续的用-，不连续的用逗号
+    const parts = [];
+    let start = sorted[0], prev = sorted[0];
+    for (let i = 1; i <= sorted.length; i++) {
+      if (i < sorted.length && sorted[i] === prev + 1) {
+        prev = sorted[i];
+      } else {
+        parts.push(start === prev ? String(start) : `${start}-${prev}`);
+        if (i < sorted.length) { start = sorted[i]; prev = sorted[i]; }
+      }
+    }
+    // 文件名太长时截断
+    let desc = parts.join(',');
+    if (desc.length > 30) desc = desc.substring(0, 27) + '...';
+    return desc + '楼';
+  }
+
+  // V5.5.7: 通过 API 提取主帖内容（不依赖 DOM，任意滚动位置均可保存）
+  // 与评论的 extractCommentsViaAPI 逻辑对称，返回与 extractContent() 相同的字段结构
+  async function extractContentViaAPI(topicId) {
+    if (!topicId) return null;
+    try {
+      const res = await fetch(`${window.location.origin}/t/${topicId}.json`, {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      if (!res.ok) {
+        console.warn('[Discourse Saver] extractContentViaAPI: /t/' + topicId + '.json 返回', res.status);
+        return null;
+      }
+      const data = await res.json();
+      const firstPost = data.post_stream?.posts?.[0];
+      if (!firstPost) return null;
+
+      const title = data.title || '';
+      const contentHTML = firstPost.cooked || '';
+      const rawMarkdown = firstPost.raw || null;
+      const author = firstPost.display_username || firstPost.username || '未知作者';
+      const url = window.location.href;
+
+      // 分类：优先用 category_slug → 再用 category_id 反查或 DOM 补充
+      let category = '';
+      if (data.category_id) {
+        const catEl = document.querySelector('.badge-category__name, .category-name');
+        if (catEl) category = catEl.textContent.trim();
+      }
+
+      // 标签：优先用 API 返回值，若为空则从 DOM 提取（linux.do 等实例 API 可能不返回 tags）
+      let tags = Array.isArray(data.tags) ? data.tags.filter(t => typeof t === 'string' && t.trim()) : [];
+      if (tags.length === 0) {
+        const tagEls = document.querySelectorAll('.discourse-tags .discourse-tag, .list-tags .discourse-tag, a.discourse-tag');
+        tagEls.forEach(el => {
+          const text = el.textContent.trim();
+          if (text && !tags.includes(text)) tags.push(text);
+        });
+        if (tags.length > 0) console.log('[Discourse Saver] tags 从 DOM 补充:', tags);
+      }
+
+      // 作者主页 URL
+      const authorUsername = firstPost.username || '';
+      const authorUrl = authorUsername ? `${window.location.origin}/u/${authorUsername}` : '';
+      // 发帖时间（北京时间用 toBeijingTimeStr 在 frontmatter 生成时转换）
+      const createdAt = firstPost.created_at || data.created_at || null;
+
+      console.log('[Discourse Saver] API 提取主帖成功:', title, '作者:', author, 'raw长度:', rawMarkdown?.length);
+      return { title, contentHTML, rawMarkdown, url, author, authorUrl, createdAt, topicId, category, tags };
+    } catch (e) {
+      console.warn('[Discourse Saver] extractContentViaAPI 失败:', e);
+      return null;
+    }
+  }
+
+  // 自动识别平台名称（基于 hostname）
+  function detectPlatform() {
+    const hostname = window.location.hostname.toLowerCase();
+    const platformMap = {
+      'linux.do': 'LINUX DO',
+      'meta.discourse.org': 'Discourse Meta',
+      'discuss.python.org': 'Python',
+      'community.cloudflare.com': 'Cloudflare Community',
+      'discourse.mozilla.org': 'Mozilla',
+      'forums.swift.org': 'Swift Forums',
+      'community.openai.com': 'OpenAI Community',
+    };
+    if (platformMap[hostname]) return platformMap[hostname];
+    // 自定义站点：尝试从域名推断
+    return hostname.replace(/^www\./, '').split('.').slice(0, -1).join('.').toUpperCase() || hostname.toUpperCase();
+  }
+
+  // 提取帖子内容（DOM 方式，作为 API 的 fallback）
   function extractContent() {
-    const titleElement = document.querySelector('#topic-title h1');
-    const contentElement = document.querySelector('.topic-body .cooked');
-    const authorElement = document.querySelector('.topic-meta-data .creator a, .names .first a');
+    // 多选择器兼容不同 Discourse 主题和版本
+    const titleElement = document.querySelector('#topic-title h1') ||
+      document.querySelector('.topic-title h1') ||
+      document.querySelector('.fancy-title') ||
+      document.querySelector('h1[data-topic-id]') ||
+      document.querySelector('.header-title h1');
+    const contentElement = document.querySelector('.topic-body .cooked') ||
+      document.querySelector('.post-body .cooked') ||
+      document.querySelector('.topic-post:first-of-type .cooked') ||
+      document.querySelector('.cooked');
+    const authorElement = document.querySelector('.topic-meta-data .creator a, .names .first a') ||
+      document.querySelector('.topic-post:first-of-type .username a') ||
+      document.querySelector('.topic-meta-data a.username');
 
     if (!titleElement || !contentElement) {
+      console.warn('[Discourse Saver] extractContent 失败: title=', !!titleElement, 'content=', !!contentElement);
       return null;
     }
 
@@ -571,6 +1005,7 @@
             username: postUsername,
             userUrl,
             contentHTML: post.cooked || '',
+            rawMarkdown: post.raw || '',   // V5.5-raw: 优先使用原始 Markdown
             position: String(post.post_number),
             time: post.created_at || '',
             likes: String(post.like_count || 0)
@@ -593,6 +1028,69 @@
       console.error('[Discourse Saver] API获取评论失败:', error);
       throw error;
     }
+  }
+
+  // V5.5-raw: 将 cooked HTML 中的图片 URL 映射回 raw 的 upload:// token
+  // V5.5.4: 修复当 cookedHtml 为空时直接返回导致 upload:// 残留的 bug
+  function resolveUploadUrls(rawMarkdown, cookedHtml) {
+    if (!rawMarkdown) return rawMarkdown;
+    // 找出 raw 中所有 upload:// token
+    const uploadTokens = rawMarkdown.match(/upload:\/\/[^\s\)\"'\]]+/g);
+    if (!uploadTokens || uploadTokens.length === 0) return rawMarkdown;
+
+    // 从 cooked HTML 提取所有 CDN URL（img src、a href、audio/source/video src）
+    const imgUrls = [];
+    const allUrlRegex = /(?:src|href)="(https?:\/\/[^"]+\/uploads\/[^"]+)"/g;
+    let m;
+    while ((m = allUrlRegex.exec(cookedHtml)) !== null) {
+      if (!imgUrls.includes(m[1])) imgUrls.push(m[1]);
+    }
+
+    let resolved = rawMarkdown;
+    uploadTokens.forEach((token, idx) => {
+      // 取 upload:// 后的 hash（去掉扩展名）
+      const tokenBody = token.replace('upload://', '');
+      const hashPart = tokenBody.split('.')[0];
+
+      // 优先：在 URL 中找到包含此 hash 的完整 URL
+      const matchedUrl = imgUrls.find(u => u.includes(hashPart));
+      // V5.5.3: fallback → /uploads/short-url/ 确保 upload:// 一定被替换
+      const replacement = matchedUrl ||
+        (idx < imgUrls.length ? imgUrls[idx] : null) ||
+        window.location.origin + '/uploads/short-url/' + tokenBody;
+      resolved = resolved.split(token).join(replacement);
+    });
+
+    return resolved;
+  }
+
+  // V5.5-raw: 通过 /raw/{topicId}/1 获取主帖原始 Markdown
+  // V5.5-raw: 同时获取 raw Markdown 和 API cooked HTML（含折叠 details 内的图片）
+  async function fetchRawMainPost(topicId) {
+    if (!topicId) return { rawText: null, cookedHtml: null };
+    const baseUrl = window.location.origin;
+    let rawText = null;
+    let cookedHtml = null;
+    try {
+      const [rawRes, jsonRes] = await Promise.all([
+        fetch(`${baseUrl}/raw/${topicId}/1`, { credentials: 'include', cache: 'no-store' }),
+        fetch(`${baseUrl}/t/${topicId}.json`, { credentials: 'include', cache: 'no-store' })
+      ]);
+      if (rawRes.ok) {
+        rawText = await rawRes.text();
+        console.log(`[Discourse Saver] 获取到原始 Markdown，长度: ${rawText.length}`);
+      } else {
+        console.warn(`[Discourse Saver] /raw/${topicId}/1 返回 ${rawRes.status}`);
+      }
+      if (jsonRes.ok) {
+        const json = await jsonRes.json();
+        cookedHtml = json.post_stream?.posts?.[0]?.cooked || null;
+        console.log(`[Discourse Saver] 获取到 API cooked HTML，长度: ${cookedHtml ? cookedHtml.length : 0}`);
+      }
+    } catch (e) {
+      console.warn('[Discourse Saver] fetchRawMainPost 失败，回退 Turndown:', e);
+    }
+    return { rawText, cookedHtml };
   }
 
   // V3.5.3: 提取指定楼层的单条评论
@@ -874,7 +1372,7 @@
         const langFromData = node.getAttribute('data-code-wrap');
         const lang = langFromClass ? langFromClass[1] : (langFromData || '');
 
-        return '\n\n```' + lang + '\n' + code + '\n```\n\n';
+        return '\n\n```' + lang + '\n' + code.replace(/\n+$/, '') + '\n```\n\n';
       }
     });
 
@@ -893,7 +1391,7 @@
           br.replaceWith('\n');
         });
         const code = clonedPre.textContent;
-        return '\n\n```\n' + code + '\n```\n\n';
+        return '\n\n```\n' + code.replace(/\n+$/, '') + '\n```\n\n';
       }
     });
 
@@ -910,13 +1408,11 @@
 
         // 使用原图链接（href）而非缩略图
         const src = node.href || img.src;
-        const fullSrc = src.startsWith('http') ? src : 'https://linux.do' + src;
+        const fullSrc = src.startsWith('http') ? src : src.startsWith('upload://') ? window.location.origin + '/uploads/short-url/' + src.slice(9) : window.location.origin + src;
 
-        // 使用data-base62-sha1或简化的alt
-        // V4.3.8: 移除内部换行符，防止图片语法被拆分
-        const alt = (img.getAttribute('data-base62-sha1') ||
-                    img.alt?.replace(/[_\d]+$/, '').trim() ||
-                    'image').replace(/[\r\n]+/g, ' ').trim();
+        // 清理 alt：去掉 |WxH 尺寸标注、末尾数字下划线
+        const rawAlt = img.getAttribute('data-base62-sha1') || img.alt || '';
+        const alt = rawAlt.replace(/\|[^\]|]+/g, '').replace(/[_\d]+$/, '').replace(/[\r\n]+/g, ' ').trim() || 'image';
 
         return '\n\n![' + alt + '](' + fullSrc + ')\n\n';
       }
@@ -1013,9 +1509,10 @@
         const src = node.src;
         if (!src) return '';
 
-        const fullSrc = src.startsWith('http') ? src : 'https://linux.do' + src;
-        // V4.3.8: 移除内部换行符，防止图片语法被拆分
-        const alt = (node.alt?.replace(/[_\d]+$/, '').trim() || 'image').replace(/[\r\n]+/g, ' ').trim();
+        const fullSrc = src.startsWith('http') ? src : src.startsWith('upload://') ? window.location.origin + '/uploads/short-url/' + src.slice(9) : window.location.origin + src;
+        // 清理 alt：去掉 |WxH 尺寸标注、末尾数字下划线
+        const rawAlt = node.alt || '';
+        const alt = rawAlt.replace(/\|[^\]|]+/g, '').replace(/[_\d]+$/, '').replace(/[\r\n]+/g, ' ').trim() || 'image';
 
         return '\n\n![' + alt + '](' + fullSrc + ')\n\n';
       }
@@ -1063,7 +1560,7 @@
         }
 
         if (!src) return '';
-        const fullSrc = src.startsWith('http') ? src : 'https://linux.do' + src;
+        const fullSrc = src.startsWith('http') ? src : src.startsWith('upload://') ? window.location.origin + '/uploads/short-url/' + src.slice(9) : window.location.origin + src;
         return '\n\n![video](' + fullSrc + ')\n\n';
       }
     });
@@ -1221,6 +1718,31 @@
   // V3.2: 清理Markdown中的残留语法（保守版，不破坏正常链接和图片）
   // V3.6.0: 添加 keepGif 参数，在启用图片嵌入时保留 GIF 链接
   function cleanupMarkdown(markdown, keepGif = false) {
+    // 0. 处理论坛自定义 BBCode，尽量保留可读文本
+    markdown = markdown.replace(/\[date=([^\]\s]+)([^\]]*)\]/gi, (_, dateValue, attrs = '') => {
+      const timeMatch = attrs.match(/\btime=([^\s\]]+)/i);
+      const timezoneMatch = attrs.match(/\btimezone=(?:"([^"]+)"|([^\s\]]+))/i);
+      const parts = [dateValue];
+      if (timeMatch && timeMatch[1]) parts.push(timeMatch[1].replace(/^"|"$/g, ''));
+      const timezoneValue = timezoneMatch ? (timezoneMatch[1] || timezoneMatch[2] || '') : '';
+      if (timezoneValue) parts.push(`(${timezoneValue})`);
+      return parts.join(' ');
+    });
+    markdown = markdown.replace(/\[\/date\]/gi, '');
+    markdown = markdown.replace(/\[(?:color|bgcolor|size|font|align|float|left|center|right|justify)(?:=[^\]]*)?\]/gi, '');
+    markdown = markdown.replace(/\[\/(?:color|bgcolor|size|font|align|float|left|center|right|justify)\]/gi, '');
+
+    // 0. 移除 Discourse 专有折叠语法 [details] / [/details]，保留内容
+    markdown = markdown.replace(/\[details=[^\]]*\]/g, '');
+    markdown = markdown.replace(/\[\/details\]/g, '');
+
+    // 0.1 清理图片 alt 中的 Discourse 尺寸语法
+    // 例如 ![image|63x54](url) / ![image|63](url) -> ![image](url)
+    // 先处理完整图片语法，避免 Obsidian 把 |63 误判成尺寸参数导致渲染异常
+    markdown = markdown.replace(/!\[([^\]\r\n|]*?)\|[^\]\r\n]*\]\(([^)\r\n]+)\)/g, '![$1]($2)');
+    // 再兜底处理残留 alt（不带链接体的非常规片段）
+    markdown = markdown.replace(/!\[([^\]\r\n|]*?)\|[^\]\r\n]*\]/g, '![$1]');
+
     // 1. 移除空锚点链接 [](#anchor-id)
     markdown = markdown.replace(/\[\s*\]\(#[^)]*\)/g, '');
 
@@ -1251,10 +1773,54 @@
       markdown = markdown.replace(/!\[[^\]]*\]\([^)]*\.gif[^)]*\)/gi, '');
     }
 
-    // 8. 移除多余空行
+    // 8. 处理 [spoiler]...[/spoiler] BBCode：保留内容，去掉标签
+    markdown = markdown.replace(/\[spoiler\]([\s\S]*?)\[\/spoiler\]/gi, (_, content) => {
+      return '\n\n' + content.trim() + '\n\n';
+    });
+    markdown = markdown.replace(/\[\/?spoiler\]/gi, '');
+
+    // 9. 移除 raw markdown 中的 Discourse 文本表情码 :emoji_name:（OB 不渲染）
+    // 匹配 :name: 格式，排除在代码、链接、图片语法中的
+    markdown = markdown.replace(/(?<![`\[!(\w]):[a-z_0-9+\-]{2,30}:(?![`\])\w])/gi, '');
+
+    // 10. 移除多余空行
     markdown = markdown.replace(/\n{3,}/g, '\n\n');
 
     return markdown;
+  }
+
+  // 保存前的最终兜底清洗，避免个别分支残留 Discourse 尺寸语法
+  function normalizeImageMarkdownFinal(markdown) {
+    if (!markdown) return markdown;
+    let out = markdown;
+    out = out.replace(/!\[([^\]\r\n|]*?)\|[^\]\r\n]*\]\(([^)\r\n]+)\)/g, '![$1]($2)');
+    out = out.replace(/!\[([^\]\r\n|]*?)\|[^\]\r\n]*\]/g, '![$1]');
+    out = out.replace(/\n{3,}/g, '\n\n');
+    return out;
+  }
+
+  // 某些 Discourse 站点（如 Linux DO）会在 raw 中返回论坛自定义 BBCode。
+  // 这些标签无法稳定转成 Markdown，继续使用 raw 反而会把源码原样保存下来。
+  function containsUnsupportedForumBbcode(markdown) {
+    if (!markdown) return false;
+    return /\[(?:\/)?(?:color|bgcolor|date|time|datetime|size|font|align|float|left|center|right|justify)\b[^\]]*\]/i.test(markdown);
+  }
+
+  function convertRawOrCookedToMarkdown(rawMarkdown, cookedHtml, turndownService, keepGif = false, scopeLabel = '内容') {
+    const safeCookedHtml = cookedHtml || '';
+    if (!rawMarkdown) {
+      const cookedMarkdown = turndownService.turndown(safeCookedHtml);
+      return cleanupMarkdown(cookedMarkdown, keepGif).trim();
+    }
+
+    const resolvedRaw = resolveUploadUrls(rawMarkdown, safeCookedHtml).trim();
+    if (safeCookedHtml && containsUnsupportedForumBbcode(resolvedRaw)) {
+      console.log(`[Discourse Saver] ${scopeLabel}检测到论坛自定义 BBCode，回退到 cooked HTML 转 Markdown`);
+      const cookedMarkdown = turndownService.turndown(safeCookedHtml);
+      return cleanupMarkdown(cookedMarkdown, keepGif).trim();
+    }
+
+    return cleanupMarkdown(resolvedRaw, keepGif).trim();
   }
 
   // V3.6.0: 图片转 Base64 功能
@@ -1267,10 +1833,11 @@
         return null;
       }
 
-      // 获取图片（V5.3.1: 禁用缓存确保获取最新版本）
+      // 获取图片：same-origin 请求携带 Cookie（保证同域登录内容可访问）
+      // 跨域 CDN（cdn3.linux.do 等）不带 Cookie，兼容 Access-Control-Allow-Origin: * 的 CDN
+      // credentials: 'include' 与 CDN 通配符 CORS 不兼容，会导致 Failed to fetch
       const response = await fetch(url, {
-        mode: 'cors',
-        credentials: 'omit',
+        credentials: 'same-origin',
         cache: 'no-store'
       });
 
@@ -1346,8 +1913,19 @@
   }
 
   // V5.3: 通过 background.js 下载媒体文件到 Vault 并替换 Markdown 路径
-  async function downloadAndReplaceMedia(markdown, config) {
-    const mediaFolderName = config.mediaFolderName || 'media';
+  // postTitle 用于替换 mediaFolderName 中的 {title} 变量
+  async function downloadAndReplaceMedia(markdown, config, postTitle = '') {
+    // 支持 {title} 变量：用帖子标题替换，过滤 OB 非法字符（\ / : * ? " < > |）
+    const safeTitle = postTitle
+      ? postTitle.replace(/[\\/:*?"<>|《》]/g, '').replace(/\s+/g, '-').replace(/^[-\s]+|[-\s]+$/g, '').substring(0, 60)
+      : '';
+    const rawFolderTemplate = config.mediaFolderName || 'media';
+    // {title} 变量替换（手动写入路径时生效）
+    let mediaFolderName = rawFolderTemplate.replace(/\{title\}/g, safeTitle || 'untitled');
+    // mediaFolderPerTitle 勾选框：路径中未手动使用 {title} 时才追加子目录，避免重复
+    if (config.mediaFolderPerTitle && safeTitle && !rawFolderTemplate.includes('{title}')) {
+      mediaFolderName = mediaFolderName.replace(/\/+$/, '') + '/' + safeTitle;
+    }
     const includeVideos = config.downloadVideos !== false;
 
     // 收集图片URL
@@ -1355,8 +1933,12 @@
     const mediaUrls = [];
     let match;
     while ((match = imageRegex.exec(markdown)) !== null) {
-      const url = match[2];
+      let url = match[2];
       if (url && !url.startsWith('data:')) {
+        // V5.5.2: 将 Discourse 内部 upload:// 短链转换为可访问的 HTTP URL
+        if (url.startsWith('upload://')) {
+          url = window.location.origin + '/uploads/short-url/' + url.slice(9);
+        }
         mediaUrls.push({ url, type: 'image' });
       }
     }
@@ -1374,11 +1956,33 @@
 
     console.log(`[Discourse Saver] 找到 ${mediaUrls.length} 个媒体文件，通过 REST API 写入 Vault...`);
 
-    // 构建媒体文件夹路径
-    const siteFolderPath = config.folderPath || '';
-    const vaultMediaPath = siteFolderPath ? `${siteFolderPath}/${mediaFolderName}` : mediaFolderName;
+    // 媒体文件夹从 Vault 根目录起算，不拼保存文件夹
+    const vaultMediaPath = mediaFolderName;
 
-    // 通过 background.js 处理下载（避免 CORS 限制）
+    // V5.5.7: 在 content.js（页面上下文）中预先 fetch 二进制数据，携带 Cookie
+    // background.js Service Worker 无法获取页面 Cookie，必须在此处提前下载
+    const mediaUrlsWithData = await Promise.all(mediaUrls.map(async (media) => {
+      try {
+        // same-origin 带 Cookie，跨域 CDN 不带 Cookie（兼容 CDN 通配符 CORS）
+        const res = await fetch(media.url, { credentials: 'same-origin', cache: 'no-store' });
+        if (!res.ok) {
+          rlog('WARN', `预取媒体失败 HTTP ${res.status}: ${media.url}`);
+          return { ...media, binaryBase64: null };
+        }
+        const buf = await res.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        const binaryBase64 = btoa(binary);
+        const mimeType = res.headers.get('content-type') || '';
+        return { ...media, binaryBase64, mimeType };
+      } catch (e) {
+        rlog('WARN', `预取媒体异常: ${e.message} | ${media.url}`);
+        return { ...media, binaryBase64: null };
+      }
+    }));
+
+    // 通过 background.js 处理写入 Obsidian（已含二进制数据，background 无需再 fetch）
     try {
       const response = await sendMessageAsync({
         action: 'downloadMediaToVault',
@@ -1386,9 +1990,10 @@
           restApiKey: config.restApiKey,
           restApiPort: config.restApiPort || 27124
         },
-        mediaUrls: mediaUrls,
+        mediaUrls: mediaUrlsWithData,
         vaultMediaPath: vaultMediaPath,
-        mediaFolderName: mediaFolderName
+        mediaFolderName: mediaFolderName,
+        forumOrigin: window.location.origin
       });
 
       if (response && response.results) {
@@ -1414,8 +2019,8 @@
 
         console.log(`[Discourse Saver] 媒体下载完成: ${successCount}/${mediaUrls.length} 成功`);
         if (successCount > 0) {
-          showNotification(`已下载 ${successCount}/${mediaUrls.length} 个媒体文件到 Vault`, 'success');
-          rlog('INFO', '媒体文件已下载: ' + successCount + '/' + mediaUrls.length + ' 到 Vault');
+          showNotification(`已下载 ${successCount}/${mediaUrls.length} 个媒体文件 → ${vaultMediaPath}`, 'success');
+          rlog('INFO', '媒体文件已下载: ' + successCount + '/' + mediaUrls.length + ' 到 ' + vaultMediaPath);
         }
         return processedMarkdown;
       }
@@ -1428,8 +2033,18 @@
   }
 
   // V5.3: 后台静默下载媒体（fire-and-forget，不阻塞保存）
-  function fireAndForgetMediaDownload(markdown, config) {
-    const mediaFolderName = config.mediaFolderName || 'media';
+  // postTitle 用于替换 mediaFolderName 中的 {title} 变量（同 downloadAndReplaceMedia）
+  function fireAndForgetMediaDownload(markdown, config, postTitle = '') {
+    const safeTitle = postTitle
+      ? postTitle.replace(/[\\/:*?"<>|《》]/g, '').replace(/\s+/g, '-').replace(/^[-\s]+|[-\s]+$/g, '').substring(0, 60)
+      : '';
+    const rawFolderTemplate = config.mediaFolderName || 'media';
+    // {title} 变量替换（手动写入路径时生效）
+    let mediaFolderName = rawFolderTemplate.replace(/\{title\}/g, safeTitle || 'untitled');
+    // mediaFolderPerTitle 勾选框：路径中未手动使用 {title} 时才追加子目录，避免重复
+    if (config.mediaFolderPerTitle && safeTitle && !rawFolderTemplate.includes('{title}')) {
+      mediaFolderName = mediaFolderName.replace(/\/+$/, '') + '/' + safeTitle;
+    }
     const includeVideos = config.downloadVideos !== false;
 
     // 收集媒体URL
@@ -1437,8 +2052,12 @@
     const mediaUrls = [];
     let match;
     while ((match = imageRegex.exec(markdown)) !== null) {
-      const url = match[2];
+      let url = match[2];
       if (url && !url.startsWith('data:')) {
+        // V5.5.2: 将 Discourse 内部 upload:// 短链转换为可访问的 HTTP URL
+        if (url.startsWith('upload://')) {
+          url = window.location.origin + '/uploads/short-url/' + url.slice(9);
+        }
         mediaUrls.push({ url, type: 'image' });
       }
     }
@@ -1452,8 +2071,7 @@
 
     if (mediaUrls.length === 0) return;
 
-    const siteFolderPath = config.folderPath || '';
-    const vaultMediaPath = siteFolderPath ? `${siteFolderPath}/${mediaFolderName}` : mediaFolderName;
+    const vaultMediaPath = mediaFolderName;
 
     console.log(`[Discourse Saver] 后台静默下载 ${mediaUrls.length} 个媒体文件...`);
 
@@ -1467,7 +2085,8 @@
         },
         mediaUrls: mediaUrls,
         vaultMediaPath: vaultMediaPath,
-        mediaFolderName: mediaFolderName
+        mediaFolderName: mediaFolderName,
+        forumOrigin: window.location.origin
       }, (response) => {
         // 静默处理结果，只写日志
         if (chrome.runtime.lastError) {
@@ -1487,6 +2106,86 @@
       console.warn('[Discourse Saver] 后台媒体下载异常:', err);
       rlog('ERROR', '后台媒体下载异常: ' + err.message);
     }
+  }
+
+  // V5.5.7: 解析图片外链的真实 CDN URL
+  // 使用 credentials: 'include' 跟踪跳转，把 short-url / 内部 URL 换成可直接访问的 CDN URL
+  // 如果论坛使用 CDN（如 global.discourse-cdn.com），最终 URL 是公开的，Obsidian 可直接显示
+  async function resolveImageUrlsInMarkdown(markdown) {
+    const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    const isLikelyImageUrl = (url) => {
+      if (!url) return false;
+      const u = url.toLowerCase();
+      return /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/.test(u) ||
+             u.includes('/uploads/short-url/') ||
+             u.includes('/original/');
+    };
+    const urlSet = new Set();
+    let match;
+    while ((match = imageRegex.exec(markdown)) !== null) {
+      const url = match[2];
+      if (url && url.startsWith('http') && !url.startsWith('data:')) urlSet.add(url);
+    }
+    while ((match = linkRegex.exec(markdown)) !== null) {
+      const full = match[0];
+      if (full.startsWith('![')) continue; // 跳过已被 imageRegex 处理的图片语法
+      const url = match[2];
+      if (url && url.startsWith('http') && !url.startsWith('data:') && isLikelyImageUrl(url)) {
+        urlSet.add(url);
+      }
+    }
+    if (urlSet.size === 0) return markdown;
+
+    const resolved = new Map();
+    // 优先通过 background 解析（扩展上下文更稳定，避免页面跨域限制）
+    try {
+      const bgResp = await sendMessageAsync({
+        action: 'resolveFinalUrls',
+        urls: [...urlSet]
+      });
+      if (bgResp && bgResp.success && bgResp.resolvedMap) {
+        Object.entries(bgResp.resolvedMap).forEach(([from, to]) => {
+          if (to && to !== from) resolved.set(from, to);
+        });
+      }
+    } catch (_) {}
+
+    // background 未解析到的链接，回退页面内 fetch
+    const unresolved = [...urlSet].filter(url => !resolved.has(url));
+    await Promise.all(unresolved.map(async (url) => {
+      try {
+        let res = await fetch(url, {
+          method: 'HEAD',
+          credentials: 'include',
+          cache: 'no-store',
+          redirect: 'follow'
+        });
+        if (res.status === 405) {
+          res = await fetch(url, {
+            method: 'GET',
+            credentials: 'include',
+            cache: 'no-store',
+            redirect: 'follow'
+          });
+        }
+        if (res.ok && res.url && res.url !== url) {
+          resolved.set(url, res.url);
+          rlog('INFO', `外链解析: ${url.slice(-40)} → ${res.url.slice(-40)}`);
+        }
+      } catch (_) {}
+    }));
+
+    if (resolved.size === 0) return markdown;
+
+    let result = markdown;
+    for (const [original, final] of resolved) {
+      const escaped = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      result = result.replace(new RegExp(`!\\[([^\\]]*)\\]\\(${escaped}\\)`, 'g'), `![$1](${final})`);
+      result = result.replace(new RegExp(`\\[([^\\]]+)\\]\\(${escaped}\\)`, 'g'), `[$1](${final})`);
+    }
+    console.log(`[Discourse Saver] 外链解析完成: ${resolved.size}/${urlSet.size} 条已替换为真实 CDN URL`);
+    return result;
   }
 
   // 处理 Markdown 中的所有图片，转换为 Base64
@@ -1566,7 +2265,8 @@
   }
 
   // V3: HTML转Markdown（带评论版本）
-  function convertToMarkdownWithComments(contentHTML, metadata, comments, config) {
+  // V5.5-raw: rawMainContent 为可选参数，传入时跳过 Turndown 转换直接使用原始 Markdown
+  function convertToMarkdownWithComments(contentHTML, metadata, comments, config, rawMainContent = null, apiCookedHtml = null) {
     const turndownService = createTurndownService();
 
     // V3.1: 如果不保留图片，移除所有图片规则的输出
@@ -1603,53 +2303,177 @@
       });
     }
 
-    // 转换正文并清理格式
-    let mainContent = turndownService.turndown(contentHTML);
-    // V3.6.0: 传递配置给 cleanupMarkdown，以便在启用图片嵌入时保留 GIF
-    mainContent = cleanupMarkdown(mainContent, config.embedImages && config.imageSkipGif);
-    mainContent = mainContent.trim();
+    // V5.5-raw: 优先使用原始 Markdown，回退到 Turndown
+    // apiCookedHtml（来自 /t/{id}.json）包含折叠 details 内的图片，优先使用
+    const keepGif = config.embedImages && config.imageSkipGif;
+    let mainContent;
+    if (rawMainContent) {
+      mainContent = convertRawOrCookedToMarkdown(
+        rawMainContent,
+        apiCookedHtml || contentHTML || '',
+        turndownService,
+        keepGif,
+        '主帖'
+      );
+      console.log('[Discourse Saver] 主帖优先尝试原始 Markdown，必要时回退 cooked HTML');
+    } else {
+      mainContent = convertRawOrCookedToMarkdown(
+        null,
+        contentHTML,
+        turndownService,
+        keepGif,
+        '主帖'
+      );
+    }
 
     // 构建完整Markdown
     let markdown = '';
 
-    // 添加中文frontmatter
+    // 添加 frontmatter（仅影响 Obsidian/语雀/思源，飞书/Notion 字段独立，不受此处影响）
     if (config.addMetadata) {
-      // V3.5.6: 使用北京时间格式
+      // 保存时间（北京时间）
       const now = new Date();
       const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
       const timeStr = beijingTime.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
 
-      // V4.3.7: 动态标签（合并论坛标签 + linuxdo）
-      // 格式：YAML 数组格式放在 frontmatter 元数据中
-      const allTags = ['linuxdo'];
+      // 动态标签（跳过非字符串对象）
+      const allTags = [];
       if (metadata.tags && metadata.tags.length > 0) {
         metadata.tags.forEach(tag => {
-          const cleanTag = String(tag).trim();
-          if (cleanTag && !allTags.includes(cleanTag)) {
-            allTags.push(cleanTag);
-          }
+          // 只接受字符串类型，跳过 API 偶尔返回的对象（如 tag_groups）
+          if (typeof tag !== 'string') return;
+          const cleanTag = tag.trim();
+          if (cleanTag && !allTags.includes(cleanTag)) allTags.push(cleanTag);
         });
       }
-      // Obsidian tags 格式：使用标准 tags 字段名（英文），Obsidian 会自动识别
-      // 格式兼容：单行数组 tags: [tag1, tag2]
-      const tagsArray = allTags.map(t => t.replace(/[,\[\]]/g, '')).filter(t => t);
+      // 去掉 YAML 内联数组不安全的字符：逗号、方括号、引号
+      const tagsArray = allTags.map(t => t.replace(/[,\[\]"']/g, '')).filter(t => t);
       const tagsStr = tagsArray.join(', ');
 
-      markdown += `---
-来源: ${metadata.url}
-标题: ${metadata.title}
-作者: ${metadata.author}
-分类: ${metadata.category || '未分类'}
-tags: [${tagsStr}]
-保存时间: ${timeStr}
-评论数: ${comments.length}
----
+      // 字段名（用户可自定义，默认中文；tags 固定为英文）
+      const k = {
+        source:      config.metaSourceKey      || '来源',
+        title:       config.metaTitleKey       || '标题',
+        author:      config.metaAuthorKey      || '作者',
+        category:    config.metaCategoryKey    || '类别',
+        saveTime:    config.metaSaveTimeKey    || '保存时间',
+        platform:    config.metaPlatformKey    || '平台',
+        readStatus:  config.metaReadStatusKey  || '阅读状态',
+        organize:    config.metaOrganizeKey    || '整理',
+        commentCount:config.metaCommentCountKey|| '评论数',
+      };
 
-`;
+      // YAML 安全字符串：含特殊字符时用双引号包裹，内部 " 转义
+      function yamlStr(val) {
+        if (val === null || val === undefined) return '""';
+        const s = String(val);
+        // 以下情况需要引号：含 YAML 特殊字符、首尾空白、空字符串
+        if (!s || /[:\[\]{}#&*!|>'"%@`,\n\r\\]/.test(s) || /^\s|\s$/.test(s)) {
+          return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+        }
+        return s;
+      }
+
+      let fm = '---\n';
+      // URL 可能含 # 锚点，YAML 中 # 前有空格会被解析为注释，必须引号包裹
+      if (config.metaSource !== false)       fm += `${k.source}: ${yamlStr(metadata.url)}\n`;
+      if (config.metaTitle !== false)        fm += `${k.title}: ${yamlStr(metadata.title)}\n`;
+      // 作者：有主页URL时合并为 [作者名](URL) 格式，Obsidian 阅读模式可点击
+      if (config.metaAuthor !== false) {
+        const authorVal = (config.metaAuthorUrl !== false && metadata.authorUrl)
+          ? `"[${metadata.author.replace(/"/g, '\\"')}](${metadata.authorUrl})"`
+          : yamlStr(metadata.author);
+        fm += `${k.author}: ${authorVal}\n`;
+      }
+      if (config.metaCategory !== false)     fm += `${k.category}: ${yamlStr(metadata.category || '未分类')}\n`;
+      if (config.metaTags !== false)         fm += `tags: [${tagsStr}]\n`;
+      if (config.metaSaveTime !== false)     fm += `${k.saveTime}: ${timeStr}\n`;
+      if (config.metaPlatform !== false)     fm += `${k.platform}: "${detectPlatform()}"\n`;
+      if (config.metaReadStatus !== false)   fm += `${k.readStatus}: false\n`;
+      if (config.metaOrganize !== false)     fm += `${k.organize}: false\n`;
+      if (config.metaCommentCount !== false) fm += `${k.commentCount}: ${comments.length}\n`;
+      fm += '---\n\n';
+      markdown += fm;
+    }
+
+    // 可选：在正文前追加 Obsidian Callout 形式的“帖子信息”引用框
+    if (config.addPostInfoCallout) {
+      const exportTime = new Date().toLocaleString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      const tagsText = (metadata.tags || [])
+        .filter(t => typeof t === 'string' && t.trim())
+        .join(', ') || '无';
+      const followMeta = config.calloutFollowMetadata !== false;
+      const fieldSwitches = followMeta
+        ? {
+            source: config.metaSource !== false,
+            title: config.metaTitle !== false,
+            author: config.metaAuthor !== false,
+            category: config.metaCategory !== false,
+            tags: config.metaTags !== false,
+            saveTime: config.metaSaveTime !== false,
+            platform: config.metaPlatform !== false,
+            commentCount: config.metaCommentCount !== false,
+          }
+        : {
+            source: config.calloutSource !== false,
+            title: config.calloutTitle !== false,
+            author: config.calloutAuthor !== false,
+            category: config.calloutCategory !== false,
+            tags: config.calloutTags !== false,
+            saveTime: config.calloutSaveTime !== false,
+            platform: config.calloutPlatform !== false,
+            commentCount: config.calloutCommentCount !== false,
+          };
+      if (!Object.values(fieldSwitches).some(Boolean)) {
+        fieldSwitches.source = true;
+      }
+      const k = followMeta
+        ? {
+            source:       config.metaSourceKey       || '来源',
+            title:        config.metaTitleKey        || '标题',
+            author:       config.metaAuthorKey       || '作者',
+            category:     config.metaCategoryKey     || '类别',
+            saveTime:     config.metaSaveTimeKey     || '保存时间',
+            platform:     config.metaPlatformKey     || '平台',
+            commentCount: config.metaCommentCountKey || '评论数',
+          }
+        : {
+            source:       config.calloutSourceKey       || '来源',
+            title:        config.calloutTitleKey        || '标题',
+            author:       config.calloutAuthorKey       || '作者',
+            category:     config.calloutCategoryKey     || '类别',
+            saveTime:     config.calloutSaveTimeKey     || '保存时间',
+            platform:     config.calloutPlatformKey     || '平台',
+            commentCount: config.calloutCommentCountKey || '评论数',
+          };
+      const authorText = metadata.author || '未知';
+
+      markdown += `> [!info] 帖子信息\n`;
+      if (fieldSwitches.source) markdown += `> - ${k.source}: [${metadata.url}](${metadata.url})\n`;
+      if (fieldSwitches.title) markdown += `> - ${k.title}: ${metadata.title || '无标题'}\n`;
+      if (fieldSwitches.author) markdown += `> - ${k.author}: ${authorText}\n`;
+      if (fieldSwitches.category) markdown += `> - ${k.category}: ${metadata.category || '未分类'}\n`;
+      if (fieldSwitches.tags) markdown += `> - tags: ${tagsText}\n`;
+      if (fieldSwitches.saveTime) markdown += `> - ${k.saveTime}: ${exportTime}\n`;
+      if (fieldSwitches.platform) markdown += `> - ${k.platform}: ${detectPlatform()}\n`;
+      if (fieldSwitches.commentCount) markdown += `> - ${k.commentCount}: ${Array.isArray(comments) ? comments.length : 0}\n`;
+      markdown += '\n';
     }
 
     // 添加标题和正文
-    markdown += `# ${metadata.title}\n\n`;
+    // 开启 frontmatter 时，标题由属性区承载；关闭 frontmatter 时保留正文 H1。
+    if (!config.addMetadata) {
+      markdown += `# ${metadata.title}\n\n`;
+    }
     markdown += mainContent;
 
     // 添加评论区
@@ -1658,12 +2482,25 @@ tags: [${tagsStr}]
       markdown += `## 评论区（共${comments.length}条）\n\n`;
 
       for (const comment of comments) {
-        let commentContent = turndownService.turndown(comment.contentHTML);
-
-        // V3.1: 清理残留语法和多余空行
-        // V3.6.0: 传递 keepGif 参数
-        commentContent = cleanupMarkdown(commentContent, config.embedImages && config.imageSkipGif);
-        commentContent = commentContent.trim();
+        // V5.5-raw: 优先使用 post.raw，回退到 Turndown
+        let commentContent;
+        if (comment.rawMarkdown) {
+          commentContent = convertRawOrCookedToMarkdown(
+            comment.rawMarkdown,
+            comment.contentHTML,
+            turndownService,
+            keepGif,
+            `评论#${comment.position || ''}`
+          );
+        } else {
+          commentContent = convertRawOrCookedToMarkdown(
+            null,
+            comment.contentHTML,
+            turndownService,
+            keepGif,
+            `评论#${comment.position || ''}`
+          );
+        }
 
         // V4.3.8: 用户名支持超链接，点击跳转到用户主页
         // 普通模式：标题自带粗体，不额外加粗
@@ -1716,7 +2553,8 @@ tags: [${tagsStr}]
   // 保存到Obsidian
   // V3.5.3: 支持 targetPostNumber 参数
   // - 为 null 或 '1' 时：保存主帖（可选带所有评论）
-  // - 为其他值时：保存主帖 + 该楼层评论（文件名添加楼层号）
+  // - 为字符串时：保存主帖 + 该楼层评论
+  // - V5.4.2: 为数组时：保存主帖 + 多个指定楼层评论（合并为一个文件）
   async function saveToObsidian(targetPostNumber = null) {
     try {
       // 获取配置
@@ -1728,23 +2566,106 @@ tags: [${tagsStr}]
       console.log('[Discourse Saver] UI语言:', uiLang);
       console.log('[Discourse Saver] 目标楼层:', targetPostNumber || '主帖');
 
-      // 提取正文内容
-      const extracted = extractContent();
+      // V5.5.7: 优先从 URL 获取 topicId，再调 API 提取主帖（不依赖 DOM，任意滚动位置均可）
+      const topicIdFromUrl = window.location.pathname.match(/\/t\/[^/]+\/(\d+)/)?.[1] || null;
+      let extracted = null;
+
+      if (topicIdFromUrl) {
+        showNotification('正在通过 API 获取帖子内容...', 'info');
+        extracted = await extractContentViaAPI(topicIdFromUrl);
+      }
+
+      // API 失败时降级到 DOM（兼容非标准 Discourse 或 API 被限流的情况）
       if (!extracted) {
-        showNotification('无法提取帖子内容', 'error');
+        console.log('[Discourse Saver] API 提取失败，回退 DOM...');
+        extracted = extractContent();
+        if (!extracted) {
+          // 短暂等待 SPA 渲染后再试一次
+          await new Promise(r => setTimeout(r, 600));
+          extracted = extractContent();
+        }
+      }
+
+      if (!extracted) {
+        showNotification('无法提取帖子内容，请确认当前在帖子页面', 'error');
+        rlog('WARN', '内容提取失败: topicId=' + topicIdFromUrl + ' DOM title=' + !!document.querySelector('#topic-title h1'));
         return;
       }
 
-      const { title, contentHTML, url, author, topicId, category, tags } = extracted;
+      const { title, contentHTML, url, author, authorUrl, createdAt, topicId, category, tags } = extracted;
+      // V5.5.7: API 提取时 rawMarkdown 已内含，不需要后面再单独 fetchRawMainPost
+      const preloadedRaw = extracted.rawMarkdown || null;
 
       // V3.5.3: 根据目标楼层决定评论处理方式
+      // V5.4.2: targetPostNumber 可以是数组（多楼层合并保存）
       let comments = [];
-      let isSingleCommentMode = targetPostNumber && targetPostNumber !== '1';
+      const isMultiFloor = Array.isArray(targetPostNumber);
+      const isSingleCommentMode = !isMultiFloor && targetPostNumber && targetPostNumber !== '1';
 
-      if (isSingleCommentMode) {
-        // 单条评论模式：提取指定楼层的评论
+      if (isMultiFloor) {
+        // V5.4.2: 多楼层模式 — 通过API获取评论，按楼层号过滤
+        const floors = targetPostNumber.filter(f => f !== 1); // 主帖不当评论
+        if (floors.length === 0) {
+          showNotification('请输入2楼及以上的楼层号', 'warning');
+          return;
+        }
+        const maxFloor = Math.max(...floors);
+        showNotification(`正在通过API获取评论（最高${maxFloor}楼）...`, 'info');
+
+        let allComments = [];
+        if (topicId) {
+          try {
+            allComments = await extractCommentsViaAPI(
+              topicId, maxFloor, false,
+              (msg) => showNotification(msg, 'info')
+            );
+          } catch (apiErr) {
+            console.warn('[Discourse Saver] API获取失败，回退DOM:', apiErr);
+          }
+        }
+
+        // 按楼层号过滤
+        const floorSet = new Set(floors.map(String));
+        comments = allComments.filter(c => floorSet.has(c.position));
+
+        // DOM回退：API没拿到的楼层尝试从DOM补
+        if (comments.length < floors.length) {
+          const gotFloors = new Set(comments.map(c => c.position));
+          for (const floor of floors) {
+            if (!gotFloors.has(String(floor))) {
+              const domComment = extractSingleComment(String(floor));
+              if (domComment) comments.push(domComment);
+            }
+          }
+          comments.sort((a, b) => parseInt(a.position) - parseInt(b.position));
+        }
+
+        if (comments.length === 0) {
+          showNotification('未找到任何指定楼层的评论', 'error');
+          return;
+        }
+        const notFound = floors.filter(f => !comments.some(c => c.position === String(f)));
+        if (notFound.length > 0) {
+          showNotification(`${notFound.length} 楼未找到: ${notFound.slice(0, 5).join(',')}${notFound.length > 5 ? '...' : ''}`, 'warning');
+        } else {
+          showNotification(`已获取 ${comments.length} 楼评论`, 'info');
+        }
+      } else if (isSingleCommentMode) {
+        // 单条评论模式：先尝试DOM，失败后走API
         showNotification(`正在提取第${targetPostNumber}楼评论...`, 'info');
-        const singleComment = extractSingleComment(targetPostNumber);
+        let singleComment = extractSingleComment(targetPostNumber);
+        if (!singleComment && topicId) {
+          // DOM没找到（可能没加载到），走API
+          console.log(`[Discourse Saver] DOM未找到${targetPostNumber}楼，尝试API`);
+          try {
+            const apiComments = await extractCommentsViaAPI(
+              topicId, parseInt(targetPostNumber), false, null
+            );
+            singleComment = apiComments.find(c => c.position === targetPostNumber);
+          } catch (e) {
+            console.warn('[Discourse Saver] API回退失败:', e);
+          }
+        }
         if (singleComment) {
           comments = [singleComment];
         } else {
@@ -1805,17 +2726,43 @@ tags: [${tagsStr}]
       }
 
       // 转换为Markdown（带评论）
-      // 对于单条评论模式，强制使用非折叠格式
-      const effectiveConfig = isSingleCommentMode
+      // 对于单条/多楼层评论模式，强制使用非折叠格式
+      const effectiveConfig = (isSingleCommentMode || isMultiFloor)
         ? { ...config, saveComments: true, foldComments: false }
         : config;
 
+      // V5.5-raw: 获取主帖原始 Markdown（仅在保存主帖时使用）
+      // V5.5.7: API 提取路径已包含 raw，preloadedRaw 直接复用，避免重复请求
+      let rawMainContent = null;
+      let apiCookedHtml = null;
+      if (!isSingleCommentMode && !isMultiFloor) {
+        if (preloadedRaw) {
+          rawMainContent = preloadedRaw;
+          apiCookedHtml = contentHTML; // API 提取时 contentHTML 就是 cooked HTML
+          console.log('[Discourse Saver] 使用预加载 raw Markdown，跳过 fetchRawMainPost');
+        } else if (topicId) {
+          const fetched = await fetchRawMainPost(topicId);
+          rawMainContent = fetched.rawText;
+          apiCookedHtml = fetched.cookedHtml;
+        }
+      }
+
       let markdown = convertToMarkdownWithComments(
         contentHTML,
-        { title, url, author, topicId, category, tags },
+        { title, url, author, authorUrl: authorUrl || '', createdAt: createdAt || null, topicId, category, tags },
         comments,
-        effectiveConfig
+        effectiveConfig,
+        rawMainContent,
+        apiCookedHtml
       );
+
+      // V5.5.7: 先解析 short-url 跳转为真实 CDN URL（全平台通用，必须在 originalMarkdown 赋值前执行）
+      // 飞书MD附件、HTML导出没有图片库，只能用外链 —— CDN URL 是公开的，short-url 需要登录
+      // OB 如果开了 embedImages，后续从 CDN URL 做 Base64 反而更稳（CDN 无需认证）
+      if (config.includeImages && !config.downloadImages) {
+        markdown = await resolveImageUrlsInMarkdown(markdown);
+      }
+      markdown = normalizeImageMarkdownFinal(markdown);
 
       // V5.3.2: 保留原始markdown（原链接），供飞书/Notion/HTML等非OB平台使用
       const originalMarkdown = markdown;
@@ -1823,9 +2770,25 @@ tags: [${tagsStr}]
       // V5.3.2: 下载媒体到Vault并替换为Wiki引用（仅用于Obsidian）
       console.log('[Discourse Saver] 媒体下载检查: downloadImages=' + config.downloadImages + ', restApiKey=' + (config.restApiKey ? '已设置(' + config.restApiKey.length + '字符)' : '未设置'));
       if (config.downloadImages && config.restApiKey) {
-        rlog('INFO', '下载媒体到Vault, port=' + (config.restApiPort || 27123));
-        showNotification('正在下载媒体文件到Vault...', 'info');
-        markdown = await downloadAndReplaceMedia(markdown, config);
+        rlog('INFO', '下载媒体到Vault, port=' + (config.restApiPort || 27124));
+        const _sanitizeSeg = (seg, maxLen = 72) => {
+          let s = String(seg || '')
+            .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .replace(/[. ]+$/g, '');
+          if (!s) s = 'untitled';
+          if (s.length > maxLen) s = s.substring(0, maxLen).replace(/[. ]+$/g, '');
+          return s || 'untitled';
+        };
+        const _sanitizePath = (path) => String(path || '').split('/').filter(Boolean).map(seg => _sanitizeSeg(seg)).join('/');
+        const _safeTitle = title ? _sanitizeSeg(title.replace(/[《》]/g, '').replace(/\s+/g, '-').replace(/^[-\s]+|[-\s]+$/g, ''), 60) : '';
+        const _rawTpl = config.mediaFolderName || 'media';
+        let _mediaPreviewPath = _rawTpl.replace(/\{title\}/g, _safeTitle || 'untitled');
+        if (config.mediaFolderPerTitle && _safeTitle && !_rawTpl.includes('{title}')) _mediaPreviewPath = _mediaPreviewPath.replace(/\/+$/, '') + '/' + _safeTitle;
+        _mediaPreviewPath = _sanitizePath(_mediaPreviewPath);
+        showNotification(`正在下载媒体文件到 ${_mediaPreviewPath}...`, 'info');
+        markdown = await downloadAndReplaceMedia(markdown, config, title);
       } else if (config.downloadImages && !config.restApiKey) {
         console.warn('[Discourse Saver] 已勾选下载媒体但未填写 REST API Key');
         rlog('WARN', '媒体下载跳过: 未填写 REST API Key');
@@ -1835,19 +2798,38 @@ tags: [${tagsStr}]
         showNotification('正在处理图片嵌入...', 'info');
         markdown = await processMarkdownImages(markdown, config);
       }
+      markdown = normalizeImageMarkdownFinal(markdown);
 
       // 构建文件名：只用标题
       // V3.5.3: 单条评论模式时添加楼层号后缀
-      const sanitizedTitle = title
-        .replace(/[《》<>:"/\\|?*]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/^[\s-]+|[\s-]+$/g, '')
-        .substring(0, 80);
+      const sanitizeFileSegment = (seg, maxLen = 80) => {
+        const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+        let s = String(seg || '')
+          .replace(/[《》]/g, '')
+          .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^[\s.-]+|[\s.-]+$/g, '');
+        if (!s) s = 'untitled';
+        if (RESERVED.test(s)) s = `_${s}`;
+        if (s.length > maxLen) s = s.substring(0, maxLen).replace(/[\s.-]+$/g, '');
+        return s || 'untitled';
+      };
+      const sanitizedTitle = sanitizeFileSegment(title, 80);
 
-      // 单条评论模式：文件名加楼层号，避免覆盖主帖文件
-      const fileName = isSingleCommentMode
-        ? `${sanitizedTitle}-${targetPostNumber}楼`
-        : sanitizedTitle;
+      // 评论模式：文件名加楼层号，避免覆盖主帖文件
+      let fileName;
+      if (isMultiFloor) {
+        // 多楼层：生成简洁的楼层描述
+        const floors = targetPostNumber.filter(f => f !== 1);
+        const floorDesc = formatFloorRange(floors);
+        fileName = sanitizeFileSegment(`${sanitizedTitle}-${floorDesc}`, 100);
+      } else if (isSingleCommentMode) {
+        fileName = sanitizeFileSegment(`${sanitizedTitle}-${targetPostNumber}楼`, 100);
+      } else {
+        fileName = sanitizedTitle;
+      }
+      if (!fileName) fileName = `untitled-${Date.now()}`;
 
       // 构建Obsidian URI
       const filePath = config.folderPath ? `${config.folderPath}/${fileName}` : fileName;
@@ -1892,12 +2874,23 @@ tags: [${tagsStr}]
           advancedUri += 'clipboard=true&';  // 自动从剪贴板读取内容
           advancedUri += 'mode=overwrite';
 
-          window.location.href = advancedUri;
+          // V5.5.7: 用隐藏 <a> 点击代替 window.location.href
+          // window.location.href 会导致当前页卸载，Chrome 可能吊销剪贴板权限
+          // 隐藏 <a> 点击触发 obsidian:// 协议，当前页保持不动，剪贴板读取更可靠
+          const tempLink = document.createElement('a');
+          tempLink.href = advancedUri;
+          tempLink.style.display = 'none';
+          document.body.appendChild(tempLink);
+          tempLink.click();
+          setTimeout(() => document.body.removeChild(tempLink), 1000);
 
           // 显示成功提示
           let msg;
-          if (isSingleCommentMode) {
-            // 单条评论模式
+          if (isMultiFloor) {
+            msg = `已保存主帖+${comments.length}楼评论`;
+            showNotification(msg, 'success');
+            rlog('INFO', '运行成功，帖子已保存到 Obsidian: ' + filePath + ' (多楼层' + comments.length + '条)');
+          } else if (isSingleCommentMode) {
             msg = `已保存主帖+第${targetPostNumber}楼评论`;
             showNotification(msg, 'success');
             rlog('INFO', '运行成功，帖子已保存到 Obsidian: ' + filePath + ' (评论#' + targetPostNumber + ')');
@@ -1927,7 +2920,13 @@ tags: [${tagsStr}]
         showAdvancedUriPrompt(markdown, filePath, vaultParam, title, comments.length);
       } else if (shouldSaveToObsidian) {
         // 未启用 Advanced URI 且内容不大，使用普通 URI
-        window.location.href = uri;
+        // V5.5.7: 同样用隐藏 <a> 点击，避免页面卸载导致 Obsidian 协议处理异常
+        const tempLink2 = document.createElement('a');
+        tempLink2.href = uri;
+        tempLink2.style.display = 'none';
+        document.body.appendChild(tempLink2);
+        tempLink2.click();
+        setTimeout(() => document.body.removeChild(tempLink2), 1000);
 
         // 显示成功提示
         let msg;
@@ -1972,9 +2971,15 @@ tags: [${tagsStr}]
 
             if (htmlContent) {
               // V4.3.6: HTML文件命名与Obsidian保持一致，区分主帖和分帖
-              const safeFileName = isSingleCommentMode
-                ? `${sanitizeFileName(title)}-${targetPostNumber}楼`
-                : (sanitizeFileName(title) || 'discourse-export');
+              let safeFileName;
+              if (isMultiFloor) {
+                const floors = targetPostNumber.filter(f => f !== 1);
+                safeFileName = `${sanitizeFileName(title)}-${formatFloorRange(floors)}`;
+              } else if (isSingleCommentMode) {
+                safeFileName = `${sanitizeFileName(title)}-${targetPostNumber}楼`;
+              } else {
+                safeFileName = sanitizeFileName(title) || 'discourse-export';
+              }
 
               // V4.3.6: 使用配置的HTML导出文件夹
               const htmlFolder = config.htmlExportFolder || '';
@@ -2063,7 +3068,11 @@ tags: [${tagsStr}]
         // V3.5.4: 评论书签保存时，URL和标题加上楼层标识
         let feishuUrl = cleanUrl;
         let feishuTitle = title;
-        if (isSingleCommentMode) {
+        if (isMultiFloor) {
+          const floors = targetPostNumber.filter(f => f !== 1);
+          const floorDesc = formatFloorRange(floors);
+          feishuTitle = `${title} [${floorDesc}]`;
+        } else if (isSingleCommentMode) {
           const match = cleanUrl.match(/^(.*\/t\/[^/]+\/\d+)(\/\d+)?$/);
           if (match) {
             cleanUrl = match[1];
@@ -2127,7 +3136,10 @@ tags: [${tagsStr}]
         // 评论书签保存时，URL和标题加上楼层标识
         let notionUrl = cleanNotionUrl;
         let notionTitle = title;
-        if (isSingleCommentMode) {
+        if (isMultiFloor) {
+          const floors = targetPostNumber.filter(f => f !== 1);
+          notionTitle = `${title} [${formatFloorRange(floors)}]`;
+        } else if (isSingleCommentMode) {
           const match = cleanNotionUrl.match(/^(.*\/t\/[^/]+\/\d+)(\/\d+)?$/);
           if (match) {
             cleanNotionUrl = match[1];
@@ -2185,7 +3197,10 @@ tags: [${tagsStr}]
         let cleanYuqueUrl = url.replace(/#.*$/, '').replace(/\?.*$/, '');
         let yuqueUrl = cleanYuqueUrl;
         let yuqueTitle = title;
-        if (isSingleCommentMode) {
+        if (isMultiFloor) {
+          const floors = targetPostNumber.filter(f => f !== 1);
+          yuqueTitle = `${title} [${formatFloorRange(floors)}]`;
+        } else if (isSingleCommentMode) {
           const match = cleanYuqueUrl.match(/^(.*\/t\/[^/]+\/\d+)(\/\d+)?$/);
           if (match) {
             cleanYuqueUrl = match[1];
@@ -2229,7 +3244,10 @@ tags: [${tagsStr}]
         let siyuanUrl = cleanSiyuanUrl;
         let siyuanTitle = title;
 
-        if (isSingleCommentMode) {
+        if (isMultiFloor) {
+          const floors = targetPostNumber.filter(f => f !== 1);
+          siyuanTitle = `${title} [${formatFloorRange(floors)}]`;
+        } else if (isSingleCommentMode) {
           const match = cleanSiyuanUrl.match(/^(.*\/t\/[^/]+\/\d+)(\/\d+)?$/);
           if (match) {
             cleanSiyuanUrl = match[1];
@@ -4004,6 +5022,231 @@ tags: [${tagsStr}]
     }, duration);
   }
 
+  // ===== Raw Viewer: 每贴头像下方的「查看原始 Markdown」按钮 =====
+
+  function addRawViewerStyles() {
+    if (document.querySelector('#ds-raw-viewer-style')) return;
+    const style = document.createElement('style');
+    style.id = 'ds-raw-viewer-style';
+    style.textContent = `
+      .ds-raw-btn {
+        margin-top: 6px;
+        width: 32px; height: 32px;
+        border-radius: 50%;
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--primary-medium, #919191);
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+      }
+      .ds-raw-btn:hover {
+        background: var(--d-button-hover-background, rgba(0,0,0,0.08));
+        color: var(--primary, #222);
+      }
+      .ds-raw-btn.ds-active {
+        color: var(--tertiary, #0088cc);
+        background: var(--tertiary-low, #e6f5ff);
+      }
+      .ds-raw-btn.ds-loading { cursor: wait; opacity: 0.6; }
+      .ds-raw-btn svg { width: 17px; height: 17px; fill: currentColor; pointer-events: none; }
+      .ds-raw-wrapper {
+        margin: 12px 0 16px 0;
+        border-radius: 8px;
+        border: 1px solid var(--primary-low);
+        background: var(--secondary);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+        overflow: hidden;
+      }
+      .ds-raw-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 7px 14px;
+        background: var(--secondary);
+        border-bottom: 1px solid var(--primary-low);
+        font-size: 13px;
+        color: var(--primary-medium);
+      }
+      .ds-raw-label { font-weight: 500; }
+      .ds-raw-copy-btn {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 4px 10px;
+        font-size: 12px; font-weight: 600;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 1px solid var(--primary-low);
+        background: var(--secondary);
+        color: var(--primary-medium);
+        transition: all 0.15s;
+      }
+      .ds-raw-copy-btn:hover { color: var(--tertiary); border-color: var(--tertiary); }
+      .ds-raw-copy-btn.ds-copied { background: var(--success); color: #fff; border-color: var(--success); }
+      .ds-raw-copy-btn svg { width: 13px; height: 13px; fill: currentColor; }
+      .ds-raw-textarea {
+        display: block; width: 100%;
+        min-height: 100px; max-height: 400px;
+        padding: 14px 16px;
+        font-family: "JetBrains Mono","Fira Code","SF Mono",Consolas,monospace;
+        font-size: 13px; line-height: 1.6;
+        border: none; outline: none; resize: vertical;
+        background: var(--secondary);
+        color: var(--primary);
+        box-sizing: border-box;
+        overflow: auto;
+      }
+      .ds-raw-textarea:focus { outline: none; box-shadow: none; border: none; }
+      @keyframes ds-spin { 100% { transform: rotate(360deg); } }
+    `;
+    document.head.appendChild(style);
+  }
+
+  const _DS_RAW_ICON = `<svg viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>`;
+  const _DS_COPY_ICON = `<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`;
+  const _DS_CHECK_ICON = `<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`;
+  const _DS_SPIN_ICON = `<svg viewBox="0 0 24 24" style="animation:ds-spin 1s linear infinite"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>`;
+
+  function _dsToggleRawView(btn, postEl, postNumber) {
+    const topicId = window.location.pathname.match(/\/t\/[^/]+\/(\d+)/)?.[1] || null;
+    if (!topicId) return;
+    const cookedEl = postEl.querySelector('.cooked') || postEl.querySelector('.topic-body .regular');
+    let wrapper = postEl.querySelector('.ds-raw-wrapper');
+
+    // Toggle off
+    if (btn.classList.contains('ds-active')) {
+      btn.classList.remove('ds-active');
+      btn.title = '查看原始 Markdown';
+      if (wrapper) wrapper.style.display = 'none';
+      if (cookedEl) cookedEl.style.display = '';
+      return;
+    }
+    // Toggle on (already loaded)
+    if (wrapper) {
+      btn.classList.add('ds-active');
+      btn.title = '关闭源码视图';
+      wrapper.style.display = '';
+      if (cookedEl) cookedEl.style.display = 'none';
+      return;
+    }
+
+    // First load
+    btn.innerHTML = _DS_SPIN_ICON;
+    btn.classList.add('ds-loading');
+
+    fetch(`${window.location.origin}/raw/${topicId}/${postNumber}`, { credentials: 'include' })
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(rawText => {
+        // Resolve upload:// tokens using cooked HTML already in DOM
+        const cookedHtml = cookedEl ? cookedEl.innerHTML : '';
+        const resolved = resolveUploadUrls(rawText, cookedHtml);
+
+        wrapper = document.createElement('div');
+        wrapper.className = 'ds-raw-wrapper';
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'ds-raw-header';
+        const label = document.createElement('span');
+        label.className = 'ds-raw-label';
+        label.textContent = `原始 Markdown · #${postNumber}`;
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'ds-raw-copy-btn';
+        copyBtn.innerHTML = `${_DS_COPY_ICON} 复制`;
+        copyBtn.title = '复制到剪贴板';
+        copyBtn.addEventListener('click', () => {
+          const text = textarea.value;
+          const finish = () => {
+            copyBtn.innerHTML = `${_DS_CHECK_ICON} 已复制`;
+            copyBtn.classList.add('ds-copied');
+            setTimeout(() => { copyBtn.innerHTML = `${_DS_COPY_ICON} 复制`; copyBtn.classList.remove('ds-copied'); }, 2000);
+          };
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(finish).catch(() => _dsFallbackCopy(text, finish));
+          } else {
+            _dsFallbackCopy(text, finish);
+          }
+        });
+
+        header.appendChild(label);
+        header.appendChild(copyBtn);
+
+        // Textarea
+        const textarea = document.createElement('textarea');
+        textarea.className = 'ds-raw-textarea';
+        textarea.value = resolved;
+        textarea.readOnly = true;
+        textarea.spellcheck = false;
+
+        wrapper.appendChild(header);
+        wrapper.appendChild(textarea);
+
+        if (cookedEl) {
+          cookedEl.parentNode.insertBefore(wrapper, cookedEl.nextSibling);
+          cookedEl.style.display = 'none';
+        } else {
+          postEl.appendChild(wrapper);
+        }
+
+        // Auto-resize
+        setTimeout(() => {
+          textarea.style.height = 'auto';
+          textarea.style.height = Math.min(textarea.scrollHeight + 4, 400) + 'px';
+        }, 0);
+
+        btn.innerHTML = _DS_RAW_ICON;
+        btn.classList.remove('ds-loading');
+        btn.classList.add('ds-active');
+        btn.title = '关闭源码视图';
+      })
+      .catch(err => {
+        console.warn('[Discourse Saver] 获取原始 Markdown 失败:', err);
+        btn.innerHTML = _DS_RAW_ICON;
+        btn.classList.remove('ds-loading');
+      });
+  }
+
+  function _dsFallbackCopy(text, cb) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); cb(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  function _dsAddRawBtn(postEl) {
+    if (postEl.dataset.dsRawBtnAdded) return;
+    const id = postEl.id || '';
+    if (!id.startsWith('post_')) return;
+    const postNumber = id.split('_')[1];
+    if (!postNumber) return;
+    const avatarContainer = postEl.querySelector('.topic-avatar');
+    if (!avatarContainer) return;
+
+    addRawViewerStyles();
+
+    const btn = document.createElement('button');
+    btn.className = 'ds-raw-btn';
+    btn.innerHTML = _DS_RAW_ICON;
+    btn.title = '查看原始 Markdown';
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (btn.classList.contains('ds-loading')) return;
+      _dsToggleRawView(btn, postEl, postNumber);
+    });
+
+    avatarContainer.appendChild(btn);
+    postEl.dataset.dsRawBtnAdded = 'true';
+  }
+
+  function scanAndAddRawButtons() {
+    document.querySelectorAll('[id^="post_"]').forEach(_dsAddRawBtn);
+  }
+
+  // ===== End Raw Viewer =====
+
   // 添加快捷键支持
   let keyboardListenerAdded = false;
   function setupKeyboardShortcut() {
@@ -4063,6 +5306,9 @@ tags: [${tagsStr}]
     // V5.4.0: 悬浮按钮替代链接拦截
     createFloatingButton();
     setupKeyboardShortcut();
+    // Raw Viewer: 为已加载的帖子添加查看原始 Markdown 按钮
+    scanAndAddRawButtons();
+    setTimeout(scanAndAddRawButtons, 1500);
 
     pluginInitialized = true;
     currentTopicUrl = topicUrl;
@@ -4100,7 +5346,8 @@ tags: [${tagsStr}]
   // 监听页面导航（单页应用）
   let lastUrl = location.href;
   let navDebounceTimer = null;
-  const observer = new MutationObserver(() => {
+  let rawBtnScanTimer = null;
+  const observer = new MutationObserver((mutations) => {
     const url = location.href;
     if (url !== lastUrl) {
       lastUrl = url;
@@ -4114,6 +5361,14 @@ tags: [${tagsStr}]
         initWithRetry(5, 500);
       }, 500);
     }
+    // 新帖子加载时（无限滚动）补充 Raw 按钮
+    for (const m of mutations) {
+      if (m.addedNodes.length) {
+        if (rawBtnScanTimer) clearTimeout(rawBtnScanTimer);
+        rawBtnScanTimer = setTimeout(() => { rawBtnScanTimer = null; scanAndAddRawButtons(); }, 300);
+        break;
+      }
+    }
   });
   observer.observe(document, { subtree: true, childList: true });
 
@@ -4124,3 +5379,5 @@ tags: [${tagsStr}]
   });
 
 })();
+
+

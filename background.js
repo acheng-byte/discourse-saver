@@ -2261,22 +2261,38 @@ function buildNotionPageData(postData, config) {
           blockCount++;
         }
       } else {
-        // V4.2.4: 普通段落（可能包含内联图片和链接）
-        const textWithLinks = trimmedLine.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, url) => {
-          let fixedUrl = url;
-          if (url.includes('github.com') && url.includes('/blob/')) {
-            fixedUrl = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
+        // V5.5.3: 拆分行内图片为独立 image 块，文字段落单独处理
+        const inlineImgRe = /!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
+        if (inlineImgRe.test(trimmedLine)) {
+          inlineImgRe.lastIndex = 0;
+          let lastIdx = 0, m2;
+          while ((m2 = inlineImgRe.exec(trimmedLine)) !== null) {
+            const before = trimmedLine.slice(lastIdx, m2.index).trim();
+            if (before) {
+              children.push({ object: 'block', type: 'paragraph', paragraph: { rich_text: parseMarkdownToRichText(before, siteOrigin) } });
+              blockCount++;
+            }
+            let imgUrl = m2[2];
+            if (imgUrl.includes('github.com') && imgUrl.includes('/blob/')) {
+              imgUrl = imgUrl.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
+            }
+            children.push({ object: 'block', type: 'image', image: { type: 'external', external: { url: imgUrl } } });
+            blockCount++;
+            lastIdx = m2.index + m2[0].length;
           }
-          return `[图片: ${alt}](${fixedUrl})`;
-        });
-        children.push({
-          object: 'block',
-          type: 'paragraph',
-          paragraph: {
-            rich_text: parseMarkdownToRichText(textWithLinks, siteOrigin)
+          const after = trimmedLine.slice(lastIdx).trim();
+          if (after) {
+            children.push({ object: 'block', type: 'paragraph', paragraph: { rich_text: parseMarkdownToRichText(after, siteOrigin) } });
+            blockCount++;
           }
-        });
-        blockCount++;
+        } else {
+          children.push({
+            object: 'block',
+            type: 'paragraph',
+            paragraph: { rich_text: parseMarkdownToRichText(trimmedLine, siteOrigin) }
+          });
+          blockCount++;
+        }
       }
 
       i++; // V4.2.4: 移动到下一行
@@ -2698,6 +2714,41 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // 异步响应
   }
 
+  // 解析外链最终跳转地址（short-url -> CDN）
+  if (request.action === 'resolveFinalUrls') {
+    (async () => {
+      try {
+        const inputUrls = Array.isArray(request.urls) ? request.urls : [];
+        const resolvedMap = {};
+        await Promise.all(inputUrls.map(async (url) => {
+          try {
+            let res = await fetch(url, {
+              method: 'HEAD',
+              credentials: 'include',
+              cache: 'no-store',
+              redirect: 'follow'
+            });
+            if (res.status === 405) {
+              res = await fetch(url, {
+                method: 'GET',
+                credentials: 'include',
+                cache: 'no-store',
+                redirect: 'follow'
+              });
+            }
+            if (res.ok && res.url && res.url !== url) {
+              resolvedMap[url] = res.url;
+            }
+          } catch (_) {}
+        }));
+        sendResponse({ success: true, resolvedMap });
+      } catch (error) {
+        sendResponse({ success: false, error: error.message, resolvedMap: {} });
+      }
+    })();
+    return true;
+  }
+
   if (request.action === 'saveToFeishu') {
     console.log('[Discourse Saver→飞书] 收到保存请求');
     console.log('[Discourse Saver→飞书] 标题:', request.postData.title);
@@ -2984,8 +3035,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // V5.3: 下载媒体文件到 Vault（通过 Obsidian Local REST API）
   if (request.action === 'downloadMediaToVault') {
-    const { config, mediaUrls, vaultMediaPath, mediaFolderName } = request;
-    downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFolderName)
+    const { config, mediaUrls, vaultMediaPath, mediaFolderName, forumOrigin } = request;
+    downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFolderName, forumOrigin)
       .then(results => sendResponse({ results }))
       .catch(err => sendResponse({ error: err.message, results: [] }));
     return true;
@@ -3011,7 +3062,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // ==================== 下载媒体到 Vault ====================
 
-async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFolderName) {
+async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFolderName, forumOrigin = '') {
+  const sanitizePathSegment = (seg, maxLen = 72) => {
+    let s = String(seg || '')
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/[. ]+$/g, '');
+    if (!s) s = 'untitled';
+    if (s.length > maxLen) s = s.substring(0, maxLen).replace(/[. ]+$/g, '');
+    return s || 'untitled';
+  };
+  const sanitizeVaultPath = (path) => String(path || '')
+    .split('/')
+    .filter(Boolean)
+    .map(seg => sanitizePathSegment(seg))
+    .join('/');
+
   const port = config.restApiPort || 27124;
   let apiBase = `https://127.0.0.1:${port}`;
 
@@ -3024,28 +3091,53 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
       headers: { 'Authorization': `Bearer ${config.restApiKey}` }
     });
   } catch (e) {
-    // HTTPS 失败，降级到 HTTP
+    // HTTPS 失败，降级到 HTTP（Obsidian REST API HTTPS=27124, HTTP=27123）
     useHttps = false;
-    apiBase = `http://127.0.0.1:${port}`;
+    const httpPort = port === 27124 ? 27123 : port;
+    apiBase = `http://127.0.0.1:${httpPort}`;
     bgLog('WARN', `HTTPS 连接失败，自动降级到 HTTP: ${apiBase}`);
   }
 
-  bgLog('INFO', `媒体下载开始: ${mediaUrls.length}个文件, API=${apiBase}, path=${vaultMediaPath}`);
+  const safeVaultMediaPath = sanitizeVaultPath(vaultMediaPath || mediaFolderName || 'media');
+  bgLog('INFO', `媒体下载开始: ${mediaUrls.length}个文件, API=${apiBase}, path=${safeVaultMediaPath}`);
   const results = [];
   const existingNames = [];
 
   for (let i = 0; i < mediaUrls.length; i++) {
     const media = mediaUrls[i];
+    // V5.5.4: 兜底处理未解析的 upload:// URL（正常应在 content.js 中转换）
+    let fetchUrl = media.url;
+    if (fetchUrl.startsWith('upload://') && forumOrigin) {
+      fetchUrl = forumOrigin + '/uploads/short-url/' + fetchUrl.slice(9);
+      bgLog('WARN', `upload:// 兜底转换: ${media.url} → ${fetchUrl}`);
+    } else if (fetchUrl.startsWith('upload://')) {
+      bgLog('WARN', `upload:// URL 无法解析（缺少 forumOrigin），跳过: ${media.url}`);
+      results.push({ originalUrl: media.url, localName: null, relativePath: null, success: false, error: 'upload:// URL 未解析' });
+      continue;
+    }
     try {
-      // 1. 下载媒体文件（V5.3.1: 禁用缓存）
-      const response = await fetch(media.url, { cache: 'no-store' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const binaryData = await response.arrayBuffer();
+      // 1. 下载媒体文件
+      // V5.5.7: 优先使用 content.js 预取的二进制数据（已携带页面 Cookie）
+      // Service Worker 的 credentials: 'include' 不带页面 Cookie，必须由 content.js 预取
+      let binaryData;
+      if (media.binaryBase64) {
+        const binaryStr = atob(media.binaryBase64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+        binaryData = bytes.buffer;
+        bgLog('INFO', `使用预取数据: ${fetchUrl} (${binaryData.byteLength}B)`);
+      } else {
+        // 兜底：直接 fetch（仅对无需认证的公开图片有效）
+        bgLog('WARN', `无预取数据，直接 fetch（可能因缺少 Cookie 失败）: ${fetchUrl}`);
+        const response = await fetch(fetchUrl, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        binaryData = await response.arrayBuffer();
+      }
 
-      // 2. 提取文件名
+      // 2. 提取文件名（使用实际 fetch URL，避免 upload:// 无法解析）
       let fileName;
       try {
-        const urlObj = new URL(media.url);
+        const urlObj = new URL(fetchUrl);
         fileName = urlObj.pathname.split('/').pop() || `media_${i}`;
       } catch(e) {
         fileName = `media_${i}`;
@@ -3070,7 +3162,7 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
       existingNames.push(finalName);
 
       // 4. 通过 REST API 写入 Vault
-      const filePath = `${vaultMediaPath}/${finalName}`;
+      const filePath = `${safeVaultMediaPath}/${finalName}`;
       // 对路径各段分别编码，保留 / 分隔符
       const encodedPath = filePath.split('/').map(seg => encodeURIComponent(seg)).join('/');
       const putResponse = await fetch(`${apiBase}/vault/${encodedPath}`, {
@@ -3092,7 +3184,7 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
       results.push({
         originalUrl: media.url,
         localName: finalName,
-        relativePath: `${mediaFolderName}/${finalName}`,
+        relativePath: `${safeVaultMediaPath}/${finalName}`,
         success: true
       });
     } catch (err) {
