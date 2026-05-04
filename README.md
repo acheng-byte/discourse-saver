@@ -1128,6 +1128,17 @@
 
 ---
 
+
+## ☕ 支持作者
+
+如果 Discourse Saver 对你有帮助，欢迎在爱发电支持我，你的赞助是持续更新的动力！
+
+[![爱发电](https://img.shields.io/badge/爱发电-acheng111-946ce6)](https://ifdian.net/a/acheng111)
+
+👉 **[https://ifdian.net/a/acheng111](https://ifdian.net/a/acheng111)**
+
+---
+
 ## 许可证
 
 MIT License - 完全开源，自由使用、修改和分发。
@@ -1144,3 +1155,4 @@ MIT License - 完全开源，自由使用、修改和分发。
 - [Notion](https://www.notion.so)
 - [Turndown](https://github.com/mixmark-io/turndown)
 - [Advanced URI](https://github.com/Vinzent03/obsidian-advanced-uri)
+
