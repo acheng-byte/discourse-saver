@@ -116,6 +116,7 @@
       // 下载图片/视频到本地 Vault（通过 Obsidian Local REST API 插件）
       downloadImages: false,
       downloadVideos: true,
+      downloadAttachments: true,
       restApiKey: '',
       restApiPort: 27124,
       mediaFolderName: 'media',
@@ -471,39 +472,272 @@
       }
     }
 
-    // V5.1: 收集 Markdown 中的媒体文件 URL（图片+视频）
-    function collectMediaUrls(markdown, downloadVideos) {
+    const IMAGE_EXTENSIONS = /\.(?:png|jpe?g|gif|webp|bmp|avif|heic|heif|svg)(?:[?#].*)?$/i;
+    const VIDEO_EXTENSIONS = /\.(?:mp4|webm|mov|avi|mkv|m4v)(?:[?#].*)?$/i;
+    const ATTACHMENT_EXTENSIONS = /\.(?:pdf|docx?|xlsx?|pptx?|zip|rar|7z|tar|gz|bz2|xz|csv|txt|md|json|xml|ya?ml|log|sql|sqlite|db|epub|mobi|azw3|dmg|exe|msi|pkg|deb|rpm|apk|ipa|psd|ai|sketch|fig)(?:[?#].*)?$/i;
+    const MIME_EXTENSION_MAP = {
+      'application/pdf': '.pdf',
+      'application/msword': '.doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+      'application/vnd.ms-excel': '.xls',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+      'application/vnd.ms-powerpoint': '.ppt',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+      'application/zip': '.zip',
+      'application/x-zip-compressed': '.zip',
+      'application/x-7z-compressed': '.7z',
+      'application/x-rar-compressed': '.rar',
+      'application/gzip': '.gz',
+      'text/csv': '.csv',
+      'text/plain': '.txt',
+      'text/markdown': '.md',
+      'application/json': '.json',
+      'application/xml': '.xml',
+      'text/xml': '.xml',
+      'image/png': '.png',
+      'image/jpeg': '.jpg',
+      'image/gif': '.gif',
+      'image/webp': '.webp',
+      'image/svg+xml': '.svg',
+      'video/mp4': '.mp4',
+      'video/webm': '.webm',
+      'video/quicktime': '.mov'
+    };
+
+    function stripMarkdownUrl(url) {
+      if (!url || typeof url !== 'string') return '';
+      let cleanUrl = url.trim();
+      cleanUrl = cleanUrl.replace(/^<|>$/g, '');
+      cleanUrl = cleanUrl.replace(/\s+["'][^"']*["']\s*$/, '');
+      return cleanUrl.trim();
+    }
+
+    function normalizeDownloadUrl(url) {
+      const cleanUrl = stripMarkdownUrl(url);
+      if (!cleanUrl) return '';
+      if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) return cleanUrl;
+      if (cleanUrl.startsWith('/')) return window.location.origin + cleanUrl;
+      return '';
+    }
+
+    function getHeaderValue(response, headerName) {
+      const headers = response?.responseHeaders || '';
+      const escaped = headerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const match = headers.match(new RegExp('^' + escaped + ':\\s*(.+)$', 'im'));
+      return match ? match[1].trim() : '';
+    }
+
+    function decodeMaybeEncoded(value) {
+      if (!value) return '';
+      try {
+        return decodeURIComponent(value);
+      } catch (e) {
+        return value;
+      }
+    }
+
+    function parseContentDispositionFileName(headerValue) {
+      if (!headerValue) return '';
+
+      const utf8Match = headerValue.match(/filename\*\s*=\s*(?:UTF-8'')?([^;]+)/i);
+      if (utf8Match) {
+        return decodeMaybeEncoded(utf8Match[1].trim().replace(/^["']|["']$/g, ''));
+      }
+
+      const fileNameMatch = headerValue.match(/filename\s*=\s*("[^"]+"|[^;]+)/i);
+      if (fileNameMatch) {
+        return decodeMaybeEncoded(fileNameMatch[1].trim().replace(/^["']|["']$/g, ''));
+      }
+
+      return '';
+    }
+
+    function getFileNameFromUrl(url) {
+      try {
+        const urlObj = new URL(url);
+        const parts = urlObj.pathname.split('/').filter(Boolean);
+        const lastPart = parts.length > 0 ? parts[parts.length - 1] : '';
+        return decodeMaybeEncoded(lastPart);
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function hasFileExtension(fileName) {
+      return /\.[a-z0-9]{1,8}$/i.test(fileName || '');
+    }
+
+    function isShortUploadName(fileName) {
+      const base = (fileName || '').replace(/\.[a-z0-9]{1,8}$/i, '').toLowerCase();
+      return !base || base === 'short-url' || /^short[-_]?url$/.test(base);
+    }
+
+    function isGenericFileName(fileName) {
+      const base = (fileName || '')
+        .replace(/\.[a-z0-9]{1,8}$/i, '')
+        .replace(/[_\s-]+/g, '')
+        .toLowerCase();
+      return !base ||
+        /^(download|file|attachment|document|shorturl|short-url|short_url)$/i.test(base) ||
+        /^(下载|下载文件|点击下载|附件|文件|文档|下载pdf)$/i.test(base);
+    }
+
+    function extensionFromMime(contentType, type) {
+      const mime = (contentType || '').split(';')[0].trim().toLowerCase();
+      if (MIME_EXTENSION_MAP[mime]) return MIME_EXTENSION_MAP[mime];
+      if (type === 'image') return '.jpg';
+      if (type === 'video') return '.mp4';
+      if (type === 'attachment') return '.bin';
+      return '';
+    }
+
+    function sanitizeDownloadFileName(fileName) {
+      let safeName = (fileName || '').split('/').pop().split('\\').pop();
+      safeName = safeName.split('?')[0].split('#')[0];
+      safeName = decodeMaybeEncoded(safeName);
+      safeName = safeName.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/\s+/g, '_').trim();
+      safeName = safeName.replace(/^\.+/, '').substring(0, 180);
+      return safeName;
+    }
+
+    function isLikelyAttachmentUrl(url, linkText = '') {
+      const normalizedUrl = normalizeDownloadUrl(url);
+      if (!normalizedUrl) return false;
+
+      try {
+        const urlObj = new URL(normalizedUrl);
+        const path = decodeMaybeEncoded(urlObj.pathname);
+        const text = decodeMaybeEncoded(linkText || '').trim();
+        if (/\/uploads\/short-url\//i.test(path)) return true;
+        if (/\/uploads\/default\/original\//i.test(path)) return true;
+        if (ATTACHMENT_EXTENSIONS.test(path) || ATTACHMENT_EXTENSIONS.test(text)) return true;
+        return false;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function isDiscourseShortUploadUrl(url) {
+      try {
+        return /\/uploads\/short-url\//i.test(new URL(url).pathname);
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function buildDownloadFileName(media, response, index) {
+      const dispositionName = parseContentDispositionFileName(getHeaderValue(response, 'Content-Disposition'));
+      const contentType = getHeaderValue(response, 'Content-Type');
+      const responseUrl = response?.finalUrl || response?.responseURL || '';
+      const finalUrlName = isDiscourseShortUploadUrl(responseUrl) ? '' : getFileNameFromUrl(responseUrl);
+      const originalUrlName = isDiscourseShortUploadUrl(media.url) ? '' : getFileNameFromUrl(media.url);
+      const hintName = media.fileNameHint || media.alt || '';
+
+      const candidates = [
+        sanitizeDownloadFileName(dispositionName),
+        sanitizeDownloadFileName(finalUrlName),
+        sanitizeDownloadFileName(originalUrlName),
+        sanitizeDownloadFileName(hintName)
+      ].filter(Boolean);
+
+      let fileName = candidates.find(name =>
+        hasFileExtension(name) && !isShortUploadName(name) && !isGenericFileName(name)
+      );
+
+      if (!fileName) {
+        fileName = candidates.find(name => !isShortUploadName(name) && !isGenericFileName(name));
+      }
+
+      if (!fileName) {
+        fileName = candidates.find(name => !isShortUploadName(name)) || `${media.type || 'file'}_${index + 1}`;
+      }
+
+      if (!hasFileExtension(fileName)) {
+        const extFromUrl = (finalUrlName || originalUrlName || '').match(/\.[a-z0-9]{1,8}$/i)?.[0];
+        fileName += extFromUrl || extensionFromMime(contentType, media.type);
+      }
+
+      return fileName;
+    }
+
+    // V5.1: 收集 Markdown 中的媒体/附件 URL（图片+视频+普通附件）
+    function collectMediaUrls(markdown, options = {}) {
+      const collectOptions = typeof options === 'boolean'
+        ? { downloadVideos: options, downloadAttachments: false }
+        : (options || {});
+      const downloadVideos = collectOptions.downloadVideos !== false;
+      const downloadAttachments = !!collectOptions.downloadAttachments;
       const mediaUrls = [];
       const seenUrls = new Set();
+
+      function addDownload(url, type, alt = '', fileNameHint = '') {
+        const originalUrl = stripMarkdownUrl(url);
+        const normalizedUrl = normalizeDownloadUrl(url);
+        if (!normalizedUrl || seenUrls.has(normalizedUrl)) return;
+        seenUrls.add(normalizedUrl);
+        mediaUrls.push({
+          originalUrl,
+          url: normalizedUrl,
+          type,
+          alt: (alt || '').trim(),
+          fileNameHint: (fileNameHint || '').trim()
+        });
+      }
 
       // 匹配图片 ![alt](url)
       const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
       let match;
       while ((match = imageRegex.exec(markdown)) !== null) {
-        const url = match[2];
-        if (!seenUrls.has(url) && url.startsWith('http')) {
-          seenUrls.add(url);
-          mediaUrls.push({ url, type: 'image', alt: match[1] });
-        }
+        addDownload(match[2], 'image', match[1], match[1]);
       }
 
       // 匹配视频链接
       if (downloadVideos) {
         const videoRegex = /\[([^\]]*)\]\((https?:\/\/[^)]+\.(?:mp4|webm|mov|avi|mkv|m4v)[^)]*)\)/gi;
         while ((match = videoRegex.exec(markdown)) !== null) {
-          const url = match[2];
-          if (!seenUrls.has(url)) {
-            seenUrls.add(url);
-            mediaUrls.push({ url, type: 'video', alt: match[1] });
-          }
+          addDownload(match[2], 'video', match[1], match[1]);
         }
         // 独立的视频 URL 行
         const videoLineRegex = /^(https?:\/\/\S+\.(?:mp4|webm|mov|avi|mkv|m4v)\S*)$/gim;
         while ((match = videoLineRegex.exec(markdown)) !== null) {
-          const url = match[1];
-          if (!seenUrls.has(url)) {
-            seenUrls.add(url);
-            mediaUrls.push({ url, type: 'video', alt: '' });
+          addDownload(match[1], 'video');
+        }
+      }
+
+      if (downloadAttachments) {
+        // 优先识别 documentEmbed 生成的两行格式，文件名在上一行粗体里。
+        const documentBlockRegex = /\*\*([^*\n]+)\*\*\s*\n\s*📥\s*\[[^\]]*\]\(([^)]+)\)/g;
+        while ((match = documentBlockRegex.exec(markdown)) !== null) {
+          const fileNameHint = match[1].trim();
+          const url = match[2];
+          if (isLikelyAttachmentUrl(url, fileNameHint)) {
+            addDownload(url, 'attachment', fileNameHint, fileNameHint);
+          }
+        }
+
+        // 普通 Markdown 链接里的附件；排除图片语法，避免重复。
+        const linkRegex = /(^|[^!])\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g;
+        while ((match = linkRegex.exec(markdown)) !== null) {
+          const linkText = match[2] || '';
+          const url = match[3];
+          if (isLikelyAttachmentUrl(url, linkText)) {
+            let type = 'attachment';
+            const cleanUrl = stripMarkdownUrl(url);
+            if (IMAGE_EXTENSIONS.test(cleanUrl)) type = 'image';
+            if (VIDEO_EXTENSIONS.test(cleanUrl)) type = 'video';
+            addDownload(url, type, linkText, linkText);
+          }
+        }
+
+        // 裸链接附件。
+        const bareUrlRegex = /(^|\s)(https?:\/\/\S+)/g;
+        while ((match = bareUrlRegex.exec(markdown)) !== null) {
+          const url = match[2].replace(/[),.;]+$/, '');
+          if (isLikelyAttachmentUrl(url)) {
+            let type = 'attachment';
+            if (IMAGE_EXTENSIONS.test(url)) type = 'image';
+            if (VIDEO_EXTENSIONS.test(url)) type = 'video';
+            addDownload(url, type);
           }
         }
       }
@@ -517,14 +751,17 @@
         return markdown;
       }
 
-      const mediaUrls = collectMediaUrls(markdown, config.downloadVideos);
+      const mediaUrls = collectMediaUrls(markdown, {
+        downloadVideos: config.downloadVideos,
+        downloadAttachments: config.downloadAttachments
+      });
       if (mediaUrls.length === 0) {
-        console.log('[Discourse Saver] 没有找到需要下载的媒体文件');
+        console.log('[Discourse Saver] 没有找到需要下载的媒体/附件文件');
         return markdown;
       }
 
-      console.log(`[Discourse Saver] 找到 ${mediaUrls.length} 个媒体文件，开始通过 REST API 写入...`);
-      showNotification(`正在下载 ${mediaUrls.length} 个媒体文件到 Vault...`, 'info');
+      console.log(`[Discourse Saver] 找到 ${mediaUrls.length} 个媒体/附件文件，开始通过 REST API 写入...`);
+      showNotification(`正在下载 ${mediaUrls.length} 个媒体/附件到 Vault...`, 'info');
 
       // 媒体文件夹路径：{siteFolderPath}/{mediaFolderName}
       const mediaFolderName = config.mediaFolderName || 'media';
@@ -540,8 +777,8 @@
       for (let i = 0; i < mediaUrls.length; i++) {
         const media = mediaUrls[i];
         try {
-          // 1. 通过 GM_xmlhttpRequest 获取图片/视频的二进制数据
-          const binaryData = await new Promise((resolve, reject) => {
+          // 1. 通过 GM_xmlhttpRequest 获取图片/视频/附件的二进制数据
+          const downloadResult = await new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
               method: 'GET',
               url: media.url,
@@ -549,7 +786,10 @@
               timeout: 30000,
               onload: function(response) {
                 if (response.status >= 200 && response.status < 300) {
-                  resolve(response.response);
+                  resolve({
+                    data: response.response,
+                    response
+                  });
                 } else {
                   reject(new Error(`HTTP ${response.status}`));
                 }
@@ -563,18 +803,9 @@
             });
           });
 
-          // 2. 从 URL 提取文件名
-          let fileName;
-          try {
-            const urlObj = new URL(media.url);
-            fileName = urlObj.pathname.split('/').pop() || `media_${i}`;
-          } catch(e) {
-            fileName = `media_${i}`;
-          }
-          fileName = fileName.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
-          if (!fileName.includes('.')) {
-            fileName += media.type === 'video' ? '.mp4' : '.jpg';
-          }
+          // 2. 优先从响应头提取真实文件名，其次使用链接文字/最终 URL/原始 URL
+          const binaryData = downloadResult.data;
+          let fileName = buildDownloadFileName(media, downloadResult.response, i);
 
           // 去重
           const existingNames = results.map(r => r.localName);
@@ -620,18 +851,20 @@
           });
 
           console.log(`[Discourse Saver] 写入 Vault [${i + 1}/${mediaUrls.length}]: ${filePath}`);
-          showNotification(`下载媒体文件 ${i + 1}/${mediaUrls.length}...`, 'info');
+          showNotification(`下载媒体/附件 ${i + 1}/${mediaUrls.length}...`, 'info');
 
           results.push({
             originalUrl: media.url,
+            sourceUrl: media.originalUrl,
             localName: finalName,
             relativePath: `${mediaFolderName}/${finalName}`,
             success: true
           });
         } catch (dlError) {
-          console.warn(`[Discourse Saver] 写入媒体失败: ${media.url}`, dlError);
+          console.warn(`[Discourse Saver] 写入媒体/附件失败: ${media.url}`, dlError);
           results.push({
             originalUrl: media.url,
+            sourceUrl: media.originalUrl,
             localName: null,
             relativePath: null,
             success: false,
@@ -646,18 +879,21 @@
 
       for (const result of results) {
         if (result.success && result.relativePath) {
-          const escapedUrl = result.originalUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          processedMarkdown = processedMarkdown.replace(
-            new RegExp(escapedUrl, 'g'),
-            result.relativePath
-          );
+          const urlsToReplace = [result.originalUrl, result.sourceUrl].filter(Boolean);
+          [...new Set(urlsToReplace)].forEach((url) => {
+            const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            processedMarkdown = processedMarkdown.replace(
+              new RegExp(escapedUrl, 'g'),
+              result.relativePath
+            );
+          });
           successCount++;
         }
       }
 
-      console.log(`[Discourse Saver] 媒体路径替换完成: ${successCount}/${mediaUrls.length} 成功`);
+      console.log(`[Discourse Saver] 媒体/附件路径替换完成: ${successCount}/${mediaUrls.length} 成功`);
       if (successCount > 0) {
-        showNotification(`已下载 ${successCount} 个媒体文件到 Vault`, 'success');
+        showNotification(`已下载 ${successCount} 个媒体/附件到 Vault`, 'success');
       }
 
       return processedMarkdown;
@@ -1909,11 +2145,12 @@
         filter: (node) => {
           if (node.nodeName !== 'A') return false;
           if (node.classList?.contains('lightbox')) return false;
-          const href = (node.href || '').toLowerCase();
-          return /\.(pdf|docx?|xlsx?|pptx?|svg|csv|txt)(\?|$)/i.test(href);
+          const href = (node.getAttribute('href') || node.href || '').toLowerCase();
+          return /\/uploads\/short-url\//i.test(href) ||
+            /\.(pdf|docx?|xlsx?|pptx?|svg|csv|txt|md|zip|rar|7z|tar|gz|bz2|xz|json|xml|ya?ml|log|sql|sqlite|db|epub|mobi|azw3|dmg|exe|msi|pkg|deb|rpm|apk|ipa|psd|ai|sketch|fig)(\?|#|$)/i.test(href);
         },
         replacement: (content, node) => {
-          const href = node.href || '';
+          const href = node.href || node.getAttribute('href') || '';
           const hrefLower = href.toLowerCase();
 
           let fileName = content.trim().replace(/[\r\n]+/g, ' ').trim();
@@ -4894,7 +5131,7 @@ ${tagsYaml}
 
           <div class="ds-form-group ds-checkbox-group">
             <input type="checkbox" id="ds-download-images" ${config.downloadImages ? 'checked' : ''}>
-            <label for="ds-download-images">下载图片/视频到 Vault 文件夹</label>
+            <label for="ds-download-images">下载图片/视频/附件到 Vault 文件夹</label>
             <div class="ds-hint" style="margin-left: 26px; margin-top: 2px; color: #ef4444;">需要安装 Obsidian 社区插件「Local REST API」</div>
           </div>
           <div id="ds-download-images-panel" style="margin-left: 26px; ${config.downloadImages ? '' : 'display:none;'}">
@@ -4915,10 +5152,14 @@ ${tagsYaml}
               <input type="checkbox" id="ds-download-videos" ${config.downloadVideos ? 'checked' : ''}>
               <label for="ds-download-videos">同时下载视频文件</label>
             </div>
+            <div class="ds-form-group ds-checkbox-group">
+              <input type="checkbox" id="ds-download-attachments" ${config.downloadAttachments !== false ? 'checked' : ''}>
+              <label for="ds-download-attachments">同时下载附件文件</label>
+            </div>
             <div class="ds-form-group">
               <label>媒体文件夹名称</label>
               <input type="text" id="ds-media-folder-name" value="${config.mediaFolderName || 'media'}" placeholder="media">
-              <span class="ds-hint">媒体文件保存到 Vault 中此文件夹下，默认 media</span>
+              <span class="ds-hint">媒体和附件保存到 Vault 中此文件夹下，默认 media</span>
             </div>
           </div>
 
@@ -5255,6 +5496,7 @@ ${tagsYaml}
           // 下载图片到本地
           downloadImages: overlay.querySelector('#ds-download-images').checked,
           downloadVideos: overlay.querySelector('#ds-download-videos').checked,
+          downloadAttachments: overlay.querySelector('#ds-download-attachments').checked,
           restApiKey: overlay.querySelector('#ds-rest-api-key').value.trim(),
           restApiPort: parseInt(overlay.querySelector('#ds-rest-api-port').value) || 27124,
           mediaFolderName: overlay.querySelector('#ds-media-folder-name').value.trim() || 'media',
@@ -5349,4 +5591,3 @@ ${tagsYaml}
   UIModule.init();
 
 })();
-
