@@ -158,6 +158,43 @@ function sanitizeForFeishuValue(input, maxLen = 5000) {
   return text;
 }
 
+// 统一文件名清理函数（适用于 Obsidian/百度网盘/WebDAV 等）
+// 非法字符规则：
+// - Windows 文件系统: \ / : * ? " < > | + 控制字符 (U+0000-U+001F)
+// - 百度网盘: 同 Windows 规则
+// - WebDAV: 取决于服务器，按 Windows 规则处理最安全
+// - Obsidian: 本地文件系统，遵循操作系统规则
+// 另外还需处理 Windows 保留名: CON, PRN, AUX, NUL, COM1-9, LPT1-9
+function sanitizeFilename(input, maxLen = 100) {
+  // Windows 保留名（不区分大小写，可带扩展名）
+  const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+
+  let name = (input === null || input === undefined) ? '' : String(input);
+
+  // 1. 替换非法字符为下划线
+  // 非法字符: \ / : * ? " < > | 和控制字符
+  name = name
+    .replace(/[<>:"\/\\|?*\u0000-\u001F]/g, '_')
+    // 2. 合并连续空白为单个空格
+    .replace(/\s+/g, ' ')
+    // 3. 去除首尾空白和点号
+    .replace(/^[\s.]+|[\s.]+$/g, '')
+    // 4. 截断到指定长度
+    .substring(0, maxLen);
+
+  // 5. 处理 Windows 保留名
+  if (WINDOWS_RESERVED.test(name)) {
+    name = '_' + name;
+  }
+
+  // 6. 如果清理后为空，使用默认名
+  if (!name) {
+    name = 'untitled';
+  }
+
+  return name;
+}
+
 // 清理和验证飞书多行文本内容
 function sanitizeFeishuTextContent(content) {
   if (!content || typeof content !== 'string') {
@@ -3845,7 +3882,7 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
       } catch(e) {
         fileName = `media_${i}`;
       }
-      fileName = fileName.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
+      fileName = fileName.replace(/[<>:"\/\\|?*\u0000-\u001F]/g, '_').replace(/\s+/g, '_');
       if (!fileName.includes('.')) {
         fileName += media.type === 'video' ? '.mp4' : '.jpg';
       }
@@ -4305,11 +4342,7 @@ async function saveToWebDAV(postData, config) {
     await webdavEnsureDirectory(baseUrl, savePath, webdavUsername, webdavPassword);
 
     // 生成文件名（使用标题，清理非法字符）
-    const safeTitle = (postData.title || '未命名')
-      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 100);
+    const safeTitle = sanitizeFilename(postData.title || '未命名', 100);
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
     const fileName = `${safeTitle}_${timestamp}.md`;
     const filePath = savePath + '/' + fileName;
@@ -4656,11 +4689,7 @@ async function saveToBaidu(postData, config) {
     await baiduEnsureDir(accessToken, savePath);
 
     // 生成文件名
-    const safeTitle = (postData.title || '未命名')
-      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 100);
+    const safeTitle = sanitizeFilename(postData.title || '未命名', 100);
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
     const fileName = `${safeTitle}_${timestamp}.md`;
     const remotePath = `${savePath}/${fileName}`;
