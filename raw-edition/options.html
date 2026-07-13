@@ -504,6 +504,8 @@
       <button class="tab-btn" data-tab="feishu" data-i18n="tabs.feishu">飞书</button>
       <button class="tab-btn" data-tab="notion">Notion</button>
       <button class="tab-btn" data-tab="siyuan" data-i18n="tabs.siyuan">思源</button>
+      <button class="tab-btn" data-tab="webdav" data-i18n="tabs.webdav">WebDAV</button>
+      <button class="tab-btn" data-tab="baidu" data-i18n="tabs.baidu">百度网盘</button>
       <button class="tab-btn" data-tab="yuque" data-i18n="tabs.yuque">语雀</button>
       <button class="tab-btn" data-tab="comments" data-i18n="tabs.comments">评论</button>
     </nav>
@@ -570,6 +572,61 @@
           <div class="checkbox-row">
             <input type="checkbox" id="addMetadata">
             <label for="addMetadata" data-i18n="content.addMetadata">添加元数据到笔记（Frontmatter）</label>
+          </div>
+          <div class="checkbox-row" style="margin-top: 8px;">
+            <input type="checkbox" id="addPostInfoCallout">
+            <label for="addPostInfoCallout" data-i18n="content.addPostInfoCallout">添加“帖子信息”引用框（Obsidian Callout）</label>
+          </div>
+          <div id="postInfoCalloutPanel" style="display:none; margin-left:24px; margin-top:8px; padding:12px 14px; background:var(--sub-bg); border:1px solid var(--input-border); border-radius:8px;">
+            <div class="checkbox-row" style="margin-bottom:8px;">
+              <input type="checkbox" id="calloutFollowMetadata" checked>
+              <label for="calloutFollowMetadata" data-i18n="content.calloutFollowMetadata">字段跟随元数据设置（默认）</label>
+            </div>
+            <div class="help-text" style="margin-bottom:8px; color:var(--text-muted); font-size:12px;" data-i18n="content.calloutFieldsHelp">关闭上面的选项后，可独立选择引用框字段；可只选 1 条或任意多条。</div>
+            <div id="calloutFieldsPanel" style="display:none; margin-top:8px;">
+              <div style="display:grid; gap:6px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutSource" checked style="flex-shrink:0;">
+                  <label for="calloutSource" style="min-width:70px;font-size:13px;" data-i18n="meta.source">来源</label>
+                  <input type="text" id="calloutSourceKey" value="来源" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutTitle" checked style="flex-shrink:0;">
+                  <label for="calloutTitle" style="min-width:70px;font-size:13px;" data-i18n="meta.title">标题</label>
+                  <input type="text" id="calloutTitleKey" value="标题" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutAuthor" checked style="flex-shrink:0;">
+                  <label for="calloutAuthor" style="min-width:70px;font-size:13px;" data-i18n="meta.author">作者</label>
+                  <input type="text" id="calloutAuthorKey" value="作者" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutCategory" checked style="flex-shrink:0;">
+                  <label for="calloutCategory" style="min-width:70px;font-size:13px;" data-i18n="meta.category">类别</label>
+                  <input type="text" id="calloutCategoryKey" value="类别" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutTags" checked style="flex-shrink:0;">
+                  <label for="calloutTags" style="min-width:70px;font-size:13px;" data-i18n="meta.tags">标签</label>
+                  <input type="text" disabled value="tags" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--sub-bg);color:var(--text-muted);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutSaveTime" checked style="flex-shrink:0;">
+                  <label for="calloutSaveTime" style="min-width:70px;font-size:13px;" data-i18n="meta.saveTime">保存时间</label>
+                  <input type="text" id="calloutSaveTimeKey" value="保存时间" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutPlatform" checked style="flex-shrink:0;">
+                  <label for="calloutPlatform" style="min-width:70px;font-size:13px;" data-i18n="meta.platform">平台</label>
+                  <input type="text" id="calloutPlatformKey" value="平台" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" id="calloutCommentCount" checked style="flex-shrink:0;">
+                  <label for="calloutCommentCount" style="min-width:70px;font-size:13px;" data-i18n="meta.commentCount">评论数</label>
+                  <input type="text" id="calloutCommentCountKey" value="评论数" style="flex:1;padding:3px 6px;font-size:12px;border:1px solid var(--input-border);border-radius:4px;background:var(--input-bg);color:var(--text);">
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- 元数据字段子面板，勾选"添加元数据"后展开 -->
@@ -753,8 +810,8 @@
             </div>
             <div class="form-group">
               <label data-i18n="content.restApiPort">端口</label>
-              <input type="number" id="restApiPort" value="27124" min="1" max="65535">
-              <div class="help-text" data-i18n="obsidian.restApiPortHelp">默认 27124</div>
+              <input type="number" id="restApiPort" value="27123" min="1" max="65535">
+              <div class="help-text" data-i18n="obsidian.restApiPortHelp">默认 27123</div>
             </div>
             <div style="display:flex;gap:10px;align-items:stretch;margin-top:8px;">
               <button type="button" id="testRestApiBtn" data-i18n="obsidian.testConnection" style="flex:1;background:var(--success);color:#fff;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;">测试连接</button>
@@ -809,25 +866,36 @@
               </div>
               <button type="button" class="btn-test" id="testFeishuBtn" data-i18n="buttons.testConnection">测试连接</button>
             </div>
-            <div class="checkbox-row" style="margin-top: 12px;">
-              <input type="checkbox" id="feishuUploadContent" checked>
-              <label for="feishuUploadContent" data-i18n="feishu.uploadContent">上传正文到「正文」字段</label>
+            <input type="checkbox" id="feishuUploadContent" checked style="display:none;">
+            <div class="help-text" style="margin-top: 6px;" data-i18n="feishu.contentFixed">
+              正文将固定写入「正文」字段（文本）。
             </div>
             <div class="checkbox-row" style="margin-top: 6px;">
-              <input type="checkbox" id="feishuUploadAttachment">
-              <label for="feishuUploadAttachment" data-i18n="feishu.uploadMd">上传 MD 附件（需额外权限，可选）</label>
+              <input type="checkbox" id="feishuUploadContentAsCloudDoc">
+              <label for="feishuUploadContentAsCloudDoc" data-i18n="feishu.uploadContentAsCloudDoc">将正文导入飞书云文档，并写入「云文档链接」字段（无该字段则追加到正文顶部）</label>
             </div>
-            <div class="checkbox-row" style="margin-top: 6px;">
-              <input type="checkbox" id="feishuUploadHtml">
-              <label for="feishuUploadHtml" data-i18n="feishu.uploadHtml">上传 HTML 附件（需额外权限，可选）</label>
+            <div class="help-text" id="feishuCloudDocHint" data-i18n="feishu.uploadContentAsCloudDocHelp" style="display:none;">
+              需先勾选「上传正文到正文字段」后，才能启用该选项。
             </div>
-            <div class="tip-box" style="margin-top: 16px; background: var(--warning-bg); border-left-color: var(--warning);">
-              <p>
-                <strong data-i18n="feishu.permRequired">必须的权限：</strong><span data-i18n="feishu.permRequiredContent">bitable:app（多维表格读写）</span><br>
-                <strong data-i18n="feishu.permAttachment">附件权限：</strong><span data-i18n="feishu.permAttachmentContent">drive:file:upload（可选）</span><br>
-                <strong data-i18n="feishu.permFields">字段：</strong><span data-i18n="feishu.permFieldsContent">标题(文本)、链接(超链接)、作者(文本)、分类(文本)、标签(文本)、保存时间(日期)、评论数(数字)、正文(文本)、附件(附件)</span>
-              </p>
-            </div>
+            <details style="margin-top: 12px;">
+              <summary style="cursor:pointer; color: var(--text-muted);" data-i18n="feishu.advancedOptions">高级选项（附件与权限说明）</summary>
+              <div class="checkbox-row" style="margin-top: 10px;">
+                <input type="checkbox" id="feishuUploadAttachment">
+                <label for="feishuUploadAttachment" data-i18n="feishu.uploadMd">上传 MD 附件（需额外权限，可选）</label>
+              </div>
+              <div class="checkbox-row" style="margin-top: 6px;">
+                <input type="checkbox" id="feishuUploadHtml">
+                <label for="feishuUploadHtml" data-i18n="feishu.uploadHtml">上传 HTML 附件（需额外权限，可选）</label>
+              </div>
+              <div class="tip-box" style="margin-top: 12px; background: var(--warning-bg); border-left-color: var(--warning);">
+                <p>
+                  <strong data-i18n="feishu.permRequired">必须的权限：</strong><span data-i18n="feishu.permRequiredContent">bitable:app（多维表格读写）</span><br>
+                  <strong data-i18n="feishu.permAttachment">附件权限：</strong><span data-i18n="feishu.permAttachmentContent">drive:file:upload（可选）</span><br>
+                  <strong data-i18n="feishu.permImport">导入云文档权限：</strong><span data-i18n="feishu.permImportContent">docs:document:import（启用“正文导入云文档”时必需）</span><br>
+                  <strong data-i18n="feishu.permFields">字段：</strong><span data-i18n="feishu.permFieldsContent">标题(文本)、链接(超链接)、作者(文本)、分类(文本)、标签(文本)、保存时间(日期)、评论数(数字)、正文(文本)、附件(附件)；可选：云文档链接(超链接/文本)</span>
+                </p>
+              </div>
+            </details>
           </div>
         </div>
       </div>
@@ -926,6 +994,92 @@
 
           <div class="tip-box" style="margin-top: 16px;">
             <p data-i18n="siyuan.configStepsTip"><strong>配置步骤：</strong><br>1. 确保思源笔记已启动（默认端口 6806）<br>2. 如需鉴权：设置 → 关于 → 设置访问授权码<br>3. 笔记本 ID 留空，先点「测试连接」查看可用笔记本列表<br>4. 复制目标笔记本 ID 填入上方输入框<br>5. 再次测试连接确认成功</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Tab: WebDAV ==================== -->
+      <div class="tab-panel" id="tab-webdav">
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="saveToWebDAV">
+            <span data-i18n="webdav.enable">启用 WebDAV 保存</span>
+          </label>
+          <div class="help-text" data-i18n="webdav.enableHelp">保存到支持 WebDAV 协议的网盘（坚果云、Nextcloud 等）</div>
+        </div>
+
+        <div id="webdavSection">
+          <div class="form-group">
+            <label data-i18n="webdav.url">WebDAV 服务器地址</label>
+            <input type="text" id="webdavUrl" placeholder="https://dav.jianguoyun.com/dav/">
+            <div class="help-text" data-i18n="webdav.urlHelp">WebDAV 服务端点地址。坚果云: https://dav.jianguoyun.com/dav/</div>
+          </div>
+          <div class="form-group">
+            <label data-i18n="webdav.username">用户名</label>
+            <input type="text" id="webdavUsername" placeholder="your@email.com">
+          </div>
+          <div class="form-group">
+            <label data-i18n="webdav.password">密码（或应用密码）</label>
+            <input type="password" id="webdavPassword" placeholder="应用密码">
+            <div class="help-text" data-i18n="webdav.passwordHelp">坚果云请使用「账户信息 → 安全选项 → 应用密码」</div>
+          </div>
+          <div class="form-group">
+            <label data-i18n="webdav.path">保存路径</label>
+            <input type="text" id="webdavPath" placeholder="/Discourse收集箱">
+            <div class="help-text" data-i18n="webdav.pathHelp">网盘上的保存目录，不存在时会自动创建</div>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="webdavAutoFolder">
+              <span data-i18n="webdav.autoFolder">按论坛域名自动分文件夹</span>
+            </label>
+            <div class="help-text" data-i18n="webdav.autoFolderHelp">开启后，在保存路径下自动创建以论坛域名为名的子文件夹（如 linux.do → /Discourse收集箱/linux/）</div>
+          </div>
+          <button type="button" id="testWebDAVBtn" class="test-btn" data-i18n="webdav.testConnection">测试连接</button>
+
+          <div class="tip-box" style="margin-top: 16px;">
+            <p data-i18n="webdav.configStepsTip"><strong>配置步骤（以坚果云为例）：</strong><br>1. 登录坚果云网页版<br>2. 进入「账户信息 → 安全选项」<br>3. 添加「应用密码」，复制生成的密码<br>4. 填入上方：URL=https://dav.jianguoyun.com/dav/，用户名=邮箱，密码=应用密码<br>5. 点击「测试连接」确认配置正确</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== Tab: Baidu ==================== -->
+      <div class="tab-panel" id="tab-baidu">
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="saveToBaidu">
+            <span data-i18n="baidu.enable">启用百度网盘保存</span>
+          </label>
+          <div class="help-text" data-i18n="baidu.enableHelp">通过百度网盘开放 API 保存帖子到网盘</div>
+        </div>
+
+        <div id="baiduSection">
+          <div class="form-group">
+            <label data-i18n="baidu.auth">授权状态</label>
+            <button type="button" id="baiduAuthBtn" class="test-btn" data-i18n="baidu.authorize">百度网盘授权登录</button>
+            <div class="help-text" data-i18n="baidu.authHelp">点击按钮弹出百度登录页进行授权，授权后 token 自动刷新</div>
+          </div>
+          <div class="form-group">
+            <label data-i18n="baidu.appFolder">应用文件夹</label>
+            <input type="text" id="baiduAppFolder" placeholder="/apps/ob-sync">
+            <div class="help-text" data-i18n="baidu.appFolderHelp">百度网盘 /apps/ 下的应用目录名，默认 ob-sync</div>
+          </div>
+          <div class="form-group">
+            <label data-i18n="baidu.vaultFolder">Vault 名称（网盘子目录）</label>
+            <input type="text" id="baiduVaultFolder" placeholder="Discourse收集箱">
+            <div class="help-text" data-i18n="baidu.vaultFolderHelp">应用文件夹下的子目录名</div>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="baiduAutoFolder">
+              <span data-i18n="baidu.autoFolder">按论坛域名自动分文件夹</span>
+            </label>
+            <div class="help-text" data-i18n="baidu.autoFolderHelp">开启后，在保存路径下自动创建以论坛域名为名的子文件夹（如 linux.do → /apps/ob-sync/Discourse收集箱/linux/）</div>
+          </div>
+          <button type="button" id="testBaiduBtn" class="test-btn" data-i18n="baidu.testConnection">测试连接</button>
+
+          <div class="tip-box" style="margin-top: 16px;">
+            <p data-i18n="baidu.configStepsTip"><strong>配置步骤：</strong><br>1. 勾选「启用百度网盘保存」<br>2. 点击「百度网盘授权登录」，在弹出页面登录百度账号并授权<br>3. 授权成功后可点击「测试连接」查看网盘使用情况<br>4. 可选：开启「按论坛域名自动分文件夹」自动归类</p>
           </div>
         </div>
       </div>
@@ -1054,3 +1208,4 @@
   <script src="options.js"></script>
 </body>
 </html>
+

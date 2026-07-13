@@ -57,6 +57,7 @@ const DEFAULT_CONFIG = {
   feishuAppToken: '',
   feishuTableId: '',
   feishuUploadContent: true,  // V5.3.1: 默认上传正文
+  feishuUploadContentAsCloudDoc: false,
   feishuUploadAttachment: false,
 
   // Notion 设置 (V4.0.1)
@@ -80,6 +81,16 @@ const DEFAULT_CONFIG = {
 
   // 内容设置
   addMetadata: false,
+  addPostInfoCallout: false,
+  calloutFollowMetadata: true,
+  calloutSource: true,       calloutSourceKey: '来源',
+  calloutTitle: true,        calloutTitleKey: '标题',
+  calloutAuthor: true,       calloutAuthorKey: '作者',
+  calloutCategory: true,     calloutCategoryKey: '类别',
+  calloutTags: true,
+  calloutSaveTime: true,     calloutSaveTimeKey: '保存时间',
+  calloutPlatform: true,     calloutPlatformKey: '平台',
+  calloutCommentCount: true, calloutCommentCountKey: '评论数',
   // 元数据字段独立勾选 + 自定义字段名（仅影响 Obsidian/语雀/思源 frontmatter，飞书/Notion 字段不受影响）
   metaSource: true,       metaSourceKey: '来源',
   metaTitle: true,        metaTitleKey: '标题',
@@ -114,7 +125,7 @@ const DEFAULT_CONFIG = {
   downloadImages: false,
   downloadVideos: true,
   restApiKey: '',
-  restApiPort: 27124,
+  restApiPort: 27123,
   mediaFolderName: 'media',
   mediaFolderPerTitle: false,
 
@@ -129,7 +140,21 @@ const DEFAULT_CONFIG = {
   siyuanApiUrl: 'http://127.0.0.1:6806',
   siyuanToken: '',
   siyuanNotebook: '',
-  siyuanSavePath: '/Discourse收集箱'
+  siyuanSavePath: '/Discourse收集箱',
+
+  // WebDAV 设置
+  saveToWebDAV: false,
+  webdavUrl: '',
+  webdavUsername: '',
+  webdavPassword: '',
+  webdavPath: '/Discourse收集箱',
+  webdavAutoFolder: false,
+
+  // 百度网盘设置
+  saveToBaidu: false,
+  baiduAppFolder: '/apps/ob-sync',
+  baiduVaultFolder: 'Discourse收集箱',
+  baiduAutoFolder: false
 };
 
 // (已移除 toggleSection / expandAllSections 死代码 - HTML 中无对应元素)
@@ -261,7 +286,9 @@ function loadOptions() {
     document.getElementById('feishuAppSecret').value = config.feishuAppSecret;
     document.getElementById('feishuAppToken').value = config.feishuAppToken;
     document.getElementById('feishuTableId').value = config.feishuTableId;
-    document.getElementById('feishuUploadContent').checked = config.feishuUploadContent !== false;  // V5.3.1: 默认true
+    // 精简模式：正文固定写入正文文本字段
+    document.getElementById('feishuUploadContent').checked = true;
+    document.getElementById('feishuUploadContentAsCloudDoc').checked = config.feishuUploadContentAsCloudDoc === true || config.feishuUploadContentAsCloudDoc === 'true';
     document.getElementById('feishuUploadAttachment').checked = config.feishuUploadAttachment;
     document.getElementById('feishuUploadHtml').checked = config.feishuUploadHtml || false;
 
@@ -291,9 +318,27 @@ function loadOptions() {
     document.getElementById('siyuanNotebook').value = config.siyuanNotebook || '';
     document.getElementById('siyuanSavePath').value = config.siyuanSavePath || '/Discourse收集箱';
 
+    // WebDAV 设置
+    document.getElementById('saveToWebDAV').checked = config.saveToWebDAV;
+    document.getElementById('webdavUrl').value = config.webdavUrl || '';
+    document.getElementById('webdavUsername').value = config.webdavUsername || '';
+    document.getElementById('webdavPassword').value = config.webdavPassword || '';
+    document.getElementById('webdavPath').value = config.webdavPath || '/Discourse收集箱';
+    document.getElementById('webdavAutoFolder').checked = config.webdavAutoFolder === true;
+
+    // 百度网盘设置
+    document.getElementById('saveToBaidu').checked = config.saveToBaidu;
+    document.getElementById('baiduAppFolder').value = config.baiduAppFolder || '/apps/ob-sync';
+    document.getElementById('baiduVaultFolder').value = config.baiduVaultFolder || 'Discourse收集箱';
+    document.getElementById('baiduAutoFolder').checked = config.baiduAutoFolder === true;
+
     // 内容设置
     document.getElementById('addMetadata').checked = config.addMetadata;
+    document.getElementById('addPostInfoCallout').checked = config.addPostInfoCallout === true;
+    document.getElementById('calloutFollowMetadata').checked = config.calloutFollowMetadata !== false;
     updateMetadataPanelVisibility(config.addMetadata);
+    updatePostInfoCalloutPanelVisibility(config.addPostInfoCallout === true);
+    updateCalloutFieldsPanelVisibility(config.calloutFollowMetadata !== false);
 
     // 元数据字段独立勾选 + 自定义字段名
     const metaFields = [
@@ -318,6 +363,25 @@ function loadOptions() {
       }
     });
 
+    const calloutFields = [
+      ['calloutSource', 'calloutSourceKey'],
+      ['calloutTitle', 'calloutTitleKey'],
+      ['calloutAuthor', 'calloutAuthorKey'],
+      ['calloutCategory', 'calloutCategoryKey'],
+      ['calloutTags', null],
+      ['calloutSaveTime', 'calloutSaveTimeKey'],
+      ['calloutPlatform', 'calloutPlatformKey'],
+      ['calloutCommentCount', 'calloutCommentCountKey'],
+    ];
+    calloutFields.forEach(([field, keyField]) => {
+      const chk = document.getElementById(field);
+      if (chk) chk.checked = config[field] !== false;
+      if (keyField) {
+        const inp = document.getElementById(keyField);
+        if (inp) inp.value = config[keyField] || DEFAULT_CONFIG[keyField] || '';
+      }
+    });
+
     document.getElementById('includeImages').checked = config.includeImages;
 
     // 图片嵌入设置 (V3.6.0)
@@ -328,7 +392,7 @@ function loadOptions() {
     // 下载图片/视频到Vault
     document.getElementById('downloadImages').checked = config.downloadImages;
     document.getElementById('restApiKey').value = config.restApiKey || '';
-    document.getElementById('restApiPort').value = config.restApiPort || 27124;
+    document.getElementById('restApiPort').value = config.restApiPort || 27123;
     document.getElementById('downloadVideos').checked = config.downloadVideos !== false;
     document.getElementById('mediaFolderName').value = config.mediaFolderName || 'media';
     document.getElementById('mediaFolderPerTitle').checked = config.mediaFolderPerTitle === true;
@@ -355,6 +419,8 @@ function loadOptions() {
     updateFloorRangeVisibility(config.useFloorRange);
     updateYuqueOptionsVisibility(config.saveToYuque);
     updateSiyuanOptionsVisibility(config.saveToSiyuan);
+    updateWebDAVOptionsVisibility(config.saveToWebDAV);
+    updateBaiduOptionsVisibility(config.saveToBaidu);
 
     // (已移除 expandAllSections 调用 - Tab 布局无需折叠展开)
     });
@@ -384,6 +450,34 @@ function updateFeishuOptionsVisibility(enabled) {
     inputs.forEach(el => {
       el.style.pointerEvents = enabled ? 'auto' : 'none';
     });
+  }
+  updateFeishuCloudDocDependency();
+}
+
+// 飞书云文档导入依赖：需先启用保存到飞书 + 上传正文
+function updateFeishuCloudDocDependency() {
+  const saveToFeishuEl = document.getElementById('saveToFeishu');
+  const uploadContentEl = document.getElementById('feishuUploadContent');
+  const cloudDocEl = document.getElementById('feishuUploadContentAsCloudDoc');
+  const cloudDocLabel = document.querySelector('label[for="feishuUploadContentAsCloudDoc"]');
+  const cloudDocHint = document.getElementById('feishuCloudDocHint');
+
+  if (!saveToFeishuEl || !uploadContentEl || !cloudDocEl) return;
+
+  const feishuEnabled = !!saveToFeishuEl.checked;
+  const contentEnabled = !!uploadContentEl.checked;
+  const canEnableCloudDoc = feishuEnabled && contentEnabled;
+
+  cloudDocEl.disabled = !canEnableCloudDoc;
+  if (!canEnableCloudDoc && cloudDocEl.checked) {
+    cloudDocEl.checked = false;
+  }
+
+  if (cloudDocLabel) {
+    cloudDocLabel.style.opacity = canEnableCloudDoc ? '1' : '0.6';
+  }
+  if (cloudDocHint) {
+    cloudDocHint.style.display = !feishuEnabled ? 'block' : 'none';
   }
 }
 
@@ -433,6 +527,20 @@ function updateMetadataPanelVisibility(enabled) {
   const panel = document.getElementById('metadataFieldsPanel');
   if (panel) {
     panel.style.display = enabled ? 'block' : 'none';
+  }
+}
+
+function updatePostInfoCalloutPanelVisibility(enabled) {
+  const panel = document.getElementById('postInfoCalloutPanel');
+  if (panel) {
+    panel.style.display = enabled ? 'block' : 'none';
+  }
+}
+
+function updateCalloutFieldsPanelVisibility(followMetadata) {
+  const panel = document.getElementById('calloutFieldsPanel');
+  if (panel) {
+    panel.style.display = followMetadata ? 'none' : 'block';
   }
 }
 
@@ -500,7 +608,8 @@ function saveOptions(e) {
     feishuAppSecret: document.getElementById('feishuAppSecret').value.trim(),
     feishuAppToken: document.getElementById('feishuAppToken').value.trim(),
     feishuTableId: document.getElementById('feishuTableId').value.trim(),
-    feishuUploadContent: document.getElementById('feishuUploadContent').checked,  // V5.3.1
+    feishuUploadContent: true,  // 精简模式：正文固定上传
+    feishuUploadContentAsCloudDoc: document.getElementById('feishuUploadContentAsCloudDoc').checked,
     feishuUploadAttachment: document.getElementById('feishuUploadAttachment').checked,
     feishuUploadHtml: document.getElementById('feishuUploadHtml').checked,
 
@@ -529,8 +638,24 @@ function saveOptions(e) {
     siyuanNotebook: document.getElementById('siyuanNotebook').value.trim(),
     siyuanSavePath: document.getElementById('siyuanSavePath').value.trim() || '/Discourse收集箱',
 
+    // WebDAV 设置
+    saveToWebDAV: document.getElementById('saveToWebDAV').checked,
+    webdavUrl: document.getElementById('webdavUrl').value.trim(),
+    webdavUsername: document.getElementById('webdavUsername').value.trim(),
+    webdavPassword: document.getElementById('webdavPassword').value.trim(),
+    webdavPath: document.getElementById('webdavPath').value.trim() || '/Discourse收集箱',
+    webdavAutoFolder: document.getElementById('webdavAutoFolder').checked,
+
+    // 百度网盘设置
+    saveToBaidu: document.getElementById('saveToBaidu').checked,
+    baiduAppFolder: document.getElementById('baiduAppFolder').value.trim() || '/apps/ob-sync',
+    baiduVaultFolder: document.getElementById('baiduVaultFolder').value.trim() || 'Discourse收集箱',
+    baiduAutoFolder: document.getElementById('baiduAutoFolder').checked,
+
     // 内容设置
     addMetadata: document.getElementById('addMetadata').checked,
+    addPostInfoCallout: document.getElementById('addPostInfoCallout')?.checked === true,
+    calloutFollowMetadata: document.getElementById('calloutFollowMetadata')?.checked !== false,
 
     // 元数据字段独立勾选 + 自定义字段名
     metaSource:      document.getElementById('metaSource')?.checked !== false,
@@ -554,6 +679,21 @@ function saveOptions(e) {
     metaOrganizeKey: document.getElementById('metaOrganizeKey')?.value.trim() || '整理',
     metaCommentCount:document.getElementById('metaCommentCount')?.checked !== false,
     metaCommentCountKey:document.getElementById('metaCommentCountKey')?.value.trim() || '评论数',
+    calloutSource:      document.getElementById('calloutSource')?.checked !== false,
+    calloutSourceKey:   document.getElementById('calloutSourceKey')?.value.trim() || '来源',
+    calloutTitle:       document.getElementById('calloutTitle')?.checked !== false,
+    calloutTitleKey:    document.getElementById('calloutTitleKey')?.value.trim() || '标题',
+    calloutAuthor:      document.getElementById('calloutAuthor')?.checked !== false,
+    calloutAuthorKey:   document.getElementById('calloutAuthorKey')?.value.trim() || '作者',
+    calloutCategory:    document.getElementById('calloutCategory')?.checked !== false,
+    calloutCategoryKey: document.getElementById('calloutCategoryKey')?.value.trim() || '类别',
+    calloutTags:        document.getElementById('calloutTags')?.checked !== false,
+    calloutSaveTime:    document.getElementById('calloutSaveTime')?.checked !== false,
+    calloutSaveTimeKey: document.getElementById('calloutSaveTimeKey')?.value.trim() || '保存时间',
+    calloutPlatform:    document.getElementById('calloutPlatform')?.checked !== false,
+    calloutPlatformKey: document.getElementById('calloutPlatformKey')?.value.trim() || '平台',
+    calloutCommentCount:document.getElementById('calloutCommentCount')?.checked !== false,
+    calloutCommentCountKey:document.getElementById('calloutCommentCountKey')?.value.trim() || '评论数',
 
     includeImages: document.getElementById('includeImages').checked,
 
@@ -566,7 +706,7 @@ function saveOptions(e) {
     downloadImages: document.getElementById('downloadImages').checked,
     downloadVideos: document.getElementById('downloadVideos').checked,
     restApiKey: document.getElementById('restApiKey').value.trim(),
-    restApiPort: parseInt(document.getElementById('restApiPort').value) || 27124,
+    restApiPort: parseInt(document.getElementById('restApiPort').value) || 27123,
     mediaFolderName: document.getElementById('mediaFolderName').value.trim() || 'media',
     mediaFolderPerTitle: document.getElementById('mediaFolderPerTitle').checked,
 
@@ -582,7 +722,7 @@ function saveOptions(e) {
   };
 
   // 验证：插件启用时至少选择一个保存目标
-  if (config.pluginEnabled && !config.saveToObsidian && !config.saveToFeishu && !config.saveToNotion && !config.saveToYuque && !config.saveToSiyuan && !config.exportHtml) {
+  if (config.pluginEnabled && !config.saveToObsidian && !config.saveToFeishu && !config.saveToNotion && !config.saveToYuque && !config.saveToSiyuan && !config.saveToWebDAV && !config.saveToBaidu && !config.exportHtml) {
     showStatus('请至少选择一个保存目标', 'error');
     return;
   }
@@ -637,6 +777,18 @@ function saveOptions(e) {
   if (config.saveToSiyuan) {
     if (!config.siyuanNotebook) {
       showStatus('请填写思源笔记笔记本 ID（可先点测试连接查看列表）', 'error');
+      return;
+    }
+  }
+
+  // 验证：如果启用 WebDAV，检查必填项
+  if (config.saveToWebDAV) {
+    if (!config.webdavUrl) {
+      showStatus('请填写 WebDAV 服务器地址', 'error');
+      return;
+    }
+    if (!config.webdavUsername || !config.webdavPassword) {
+      showStatus('请填写 WebDAV 用户名和密码', 'error');
       return;
     }
   }
@@ -942,7 +1094,7 @@ async function testRestApiConnection() {
   btn.disabled = true;
 
   const apiKey = document.getElementById('restApiKey').value.trim();
-  const apiPort = document.getElementById('restApiPort').value.trim() || '27124';
+  const apiPort = document.getElementById('restApiPort').value.trim() || '27123';
 
   if (!apiKey) {
     showStatus('请先填写 REST API Key', 'error');
@@ -1202,6 +1354,148 @@ async function testSiyuanConnection() {
   btn.disabled = false;
 }
 
+function updateWebDAVOptionsVisibility(enabled) {
+  const section = document.getElementById('webdavSection');
+  if (section) {
+    section.style.opacity = enabled ? '1' : '0.5';
+    const inputs = section.querySelectorAll('input, select, button');
+    inputs.forEach(el => {
+      if (!el.classList.contains('test-btn') && el.id !== 'testWebDAVBtn') {
+        el.style.pointerEvents = enabled ? 'auto' : 'none';
+      }
+    });
+  }
+}
+
+// 测试 WebDAV 连接
+async function testWebDAVConnection() {
+  const btn = document.getElementById('testWebDAVBtn');
+  const originalText = btn.textContent;
+
+  btn.textContent = '测试中...';
+  btn.disabled = true;
+
+  const webdavUrl = document.getElementById('webdavUrl').value.trim();
+  const webdavUsername = document.getElementById('webdavUsername').value.trim();
+  const webdavPassword = document.getElementById('webdavPassword').value.trim();
+  const webdavPath = document.getElementById('webdavPath').value.trim() || '/Discourse收集箱';
+
+  if (!webdavUrl || !webdavUsername || !webdavPassword) {
+    showStatus('请填写完整的 WebDAV 配置（URL、用户名、密码）', 'error');
+    btn.textContent = originalText;
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    const result = await new Promise((resolve) => {
+      chrome.runtime.sendMessage({
+        action: 'testWebDAVConnection',
+        config: {
+          webdavUrl: webdavUrl,
+          webdavUsername: webdavUsername,
+          webdavPassword: webdavPassword,
+          webdavPath: webdavPath
+        }
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          resolve(response);
+        }
+      });
+    });
+
+    if (result.success) {
+      showStatus(result.message || 'WebDAV 连接成功', 'success');
+    } else {
+      showStatus('WebDAV 连接失败: ' + (result.error || '未知错误'), 'error');
+    }
+  } catch (error) {
+    showStatus('WebDAV 测试失败: ' + error.message, 'error');
+  }
+
+  btn.textContent = originalText;
+  btn.disabled = false;
+}
+
+function updateBaiduOptionsVisibility(enabled) {
+  const section = document.getElementById('baiduSection');
+  if (section) {
+    section.style.opacity = enabled ? '1' : '0.5';
+    const inputs = section.querySelectorAll('input, select, button');
+    inputs.forEach(el => {
+      if (!el.classList.contains('test-btn') && el.id !== 'testBaiduBtn' && el.id !== 'baiduAuthBtn') {
+        el.style.pointerEvents = enabled ? 'auto' : 'none';
+      }
+    });
+  }
+}
+
+// 百度网盘 OAuth 授权
+async function baiduOAuth() {
+  const btn = document.getElementById('baiduAuthBtn');
+  const originalText = btn.textContent;
+
+  btn.textContent = '授权中...';
+  btn.disabled = true;
+
+  try {
+    const result = await new Promise((resolve) => {
+      chrome.runtime.sendMessage({ action: 'baiduOAuth' }, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          resolve(response);
+        }
+      });
+    });
+
+    if (result.success) {
+      showStatus(result.message || '百度网盘授权成功', 'success');
+    } else {
+      showStatus('百度网盘授权失败: ' + (result.error || '未知错误'), 'error');
+    }
+  } catch (error) {
+    showStatus('百度网盘授权失败: ' + error.message, 'error');
+  }
+
+  btn.textContent = originalText;
+  btn.disabled = false;
+}
+
+// 测试百度网盘连接
+async function testBaiduConnection() {
+  const btn = document.getElementById('testBaiduBtn');
+  const originalText = btn.textContent;
+
+  btn.textContent = '测试中...';
+  btn.disabled = true;
+
+  try {
+    const result = await new Promise((resolve) => {
+      chrome.runtime.sendMessage({ action: 'testBaiduConnection' }, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          resolve(response);
+        }
+      });
+    });
+
+    if (result.success) {
+      showStatus(result.message || '百度网盘连接成功', 'success');
+    } else {
+      showStatus('百度网盘连接失败: ' + (result.error || '未知错误'), 'error');
+    }
+  } catch (error) {
+    showStatus('百度网盘测试失败: ' + error.message, 'error');
+  }
+
+  btn.textContent = originalText;
+  btn.disabled = false;
+}
+
 // 显示状态
 function showStatus(message, type) {
   const statusElement = document.getElementById('statusMessage');
@@ -1279,6 +1573,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('saveToFeishu').addEventListener('change', (e) => {
     updateFeishuOptionsVisibility(e.target.checked);
   });
+  document.getElementById('feishuUploadContent').addEventListener('change', () => {
+    updateFeishuCloudDocDependency();
+  });
+  document.getElementById('feishuUploadContentAsCloudDoc').addEventListener('change', (e) => {
+    chrome.storage.sync.set({ feishuUploadContentAsCloudDoc: e.target.checked });
+  });
 
   document.getElementById('saveToNotion').addEventListener('change', (e) => {
     updateNotionOptionsVisibility(e.target.checked);
@@ -1298,6 +1598,19 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSiyuanOptionsVisibility(e.target.checked);
   });
   document.getElementById('testSiyuanBtn').addEventListener('click', testSiyuanConnection);
+
+  // WebDAV 相关事件
+  document.getElementById('saveToWebDAV').addEventListener('change', (e) => {
+    updateWebDAVOptionsVisibility(e.target.checked);
+  });
+  document.getElementById('testWebDAVBtn').addEventListener('click', testWebDAVConnection);
+
+  // 百度网盘相关事件
+  document.getElementById('saveToBaidu').addEventListener('change', (e) => {
+    updateBaiduOptionsVisibility(e.target.checked);
+  });
+  document.getElementById('baiduAuthBtn').addEventListener('click', baiduOAuth);
+  document.getElementById('testBaiduBtn').addEventListener('click', testBaiduConnection);
 
   // 下载图片到Vault复选框
   document.getElementById('downloadImages').addEventListener('change', () => {
@@ -1366,6 +1679,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // 添加元数据：控制元数据字段子面板显示
   document.getElementById('addMetadata').addEventListener('change', (e) => {
     updateMetadataPanelVisibility(e.target.checked);
+  });
+  document.getElementById('addPostInfoCallout').addEventListener('change', (e) => {
+    updatePostInfoCalloutPanelVisibility(e.target.checked);
+  });
+  document.getElementById('calloutFollowMetadata').addEventListener('change', (e) => {
+    updateCalloutFieldsPanelVisibility(e.target.checked);
   });
 
   // 保留图片链接：控制 embedImages/downloadImages 是否可用
@@ -1558,6 +1877,8 @@ document.addEventListener('DOMContentLoaded', () => {
       URL.revokeObjectURL(url);
     });
   }
+
+  updateFeishuCloudDocDependency();
 
   // Auto-load logs when general tab is shown
   loadLogs();

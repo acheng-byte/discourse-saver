@@ -123,6 +123,10 @@ const VALUABLE_LINK_DOMAINS = [
   'kaggle.com', 'www.kaggle.com',
   'arxiv.org',
   'doi.org'
+  ,
+  // 飞书/Lark 文档链接（云文档回写回退到正文时必须保留）
+  'feishu.cn', 'www.feishu.cn', 'open.feishu.cn',
+  'larksuite.com', 'www.larksuite.com', 'open.larksuite.com'
 ];
 
 // 检查URL是否为值得保留的链接
@@ -136,6 +140,22 @@ function isValuableLink(url) {
   } catch {
     return false;
   }
+}
+
+// 统一清理飞书接口中的非法字符，避免 URL/文本字段转换失败
+function sanitizeForFeishuValue(input, maxLen = 5000) {
+  let text = (input === null || input === undefined) ? '' : String(input);
+  text = text
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .replace(/[\u200B-\u200D\uFEFF\u2028\u2029]/g, '')
+    .replace(/\uFFFD/g, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .trim();
+  if (maxLen > 0 && text.length > maxLen) {
+    text = text.substring(0, maxLen);
+  }
+  return text;
 }
 
 // 清理和验证飞书多行文本内容
@@ -196,12 +216,384 @@ function sanitizeFeishuTextContent(content) {
     sanitized = sanitized.substring(0, FEISHU_TEXT_FIELD_LIMIT - 100) + '\n\n... (内容过长，已截断)';
   }
 
-  return sanitized;
+  return sanitizeForFeishuValue(sanitized, FEISHU_TEXT_FIELD_LIMIT);
 }
 
 // 获取 API 基础 URL
 function getApiBaseUrl(apiDomain) {
   return API_DOMAINS[apiDomain] || API_DOMAINS.feishu;
+}
+
+// 规范化 URL，确保飞书 URL 字段可接受
+function normalizeFeishuUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = sanitizeForFeishuValue(url, 2048)
+    .replace(/[),.;]+$/g, ''); // 去掉常见尾随符号，避免 URLFieldConvFail
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^\/\//.test(trimmed)) return 'https:' + trimmed;
+  return '';
+}
+
+function asBool(v, defaultValue = false) {
+  if (v === true || v === false) return v;
+  if (v === 1 || v === '1') return true;
+  if (v === 0 || v === '0') return false;
+  if (typeof v === 'string') {
+    const s = v.trim().toLowerCase();
+    if (s === 'true') return true;
+    if (s === 'false') return false;
+  }
+  return defaultValue;
+}
+
+// 根据飞书字段类型构造“链接”字段：
+// - URL(15): 传纯字符串，兼容性最好
+// - TEXT(1): 传 "标题 - URL" 文本
+// - 其他: 回退传纯 URL 字符串
+function buildFeishuLinkFieldValue(postData, linkFieldType) {
+  const safeUrl = normalizeFeishuUrl(postData?.url || '');
+  const safeTitle = sanitizeForFeishuValue(postData?.title || '', 500);
+  if (!safeUrl) return safeTitle || '';
+
+  if (linkFieldType === 15) {
+    // URL 字段优先用对象格式，减少 URLFieldConvFail 命中概率
+    return { link: safeUrl, text: safeTitle || safeUrl };
+  }
+  if (linkFieldType === 1) {
+    return safeTitle ? `${safeTitle} - ${safeUrl}` : safeUrl;
+  }
+  return safeUrl;
+}
+
+// 根据飞书字段类型构造“作者”字段：
+// - URL(15): 优先写作者主页链接；无主页则回退帖子链接
+// - TEXT(1): 写作者名；若有主页则附加在后面
+// - 其他: 回退作者名
+function buildFeishuAuthorFieldValue(postData, authorFieldType) {
+  const authorName = sanitizeForFeishuValue(postData?.author || '', 300) || '未知作者';
+  const authorUrl = normalizeFeishuUrl(postData?.authorUrl || '');
+
+  if (authorFieldType === 15) {
+    // 与用户提供的 raw 版脚本保持一致：超链接字段写 {link,text}
+    if (authorUrl) return { link: authorUrl, text: authorName };
+    return null;
+  }
+  if (authorFieldType === 1) {
+    return authorUrl ? `${authorName} - ${authorUrl}` : authorName;
+  }
+  return authorName;
+}
+
+function buildFeishuUrlValueCandidates(url, text) {
+  const safeUrl = normalizeFeishuUrl(url || '');
+  const safeText = sanitizeForFeishuValue(text || '', 300);
+  if (!safeUrl) return [];
+  const label = safeText || safeUrl;
+  return [
+    safeUrl,
+    { link: safeUrl, text: label },
+    [{ link: safeUrl, text: label }],
+    { text: label, link: safeUrl }
+  ];
+}
+
+const NO_CHANGE = '__DS_NO_CHANGE__';
+
+function getFieldValueFormat(value) {
+  if (Array.isArray(value)) return 'array';
+  if (value && typeof value === 'object') return 'object';
+  return 'string';
+}
+
+function normalizeMarkdownTableSeparators(markdown) {
+  const lines = String(markdown || '').split('\n');
+  let inCodeFence = false;
+
+  const isTableRow = (line) => /^\s*\|.+\|\s*$/.test(line);
+  const isWeakSeparator = (line) => /^\s*\|(?:\s*\|)+\s*$/.test(line);
+  const isValidSeparator = (line) => /^\s*\|(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(line);
+  const getColumnCount = (line) => {
+    const trimmed = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+    return trimmed.split('|').length;
+  };
+
+  for (let i = 0; i < lines.length - 1; i++) {
+    const current = lines[i];
+    const next = lines[i + 1];
+    if (/^\s*```/.test(current)) {
+      inCodeFence = !inCodeFence;
+      continue;
+    }
+    if (inCodeFence) continue;
+
+    if (isTableRow(current) && isWeakSeparator(next) && !isValidSeparator(next)) {
+      const cols = Math.max(1, getColumnCount(current));
+      lines[i + 1] = `|${Array(cols).fill(' --- ').join('|')}|`;
+    }
+  }
+
+  return lines.join('\n');
+}
+
+// 兼容不同命名的“云文档链接”字段
+function findFeishuCloudDocFieldName(fieldTypeMap) {
+  if (!fieldTypeMap || typeof fieldTypeMap !== 'object') return null;
+  const exact = ['云文档链接', '云文档', '文档链接', 'Cloud Doc Link', 'Doc Link', 'doc_link'];
+  for (const name of exact) {
+    if (fieldTypeMap[name] !== undefined) return name;
+  }
+  const names = Object.keys(fieldTypeMap);
+  return names.find(n => /云文档|文档|doc/i.test(n) && /链接|link|url/i.test(n)) || null;
+}
+
+// 获取飞书数据表字段映射（field_name -> type）
+async function getFeishuFieldTypeMap(token, appToken, tableId, apiDomain = 'feishu') {
+  const baseUrl = getApiBaseUrl(apiDomain);
+  const apiUrl = `${baseUrl}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/fields?page_size=500`;
+  const response = await fetch(apiUrl, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  const data = await safeParseJson(response, '获取字段列表');
+  if (data.code !== 0) {
+    throw new Error(parseFeishuError(data.code, data.msg, '获取字段列表'));
+  }
+  const map = {};
+  const items = data?.data?.items || [];
+  for (const f of items) {
+    if (f?.field_name) map[f.field_name] = f?.type;
+  }
+  return map;
+}
+
+function sanitizeCloudDocMarkdown(markdown, title = '') {
+  if (!markdown || typeof markdown !== 'string') return '# 空内容\n';
+  let result = sanitizeForFeishuValue(markdown, 0);
+  result = result.replace(/^---\n[\s\S]*?\n---\n*/m, '');
+  if (title && title.trim()) {
+    const escaped = sanitizeForFeishuValue(title, 500).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    result = result.replace(new RegExp(`^#\\s+${escaped}\\s*\\n+`, 'm'), '');
+  }
+  result = result.replace(/(^|\n)\s*\.\s*!\[/g, '$1![');
+  result = result.replace(
+    /!\[([^\]]*)\]\((https?:\/\/[^\s)]+\.webp(?:\?[^\s)]*)?)\)/gi,
+    (_m, alt, url) => `<img src="${url}" alt="${String(alt || '').replace(/"/g, '&quot;')}" />`
+  );
+  // 部分论坛导出的表格分隔行是 "| | | |"（非标准），先规范化，避免飞书导入后变成纯文本
+  result = normalizeMarkdownTableSeparators(result);
+  result = result.replace(/\n{4,}/g, '\n\n\n');
+  return result.trim() || '# 空内容\n';
+}
+
+function getFeishuDocHost(apiDomain = 'feishu') {
+  return apiDomain === 'lark' ? 'https://www.larksuite.com' : 'https://www.feishu.cn';
+}
+
+function createClientToken() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `ds-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function splitTextForDocBlocks(text, maxLen = 1800, maxBlocks = 80) {
+  const source = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim() || '空内容';
+  const paragraphs = source.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  const chunks = [];
+
+  for (const paragraph of paragraphs) {
+    let remaining = paragraph;
+    while (remaining.length > 0) {
+      chunks.push(remaining.slice(0, maxLen));
+      remaining = remaining.slice(maxLen);
+      if (chunks.length >= maxBlocks) break;
+    }
+    if (chunks.length >= maxBlocks) break;
+  }
+
+  if (chunks.length === 0) chunks.push('空内容');
+  if (source.length > chunks.join('\n\n').length && chunks.length >= maxBlocks) {
+    chunks[chunks.length - 1] += '\n\n...（内容过长，已截断）';
+  }
+  return chunks;
+}
+
+async function getFeishuRootFolderToken(token, apiDomain = 'feishu') {
+  const baseUrl = getApiBaseUrl(apiDomain);
+  const response = await fetch(`${baseUrl}/open-apis/drive/explorer/v2/root_folder/meta`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  const data = await safeParseJson(response, '获取飞书根目录 token');
+  if (data.code !== 0 || !data?.data?.token) {
+    throw new Error(`获取飞书根目录 token 失败: ${data.msg || '未知错误'}`);
+  }
+  return data.data.token;
+}
+
+async function uploadCloudDocSourceMd(token, title, mdContent, folderToken, apiDomain = 'feishu') {
+  const baseUrl = getApiBaseUrl(apiDomain);
+  const safeTitle = (title || 'Discourse-Post')
+    .replace(/[《》<>:"/\\|?*]/g, '')
+    .replace(/\s+/g, '-')
+    .substring(0, 100) || 'Discourse-Post';
+  const fileName = `${safeTitle}.md`;
+  const blob = new Blob([mdContent], { type: 'text/markdown; charset=utf-8' });
+  const formData = new FormData();
+  formData.append('file', blob, fileName);
+  formData.append('file_name', fileName);
+  formData.append('parent_type', 'explorer');
+  formData.append('parent_node', folderToken);
+  formData.append('size', String(blob.size));
+
+  const response = await fetch(`${baseUrl}/open-apis/drive/v1/files/upload_all`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
+  const data = await safeParseJson(response, '上传云文档导入源文件');
+  if (data.code !== 0 || !data?.data?.file_token) {
+    throw new Error(`上传云文档导入源文件失败: ${data.msg || '未知错误'}`);
+  }
+  return data.data.file_token;
+}
+
+async function createFeishuCloudDocDirect(token, title, markdownContent, apiDomain = 'feishu') {
+  const baseUrl = getApiBaseUrl(apiDomain);
+  const safeTitle = sanitizeForFeishuValue(title || 'Discourse-Post', 120)
+    .replace(/[《》<>:"/\\|?*]/g, '')
+    .replace(/\s+/g, '-')
+    .substring(0, 100) || 'Discourse-Post';
+  const normalizedMd = sanitizeCloudDocMarkdown(markdownContent, title);
+
+  let folderToken = '';
+  try {
+    folderToken = await getFeishuRootFolderToken(token, apiDomain);
+  } catch (e) {
+    bgLog('WARN', `[feishu] 直接创建云文档未获取到根目录 token，将创建到默认位置: ${e.message}`);
+  }
+
+  const createBody = folderToken ? { title: safeTitle, folder_token: folderToken } : { title: safeTitle };
+  const createResp = await fetch(`${baseUrl}/open-apis/docx/v1/documents`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(createBody)
+  });
+  const createData = await safeParseJson(createResp, '直接创建飞书云文档');
+  if (createData.code !== 0) {
+    throw new Error(`直接创建飞书云文档失败: ${createData.msg || '未知错误'}`);
+  }
+
+  const documentId = createData?.data?.document?.document_id || createData?.data?.document_id || createData?.data?.token;
+  if (!documentId) {
+    throw new Error('直接创建飞书云文档成功但未返回 document_id');
+  }
+
+  const chunks = splitTextForDocBlocks(normalizedMd);
+  const children = chunks.map(content => ({
+    block_type: 2,
+    text: {
+      elements: [{
+        text_run: { content }
+      }]
+    }
+  }));
+
+  const writeResp = await fetch(`${baseUrl}/open-apis/docx/v1/documents/${encodeURIComponent(documentId)}/blocks/${encodeURIComponent(documentId)}/children?client_token=${encodeURIComponent(createClientToken())}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ children, index: 0 })
+  });
+  const writeData = await safeParseJson(writeResp, '直接写入飞书云文档');
+  if (writeData.code !== 0) {
+    throw new Error(`直接写入飞书云文档失败: ${writeData.msg || '未知错误'}`);
+  }
+
+  const url = createData?.data?.document?.url || createData?.data?.url || `${getFeishuDocHost(apiDomain)}/docx/${documentId}`;
+  bgLog('INFO', `[feishu] 直接创建云文档成功: document_id=${documentId}, blocks=${children.length}`);
+  return { url };
+}
+
+// 按用户提供脚本标准：upload md -> import_tasks(type=docx) -> 轮询 ticket 拿 url
+async function createFeishuCloudDoc(token, title, markdownContent, apiDomain = 'feishu') {
+  try {
+    const baseUrl = getApiBaseUrl(apiDomain);
+    const safeTitle = sanitizeForFeishuValue(title || 'Discourse-Post', 120)
+      .replace(/[《》<>:"/\\|?*]/g, '')
+      .replace(/\s+/g, '-')
+      .substring(0, 100) || 'Discourse-Post';
+    const normalizedMd = sanitizeCloudDocMarkdown(markdownContent, title);
+    const folderToken = await getFeishuRootFolderToken(token, apiDomain);
+    const mdToken = await uploadCloudDocSourceMd(token, safeTitle, normalizedMd, folderToken, apiDomain);
+
+    const createResp = await fetch(`${baseUrl}/open-apis/drive/v1/import_tasks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        file_extension: 'md',
+        file_token: mdToken,
+        type: 'docx',
+        file_name: safeTitle,
+        point: { mount_type: 1, mount_key: folderToken }
+      })
+    });
+    const createData = await safeParseJson(createResp, '创建云文档导入任务');
+    if (createData.code !== 0 || !createData?.data?.ticket) {
+      throw new Error(`创建云文档导入任务失败: ${createData.msg || '未知错误'}`);
+    }
+
+    const ticket = createData.data.ticket;
+    bgLog('INFO', `[feishu] 云文档导入任务已创建: ticket=${ticket}`);
+    const contentLength = normalizedMd.length;
+    let maxAttempts = 90;
+    let intervalMs = 1000;
+    if (contentLength >= 120000) { maxAttempts = 150; intervalMs = 1200; }
+    if (contentLength >= 300000) { maxAttempts = 180; intervalMs = 1500; }
+
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(r => setTimeout(r, intervalMs));
+      const statusResp = await fetch(`${baseUrl}/open-apis/drive/v1/import_tasks/${encodeURIComponent(ticket)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const statusData = await safeParseJson(statusResp, '查询云文档导入结果');
+      if (statusData.code !== 0) {
+        throw new Error(`查询云文档导入结果失败: ${statusData.msg || '未知错误'}`);
+      }
+      const job = statusData?.data?.result;
+      if (job?.job_status === 0) {
+        if (!job.url) throw new Error('导入成功但未返回云文档链接');
+        return { url: job.url };
+      }
+      if (job?.job_status === 1 || job?.job_status === 2) {
+        continue;
+      }
+      throw new Error(`云文档导入失败: ${job?.job_error_msg || '未知错误'}`);
+    }
+    throw new Error('云文档导入超时，请稍后重试');
+  } catch (e) {
+    bgLog('WARN', `[feishu] 云文档导入链路失败，改用直接写入: ${e.message}`);
+    return await createFeishuCloudDocDirect(token, title, markdownContent, apiDomain);
+  }
 }
 
 // 缓存 tenant_access_token（按域名分别缓存）
@@ -686,7 +1078,11 @@ async function uploadHtmlFile(token, appToken, title, htmlContent, apiDomain = '
 
 // 保存到飞书多维表格（可选MD/HTML附件）
 async function saveToFeishu(config, postData) {
-  const { apiDomain, appId, appSecret, appToken, tableId, uploadContent, uploadAttachment, uploadHtmlAttachment } = config;
+  const { apiDomain, appId, appSecret, appToken, tableId } = config;
+  const uploadContent = asBool(config.uploadContent, true);
+  const uploadContentAsCloudDoc = asBool(config.uploadContentAsCloudDoc, false);
+  const uploadAttachment = asBool(config.uploadAttachment, false);
+  const uploadHtmlAttachment = asBool(config.uploadHtmlAttachment, false);
   const domain = apiDomain || 'feishu';
 
   // V5.3.1: 详细保存日志
@@ -694,28 +1090,70 @@ async function saveToFeishu(config, postData) {
   console.log('[Discourse Saver→飞书] 目标: 飞书多维表格 (appToken: ' + appToken + ', tableId: ' + tableId + ')');
   console.log('[Discourse Saver→飞书] 标题:', postData.title);
   console.log('[Discourse Saver→飞书] URL:', postData.url);
-  console.log('[Discourse Saver→飞书] 选项: 正文=' + (uploadContent !== false) + ', MD附件=' + !!uploadAttachment + ', HTML附件=' + !!uploadHtmlAttachment);
+  console.log('[Discourse Saver→飞书] 选项: 正文=' + uploadContent + ', MD附件=' + uploadAttachment + ', HTML附件=' + uploadHtmlAttachment);
+  bgLog('INFO', `[feishu] 新建参数: uploadContent=${uploadContent}, uploadContentAsCloudDoc=${uploadContentAsCloudDoc}, uploadAttachment=${uploadAttachment}, uploadHtmlAttachment=${uploadHtmlAttachment}`);
 
   // 验证必填参数
   validateFeishuConfig(config);
 
   // 获取token
   const token = await getFeishuToken(appId, appSecret, domain);
+  const fieldTypeMap = await getFeishuFieldTypeMap(token, appToken, tableId, domain);
+  const linkFieldType = fieldTypeMap['链接'];
+  const authorFieldType = fieldTypeMap['作者'];
+  const cloudDocFieldName = findFeishuCloudDocFieldName(fieldTypeMap);
+  const cloudDocFieldType = cloudDocFieldName ? Number(fieldTypeMap[cloudDocFieldName]) : undefined;
+  const linkFieldValue = buildFeishuLinkFieldValue(postData, linkFieldType);
+  const authorFieldValue = buildFeishuAuthorFieldValue(postData, authorFieldType);
+  const linkFieldFormat = getFieldValueFormat(linkFieldValue);
+  console.log('[Discourse Saver→飞书] 链接字段类型:', linkFieldType, '链接值预览:', String(linkFieldValue).slice(0, 120));
+  console.log('[Discourse Saver→飞书] 作者字段类型:', authorFieldType, '作者值预览:', String(authorFieldValue).slice(0, 120));
+  console.log('[Discourse Saver→飞书] 云文档选项:', uploadContentAsCloudDoc, '云文档字段:', cloudDocFieldName || '(未命中)', '字段类型:', cloudDocFieldType);
+  bgLog('INFO', `[feishu] 云文档配置: enabled=${uploadContentAsCloudDoc}, field=${cloudDocFieldName || 'none'}, type=${cloudDocFieldType ?? 'n/a'}`);
+  bgLog('INFO', `[feishu] 新建记录: 标题=${(postData.title || '').slice(0, 50)}, 链接字段类型=${linkFieldType}, linkFieldFormat=${linkFieldFormat}, url=${normalizeFeishuUrl(postData?.url || '')}`);
 
   // 构建记录数据
   // V4.3.7: 新增分类和标签字段
   const fields = {
-    '标题': postData.title,
-    '链接': {
-      link: postData.url,
-      text: postData.title
-    },
-    '作者': postData.author,
-    '分类': postData.category || '',
-    '标签': postData.tags && postData.tags.length > 0 ? postData.tags.join(', ') : '',
+    '标题': sanitizeForFeishuValue(postData.title || '', 500),
+    '链接': linkFieldValue,
+    '分类': sanitizeForFeishuValue(postData.category || '', 200),
+    '标签': sanitizeForFeishuValue(postData.tags && postData.tags.length > 0 ? postData.tags.join(', ') : '', 500),
     '保存时间': Date.now(),
     '评论数': postData.commentCount || 0
   };
+  if (authorFieldValue !== null && authorFieldValue !== undefined && authorFieldValue !== '') {
+    fields['作者'] = authorFieldValue;
+  }
+
+  // 可选：正文导入飞书云文档，并回写「云文档链接」
+  let cloudDocUrlForRetry = '';
+  if (uploadContentAsCloudDoc && uploadContent) {
+    try {
+      const cloudDoc = await createFeishuCloudDoc(token, postData.title, postData.content, domain);
+      const cloudDocUrl = normalizeFeishuUrl(cloudDoc.url);
+      if (cloudDocUrl) {
+        cloudDocUrlForRetry = cloudDocUrl;
+        if (cloudDocFieldName && cloudDocFieldType === 15) {
+          fields[cloudDocFieldName] = { link: cloudDocUrl, text: postData.title || '云文档' };
+          bgLog('INFO', `[feishu] 云文档链接已写入字段: ${cloudDocFieldName}(超链接)`);
+        } else if (cloudDocFieldName && cloudDocFieldType === 1) {
+          fields[cloudDocFieldName] = cloudDocUrl;
+          bgLog('INFO', `[feishu] 云文档链接已写入字段: ${cloudDocFieldName}(文本)`);
+        } else {
+          // 无该字段：追加到正文顶部
+          const prefix = `云文档链接: ${(postData.title || '云文档').trim()} - ${cloudDocUrl}\n\n`;
+          postData.content = prefix + (postData.content || '');
+          bgLog('WARN', '[feishu] 未找到可写入的云文档链接字段，已回退追加到正文顶部');
+        }
+        bgLog('INFO', `[feishu] 云文档创建成功: ${cloudDocUrl}`);
+      }
+    } catch (e) {
+      bgLog('WARN', `[feishu] 云文档创建失败，已回退仅保存正文: ${e.message}`);
+    }
+  } else {
+    bgLog('INFO', `[feishu] 云文档流程未启用: uploadContentAsCloudDoc=${uploadContentAsCloudDoc}, uploadContent=${uploadContent}`);
+  }
 
   // V4.2.6: 收集所有附件
   const attachments = [];
@@ -757,7 +1195,7 @@ async function saveToFeishu(config, postData) {
   }
 
   // V5.3.1: 根据用户设置决定是否上传正文（默认true，向后兼容）
-  if (uploadContent !== false) {
+  if (uploadContent) {
     const sanitizedContent = sanitizeFeishuTextContent(postData.content);
     console.log('[Discourse Saver→飞书] 正文内容长度:', sanitizedContent.length);
     fields['正文'] = sanitizedContent;
@@ -781,30 +1219,68 @@ async function saveToFeishu(config, postData) {
   const baseUrl = getApiBaseUrl(domain);
   const apiUrl = `${baseUrl}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`;
 
-  let response;
-  try {
-    const requestBody = JSON.stringify(record);
-    console.log('[Discourse Saver→飞书] 请求体大小:', requestBody.length, '字节');
-    response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: requestBody
-    });
-  } catch (fetchError) {
-    throw new Error(`网络连接失败\n\n💡 请检查网络连接后重试\n\n原始错误：${fetchError.message}`);
+  async function submitCreate(currentRecord) {
+    let response;
+    try {
+      const requestBody = JSON.stringify(currentRecord);
+      console.log('[Discourse Saver→飞书] 请求体大小:', requestBody.length, '字节');
+      response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: requestBody
+      });
+    } catch (fetchError) {
+      throw new Error(`网络连接失败\n\n💡 请检查网络连接后重试\n\n原始错误：${fetchError.message}`);
+    }
+    return await safeParseJson(response, '保存记录');
   }
 
-  const data = await safeParseJson(response, '保存记录');
+  let data = await submitCreate(record);
+  if (data.code === 1254068) {
+    const linkCandidates = buildFeishuUrlValueCandidates(postData.url, postData.title);
+    const authorCandidates = (authorFieldType === 15)
+      ? buildFeishuUrlValueCandidates(postData.authorUrl || postData.url, postData.author || '')
+      : [fields['作者']];
+    const cloudDocCandidates = (cloudDocFieldName && cloudDocFieldType === 15 && cloudDocUrlForRetry)
+      ? buildFeishuUrlValueCandidates(cloudDocUrlForRetry, postData.title || '云文档')
+      : [NO_CHANGE];
+
+    bgLog('WARN', `[feishu] 命中 URLFieldConvFail，启动兼容重试: linkCandidates=${linkCandidates.length}, authorCandidates=${authorCandidates.length}, cloudDocCandidates=${cloudDocCandidates.length}`);
+    let fixed = false;
+    for (const linkV of linkCandidates) {
+      for (const authorV of authorCandidates) {
+        for (const cloudDocV of cloudDocCandidates) {
+          const nextFields = { ...fields, '链接': linkV, '作者': authorV };
+          // 仅当有明确可用值时才覆盖云文档字段，避免把已有值清空
+          if (cloudDocFieldName && cloudDocV !== NO_CHANGE && cloudDocV !== undefined && cloudDocV !== null && cloudDocV !== '') {
+            nextFields[cloudDocFieldName] = cloudDocV;
+          }
+          const retryRecord = { fields: nextFields };
+          const retryData = await submitCreate(retryRecord);
+          if (retryData.code === 0) {
+            data = retryData;
+            fixed = true;
+            bgLog('INFO', `[feishu] URLFieldConvFail 已通过兼容格式重试修复, linkFieldFormat=${getFieldValueFormat(linkV)}, authorFieldFormat=${getFieldValueFormat(authorV)}, cloudDocFieldFormat=${cloudDocV === NO_CHANGE ? 'no_change' : getFieldValueFormat(cloudDocV)}`);
+            break;
+          }
+        }
+        if (fixed) break;
+      }
+      if (fixed) break;
+    }
+  }
 
   if (data.code !== 0) {
     console.error('[Discourse Saver→飞书] API返回错误:', data);
+    bgLog('ERROR', `[feishu] 新建记录失败: code=${data.code}, msg=${data.msg}`);
     throw new Error(parseFeishuError(data.code, data.msg, '保存记录'));
   }
 
   console.log('[Discourse Saver→飞书] 保存成功，record_id:', data.data.record.record_id);
+  bgLog('INFO', `[feishu] 新建记录成功: record_id=${data.data.record.record_id}`);
 
   // V5.3.1: 返回上传错误信息（如果有），让前端能提示用户
   const result = data.data.record;
@@ -948,8 +1424,19 @@ async function findFeishuRecord(config, url, title) {
 
     for (const item of data.data.items) {
       const recordLink = item.fields?.['链接'];
-      // 超链接字段格式: { link: "url", text: "title" } 或直接是字符串
-      const recordUrl = typeof recordLink === 'object' ? recordLink.link : recordLink;
+      // 超链接字段可能是字符串、对象，或数组
+      let recordUrl = '';
+      if (typeof recordLink === 'string') {
+        recordUrl = recordLink;
+      } else if (recordLink && typeof recordLink === 'object') {
+        if (Array.isArray(recordLink)) {
+          const first = recordLink[0];
+          if (typeof first === 'string') recordUrl = first;
+          else if (first && typeof first === 'object') recordUrl = first.link || first.url || '';
+        } else {
+          recordUrl = recordLink.link || recordLink.url || '';
+        }
+      }
 
       console.log('[Discourse Saver→飞书] 比对URL:', recordUrl, 'vs', url);
 
@@ -966,25 +1453,69 @@ async function findFeishuRecord(config, url, title) {
 
 // 更新飞书记录（可选MD/HTML附件）
 async function updateFeishuRecord(config, recordId, postData) {
-  const { apiDomain, appId, appSecret, appToken, tableId, uploadContent, uploadAttachment, uploadHtmlAttachment } = config;
+  const { apiDomain, appId, appSecret, appToken, tableId } = config;
+  const uploadContent = asBool(config.uploadContent, true);
+  const uploadContentAsCloudDoc = asBool(config.uploadContentAsCloudDoc, false);
+  const uploadAttachment = asBool(config.uploadAttachment, false);
+  const uploadHtmlAttachment = asBool(config.uploadHtmlAttachment, false);
   const domain = apiDomain || 'feishu';
 
   const token = await getFeishuToken(appId, appSecret, domain);
+  const fieldTypeMap = await getFeishuFieldTypeMap(token, appToken, tableId, domain);
+  const linkFieldType = fieldTypeMap['链接'];
+  const authorFieldType = fieldTypeMap['作者'];
+  const cloudDocFieldName = findFeishuCloudDocFieldName(fieldTypeMap);
+  const cloudDocFieldType = cloudDocFieldName ? Number(fieldTypeMap[cloudDocFieldName]) : undefined;
+  const linkFieldValue = buildFeishuLinkFieldValue(postData, linkFieldType);
+  const authorFieldValue = buildFeishuAuthorFieldValue(postData, authorFieldType);
+  const linkFieldFormat = getFieldValueFormat(linkFieldValue);
+  console.log('[Discourse Saver→飞书] 更新记录-链接字段类型:', linkFieldType, '链接值预览:', String(linkFieldValue).slice(0, 120));
+  console.log('[Discourse Saver→飞书] 更新记录-作者字段类型:', authorFieldType, '作者值预览:', String(authorFieldValue).slice(0, 120));
+  console.log('[Discourse Saver→飞书] 更新记录-云文档选项:', uploadContentAsCloudDoc, '云文档字段:', cloudDocFieldName || '(未命中)', '字段类型:', cloudDocFieldType);
+  bgLog('INFO', `[feishu] 更新参数: record_id=${recordId}, uploadContent=${uploadContent}, uploadContentAsCloudDoc=${uploadContentAsCloudDoc}, uploadAttachment=${uploadAttachment}, uploadHtmlAttachment=${uploadHtmlAttachment}`);
+  bgLog('INFO', `[feishu] 更新云文档配置: enabled=${uploadContentAsCloudDoc}, field=${cloudDocFieldName || 'none'}, type=${cloudDocFieldType ?? 'n/a'}`);
+  bgLog('INFO', `[feishu] 更新记录: record_id=${recordId}, 链接字段类型=${linkFieldType}, linkFieldFormat=${linkFieldFormat}, url=${normalizeFeishuUrl(postData?.url || '')}`);
 
   // 构建记录数据
   // V4.3.7: 新增分类和标签字段
   const fields = {
-    '标题': postData.title,
-    '链接': {
-      link: postData.url,
-      text: postData.title
-    },
-    '作者': postData.author,
-    '分类': postData.category || '',
-    '标签': postData.tags && postData.tags.length > 0 ? postData.tags.join(', ') : '',
+    '标题': sanitizeForFeishuValue(postData.title || '', 500),
+    '链接': linkFieldValue,
+    '分类': sanitizeForFeishuValue(postData.category || '', 200),
+    '标签': sanitizeForFeishuValue(postData.tags && postData.tags.length > 0 ? postData.tags.join(', ') : '', 500),
     '保存时间': Date.now(),
     '评论数': postData.commentCount || 0
   };
+  if (authorFieldValue !== null && authorFieldValue !== undefined && authorFieldValue !== '') {
+    fields['作者'] = authorFieldValue;
+  }
+
+  let cloudDocUrlForRetry = '';
+  if (uploadContentAsCloudDoc && uploadContent) {
+    try {
+      const cloudDoc = await createFeishuCloudDoc(token, postData.title, postData.content, domain);
+      const cloudDocUrl = normalizeFeishuUrl(cloudDoc.url);
+      if (cloudDocUrl) {
+        cloudDocUrlForRetry = cloudDocUrl;
+        if (cloudDocFieldName && cloudDocFieldType === 15) {
+          fields[cloudDocFieldName] = { link: cloudDocUrl, text: postData.title || '云文档' };
+          bgLog('INFO', `[feishu] 更新记录-云文档链接已写入字段: ${cloudDocFieldName}(超链接)`);
+        } else if (cloudDocFieldName && cloudDocFieldType === 1) {
+          fields[cloudDocFieldName] = cloudDocUrl;
+          bgLog('INFO', `[feishu] 更新记录-云文档链接已写入字段: ${cloudDocFieldName}(文本)`);
+        } else {
+          const prefix = `云文档链接: ${(postData.title || '云文档').trim()} - ${cloudDocUrl}\n\n`;
+          postData.content = prefix + (postData.content || '');
+          bgLog('WARN', '[feishu] 更新记录-未找到可写入的云文档链接字段，已回退追加到正文顶部');
+        }
+        bgLog('INFO', `[feishu] 更新记录-云文档创建成功: ${cloudDocUrl}`);
+      }
+    } catch (e) {
+      bgLog('WARN', `[feishu] 更新记录-云文档创建失败，已回退仅保存正文: ${e.message}`);
+    }
+  } else {
+    bgLog('INFO', `[feishu] 更新记录-云文档流程未启用: uploadContentAsCloudDoc=${uploadContentAsCloudDoc}, uploadContent=${uploadContent}`);
+  }
 
   // V4.2.6: 收集所有附件
   const attachments = [];
@@ -1025,7 +1556,7 @@ async function updateFeishuRecord(config, recordId, postData) {
   }
 
   // V5.3.1: 根据用户设置决定是否上传正文
-  if (uploadContent !== false) {
+  if (uploadContent) {
     const sanitizedContent = sanitizeFeishuTextContent(postData.content);
     console.log('[Discourse Saver→飞书] 更新正文内容长度:', sanitizedContent.length);
     fields['正文'] = sanitizedContent;
@@ -1038,27 +1569,64 @@ async function updateFeishuRecord(config, recordId, postData) {
   const baseUrl = getApiBaseUrl(domain);
   const apiUrl = `${baseUrl}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/${recordId}`;
 
-  let response;
-  try {
-    response = await fetch(apiUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(record)
-    });
-  } catch (fetchError) {
-    throw new Error(`网络连接失败\n\n💡 请检查网络连接后重试\n\n原始错误：${fetchError.message}`);
+  async function submitUpdate(currentRecord) {
+    let response;
+    try {
+      response = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(currentRecord)
+      });
+    } catch (fetchError) {
+      throw new Error(`网络连接失败\n\n💡 请检查网络连接后重试\n\n原始错误：${fetchError.message}`);
+    }
+    return await safeParseJson(response, '更新记录');
   }
 
-  const data = await safeParseJson(response, '更新记录');
+  let data = await submitUpdate(record);
+  if (data.code === 1254068) {
+    const linkCandidates = buildFeishuUrlValueCandidates(postData.url, postData.title);
+    const authorCandidates = (authorFieldType === 15)
+      ? buildFeishuUrlValueCandidates(postData.authorUrl || postData.url, postData.author || '')
+      : [fields['作者']];
+    const cloudDocCandidates = (cloudDocFieldName && cloudDocFieldType === 15 && cloudDocUrlForRetry)
+      ? buildFeishuUrlValueCandidates(cloudDocUrlForRetry, postData.title || '云文档')
+      : [NO_CHANGE];
+    bgLog('WARN', `[feishu] 更新命中 URLFieldConvFail，启动兼容重试: linkCandidates=${linkCandidates.length}, authorCandidates=${authorCandidates.length}, cloudDocCandidates=${cloudDocCandidates.length}`);
+    let fixed = false;
+    for (const linkV of linkCandidates) {
+      for (const authorV of authorCandidates) {
+        for (const cloudDocV of cloudDocCandidates) {
+          const nextFields = { ...fields, '链接': linkV, '作者': authorV };
+          // 仅当有明确可用值时才覆盖云文档字段，避免把已有值清空
+          if (cloudDocFieldName && cloudDocV !== NO_CHANGE && cloudDocV !== undefined && cloudDocV !== null && cloudDocV !== '') {
+            nextFields[cloudDocFieldName] = cloudDocV;
+          }
+          const retryRecord = { fields: nextFields };
+          const retryData = await submitUpdate(retryRecord);
+          if (retryData.code === 0) {
+            data = retryData;
+            fixed = true;
+            bgLog('INFO', `[feishu] 更新 URLFieldConvFail 已通过兼容格式重试修复, linkFieldFormat=${getFieldValueFormat(linkV)}, authorFieldFormat=${getFieldValueFormat(authorV)}, cloudDocFieldFormat=${cloudDocV === NO_CHANGE ? 'no_change' : getFieldValueFormat(cloudDocV)}`);
+            break;
+          }
+        }
+        if (fixed) break;
+      }
+      if (fixed) break;
+    }
+  }
 
   if (data.code !== 0) {
+    bgLog('ERROR', `[feishu] 更新记录失败: code=${data.code}, msg=${data.msg}`);
     throw new Error(parseFeishuError(data.code, data.msg, '更新记录'));
   }
 
   console.log('[Discourse Saver→飞书] 更新成功');
+  bgLog('INFO', `[feishu] 更新记录成功: record_id=${recordId}`);
 
   // V5.3.1: 返回上传错误信息
   const result = data.data.record;
@@ -2510,7 +3078,8 @@ async function testNotionConnection(config) {
     { configKey: 'notionPropAuthor', label: '作者', required: false, expectedType: 'rich_text' },
     { configKey: 'notionPropCategory', label: '分类', required: false, expectedType: ['rich_text', 'select', 'multi_select'] },
     { configKey: 'notionPropSavedDate', label: '保存日期', required: false, expectedType: 'date' },
-    { configKey: 'notionPropCommentCount', label: '评论数', required: false, expectedType: 'number' }
+    { configKey: 'notionPropCommentCount', label: '评论数', required: false, expectedType: 'number' },
+    { configKey: 'notionPropTags', label: '标签', required: false, expectedType: 'multi_select' }
   ];
 
   const errors = [];
@@ -2714,10 +3283,46 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // 异步响应
   }
 
+  // 解析外链最终跳转地址（short-url -> CDN）
+  if (request.action === 'resolveFinalUrls') {
+    (async () => {
+      try {
+        const inputUrls = Array.isArray(request.urls) ? request.urls : [];
+        const resolvedMap = {};
+        await Promise.all(inputUrls.map(async (url) => {
+          try {
+            let res = await fetch(url, {
+              method: 'HEAD',
+              credentials: 'include',
+              cache: 'no-store',
+              redirect: 'follow'
+            });
+            if (res.status === 405) {
+              res = await fetch(url, {
+                method: 'GET',
+                credentials: 'include',
+                cache: 'no-store',
+                redirect: 'follow'
+              });
+            }
+            if (res.ok && res.url && res.url !== url) {
+              resolvedMap[url] = res.url;
+            }
+          } catch (_) {}
+        }));
+        sendResponse({ success: true, resolvedMap });
+      } catch (error) {
+        sendResponse({ success: false, error: error.message, resolvedMap: {} });
+      }
+    })();
+    return true;
+  }
+
   if (request.action === 'saveToFeishu') {
     console.log('[Discourse Saver→飞书] 收到保存请求');
     console.log('[Discourse Saver→飞书] 标题:', request.postData.title);
     console.log('[Discourse Saver→飞书] URL:', request.postData.url);
+    bgLog('INFO', `[feishu] 收到保存请求: 标题=${(request.postData?.title || '').slice(0, 50)}`);
 
     (async () => {
       try {
@@ -2731,14 +3336,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           // 更新现有记录
           console.log('[Discourse Saver→飞书] 找到现有记录，更新中...');
           result = await updateFeishuRecord(config, existingRecord.record_id, postData);
+          bgLog('INFO', `[feishu] 保存请求处理完成: action=updated, record_id=${existingRecord.record_id}`);
           sendResponse({ success: true, action: 'updated', record: result, uploadWarnings: result._uploadWarnings || [] });
         } else {
           // 新增记录
           result = await saveToFeishu(config, postData);
+          bgLog('INFO', '[feishu] 保存请求处理完成: action=created');
           sendResponse({ success: true, action: 'created', record: result, uploadWarnings: result._uploadWarnings || [] });
         }
       } catch (error) {
         console.error('[Discourse Saver→飞书] 保存失败:', error);
+        bgLog('ERROR', `[feishu] 保存请求失败: ${error.message}`);
         sendResponse({ success: false, error: error.message });
       }
     })();
@@ -2749,6 +3357,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'testFeishuConnection') {
     console.log('[Discourse Saver→飞书] 测试连接');
+    bgLog('INFO', '[feishu] 开始测试连接');
 
     (async () => {
       try {
@@ -2809,15 +3418,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         // 必需字段配置（V4.3.7: 9个字段，新增分类和标签）
         const REQUIRED_FIELDS = [
-          { name: '标题', type: FIELD_TYPES.TEXT, desc: '文本' },
-          { name: '链接', type: FIELD_TYPES.URL, desc: '超链接' },
-          { name: '作者', type: FIELD_TYPES.TEXT, desc: '文本' },
-          { name: '分类', type: FIELD_TYPES.TEXT, desc: '文本' },
-          { name: '标签', type: FIELD_TYPES.TEXT, desc: '文本' },
-          { name: '保存时间', type: FIELD_TYPES.DATE, desc: '日期' },
-          { name: '评论数', type: FIELD_TYPES.NUMBER, desc: '数字' },
-          { name: '附件', type: FIELD_TYPES.ATTACHMENT, desc: '附件' },
-          { name: '正文', type: FIELD_TYPES.TEXT, desc: '文本' }
+          { name: '标题', type: [FIELD_TYPES.TEXT], desc: '文本' },
+          { name: '链接', type: [FIELD_TYPES.URL], desc: '超链接' },
+          { name: '作者', type: [FIELD_TYPES.TEXT, FIELD_TYPES.URL], desc: '文本或超链接' },
+          { name: '分类', type: [FIELD_TYPES.TEXT], desc: '文本' },
+          { name: '标签', type: [FIELD_TYPES.TEXT], desc: '文本' },
+          { name: '保存时间', type: [FIELD_TYPES.DATE], desc: '日期' },
+          { name: '评论数', type: [FIELD_TYPES.NUMBER], desc: '数字' },
+          { name: '附件', type: [FIELD_TYPES.ATTACHMENT], desc: '附件' },
+          { name: '正文', type: [FIELD_TYPES.TEXT], desc: '文本' }
         ];
 
         // 构建字段映射
@@ -2839,10 +3448,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (!existing) {
             // 字段不存在
             missingFields.push(`「${required.name}」(类型: ${required.desc})`);
-          } else if (existing.type !== required.type) {
+          } else if (!required.type.includes(existing.type)) {
             // 字段类型不匹配
+            const expectedTypeNames = required.type.map(t => getFieldTypeName(t)).join(' / ');
             wrongTypeFields.push(
-              `「${required.name}」(期望: ${required.desc}, 实际: ${existing.typeName})`
+              `「${required.name}」(期望: ${required.desc} [${expectedTypeNames}], 实际: ${existing.typeName})`
             );
           }
         });
@@ -2912,8 +3522,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                    `📊 当前数据表的所有字段：\n` +
                    `  ${detectedFields}`
         });
+        bgLog('INFO', '[feishu] 测试连接成功');
       } catch (error) {
         console.error('[Discourse Saver→飞书] 测试连接失败:', error);
+        bgLog('ERROR', `[feishu] 测试连接失败: ${error.message}`);
         sendResponse({ success: false, error: error.message });
       }
     })();
@@ -2931,14 +3543,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log('[Discourse Saver→Notion] 标题:', request.postData?.title);
     console.log('[Discourse Saver→Notion] URL:', request.postData?.url);
     console.log('[Discourse Saver→Notion] 数据库ID:', request.config?.notionDatabaseId);
+    bgLog('INFO', `[notion] 收到保存请求: 标题=${(request.postData?.title || '').slice(0, 50)}`);
 
     (async () => {
       try {
         const { config, postData } = request;
         const result = await saveToNotion(postData, config);
+        bgLog('INFO', `[notion] 保存完成: action=${result?.action || 'unknown'}`);
         sendResponse(result);
       } catch (error) {
         console.error('[Discourse Saver→Notion] 保存失败:', error);
+        bgLog('ERROR', `[notion] 保存失败: ${error.message}`);
         sendResponse({ success: false, error: error.message });
       }
     })();
@@ -2949,13 +3564,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 测试 Notion 连接
   if (request.action === 'testNotionConnection') {
     console.log('[Discourse Saver→Notion] 收到测试连接请求');
+    bgLog('INFO', '[notion] 开始测试连接');
 
     (async () => {
       try {
         const result = await testNotionConnection(request.config);
+        bgLog('INFO', `[notion] 测试连接完成: success=${!!result?.success}`);
         sendResponse(result);
       } catch (error) {
         console.error('[Discourse Saver→Notion] 测试连接失败:', error);
+        bgLog('ERROR', `[notion] 测试连接失败: ${error.message}`);
         sendResponse({ success: false, error: error.message });
       }
     })();
@@ -2966,14 +3584,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 保存到语雀
   if (request.action === 'saveToYuque') {
     console.log('[Discourse Saver→语雀] 收到保存请求');
+    bgLog('INFO', `[yuque] 收到保存请求: 标题=${(request.postData?.title || '').slice(0, 50)}`);
 
     (async () => {
       try {
         const { config, postData } = request;
         const result = await saveToYuque(postData, config);
+        bgLog('INFO', `[yuque] 保存完成: action=${result?.action || 'unknown'}`);
         sendResponse(result);
       } catch (error) {
         console.error('[Discourse Saver→语雀] 保存失败:', error);
+        bgLog('ERROR', `[yuque] 保存失败: ${error.message}`);
         sendResponse({ success: false, error: error.message });
       }
     })();
@@ -2984,13 +3605,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 测试语雀连接
   if (request.action === 'testYuqueConnection') {
     console.log('[Discourse Saver→语雀] 收到测试连接请求');
+    bgLog('INFO', '[yuque] 开始测试连接');
 
     (async () => {
       try {
         const result = await testYuqueConnection(request.config);
+        bgLog('INFO', `[yuque] 测试连接完成: success=${!!result?.success}`);
         sendResponse(result);
       } catch (error) {
         console.error('[Discourse Saver→语雀] 测试连接失败:', error);
+        bgLog('ERROR', `[yuque] 测试连接失败: ${error.message}`);
         sendResponse({ success: false, error: error.message });
       }
     })();
@@ -3010,17 +3634,131 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // ==================== 思源笔记 ====================
   if (request.action === 'saveToSiyuan') {
     const { config, data } = request;
+    bgLog('INFO', `[siyuan] 收到保存请求: 标题=${(data?.title || '').slice(0, 50)}`);
     saveToSiyuan(config, data)
-      .then(result => sendResponse({ success: true, message: '已保存到思源笔记', data: result }))
-      .catch(err => sendResponse({ success: false, error: err.message }));
+      .then(result => {
+        bgLog('INFO', `[siyuan] 保存完成: path=${result?.path || ''}`);
+        sendResponse({ success: true, message: '已保存到思源笔记', data: result });
+      })
+      .catch(err => {
+        bgLog('ERROR', `[siyuan] 保存失败: ${err.message}`);
+        sendResponse({ success: false, error: err.message });
+      });
     return true;
   }
 
   if (request.action === 'testSiyuanConnection') {
     const { config } = request;
+    bgLog('INFO', '[siyuan] 开始测试连接');
     testSiyuanConnection(config)
-      .then(result => sendResponse(result))
-      .catch(err => sendResponse({ success: false, error: err.message }));
+      .then(result => {
+        bgLog('INFO', `[siyuan] 测试连接完成: success=${!!result?.success}`);
+        sendResponse(result);
+      })
+      .catch(err => {
+        bgLog('ERROR', `[siyuan] 测试连接失败: ${err.message}`);
+        sendResponse({ success: false, error: err.message });
+      });
+    return true;
+  }
+
+  // ==================== WebDAV ====================
+  if (request.action === 'saveToWebDAV') {
+    console.log('[Discourse Saver→WebDAV] 收到保存请求');
+    bgLog('INFO', `[webdav] 收到保存请求: 标题=${(request.postData?.title || '').slice(0, 50)}`);
+
+    (async () => {
+      try {
+        const { config, postData } = request;
+        const result = await saveToWebDAV(postData, config);
+        bgLog('INFO', `[webdav] 保存完成: success=${!!result?.success}`);
+        sendResponse(result);
+      } catch (error) {
+        console.error('[Discourse Saver→WebDAV] 保存失败:', error);
+        bgLog('ERROR', `[webdav] 保存失败: ${error.message}`);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+
+    return true;
+  }
+
+  if (request.action === 'testWebDAVConnection') {
+    console.log('[Discourse Saver→WebDAV] 收到测试连接请求');
+    bgLog('INFO', '[webdav] 开始测试连接');
+
+    (async () => {
+      try {
+        const result = await testWebDAVConnection(request.config);
+        bgLog('INFO', `[webdav] 测试连接完成: success=${!!result?.success}`);
+        sendResponse(result);
+      } catch (error) {
+        console.error('[Discourse Saver→WebDAV] 测试连接失败:', error);
+        bgLog('ERROR', `[webdav] 测试连接失败: ${error.message}`);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+
+    return true;
+  }
+
+  // ==================== 百度网盘 ====================
+  if (request.action === 'baiduOAuth') {
+    console.log('[Discourse Saver→百度] 开始 OAuth 授权');
+    bgLog('INFO', '[baidu] 开始 OAuth 授权');
+
+    (async () => {
+      try {
+        const code = await baiduOAuthAuthorize();
+        const tokenInfo = await baiduExchangeToken(code);
+        bgLog('INFO', `[baidu] 授权成功, token 过期时间: ${new Date(tokenInfo.expiresAt).toLocaleString()}`);
+        sendResponse({ success: true, message: '百度网盘授权成功' });
+      } catch (error) {
+        console.error('[Discourse Saver→百度] 授权失败:', error);
+        bgLog('ERROR', `[baidu] 授权失败: ${error.message}`);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+
+    return true;
+  }
+
+  if (request.action === 'saveToBaidu') {
+    console.log('[Discourse Saver→百度] 收到保存请求');
+    bgLog('INFO', `[baidu] 收到保存请求: 标题=${(request.postData?.title || '').slice(0, 50)}`);
+
+    (async () => {
+      try {
+        const { config, postData } = request;
+        const result = await saveToBaidu(postData, config);
+        bgLog('INFO', `[baidu] 保存完成: success=${!!result?.success}`);
+        sendResponse(result);
+      } catch (error) {
+        console.error('[Discourse Saver→百度] 保存失败:', error);
+        bgLog('ERROR', `[baidu] 保存失败: ${error.message}`);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+
+    return true;
+  }
+
+  if (request.action === 'testBaiduConnection') {
+    console.log('[Discourse Saver→百度] 收到测试连接请求');
+    bgLog('INFO', '[baidu] 开始测试连接');
+
+    (async () => {
+      try {
+        const result = await testBaiduConnection();
+        bgLog('INFO', `[baidu] 测试连接完成: success=${!!result?.success}`);
+        sendResponse(result);
+      } catch (error) {
+        console.error('[Discourse Saver→百度] 测试连接失败:', error);
+        bgLog('ERROR', `[baidu] 测试连接失败: ${error.message}`);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+
     return true;
   }
 });
@@ -3028,26 +3766,42 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // ==================== 下载媒体到 Vault ====================
 
 async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFolderName, forumOrigin = '') {
-  const port = config.restApiPort || 27124;
-  let apiBase = `https://127.0.0.1:${port}`;
+  const sanitizePathSegment = (seg, maxLen = 72) => {
+    let s = String(seg || '')
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/[. ]+$/g, '');
+    if (!s) s = 'untitled';
+    if (s.length > maxLen) s = s.substring(0, maxLen).replace(/[. ]+$/g, '');
+    return s || 'untitled';
+  };
+  const sanitizeVaultPath = (path) => String(path || '')
+    .split('/')
+    .filter(Boolean)
+    .map(seg => sanitizePathSegment(seg))
+    .join('/');
 
-  // V5.3.2: 尝试 HTTPS，失败时自动降级到 HTTP（匹配 options.js 的测试逻辑）
-  let useHttps = true;
+  const port = config.restApiPort || 27123;
+  let apiBase = `http://127.0.0.1:${port}`;
+
+  // HTTP优先，失败时自动升级到HTTPS（端口+1）
+  let useHttps = false;
   try {
-    // 先测试 HTTPS 连接
     await fetch(`${apiBase}/`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${config.restApiKey}` }
     });
   } catch (e) {
-    // HTTPS 失败，降级到 HTTP（Obsidian REST API HTTPS=27124, HTTP=27123）
-    useHttps = false;
-    const httpPort = port === 27124 ? 27123 : port;
-    apiBase = `http://127.0.0.1:${httpPort}`;
-    bgLog('WARN', `HTTPS 连接失败，自动降级到 HTTP: ${apiBase}`);
+    // HTTP 失败，升级到 HTTPS（端口+1）
+    const httpsPort = port + 1;
+    useHttps = true;
+    apiBase = `https://127.0.0.1:${httpsPort}`;
+    bgLog('WARN', `HTTP 连接失败，自动升级到 HTTPS: ${apiBase}`);
   }
 
-  bgLog('INFO', `媒体下载开始: ${mediaUrls.length}个文件, API=${apiBase}, path=${vaultMediaPath}`);
+  const safeVaultMediaPath = sanitizeVaultPath(vaultMediaPath || mediaFolderName || 'media');
+  bgLog('INFO', `媒体下载开始: ${mediaUrls.length}个文件, API=${apiBase}, path=${safeVaultMediaPath}`);
   const results = [];
   const existingNames = [];
 
@@ -3110,7 +3864,7 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
       existingNames.push(finalName);
 
       // 4. 通过 REST API 写入 Vault
-      const filePath = `${vaultMediaPath}/${finalName}`;
+      const filePath = `${safeVaultMediaPath}/${finalName}`;
       // 对路径各段分别编码，保留 / 分隔符
       const encodedPath = filePath.split('/').map(seg => encodeURIComponent(seg)).join('/');
       const putResponse = await fetch(`${apiBase}/vault/${encodedPath}`, {
@@ -3132,7 +3886,7 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
       results.push({
         originalUrl: media.url,
         localName: finalName,
-        relativePath: `${vaultMediaPath}/${finalName}`,
+        relativePath: `${safeVaultMediaPath}/${finalName}`,
         success: true
       });
     } catch (err) {
@@ -3503,5 +4257,439 @@ async function testSiyuanConnection(config) {
   return { success: true, message: message };
 }
 
-console.log('[Discourse Saver] Background script 已加载 (V5.3.2)');
+// ==================== WebDAV ====================
 
+function webdavAuthHeader(username, password) {
+  return 'Basic ' + btoa(unescape(encodeURIComponent(username + ':' + password)));
+}
+
+async function webdavEnsureDirectory(baseUrl, path, username, password) {
+  const auth = webdavAuthHeader(username, password);
+  const segments = path.split('/').filter(Boolean);
+  let currentPath = '';
+  for (const seg of segments) {
+    currentPath += '/' + seg;
+    const dirUrl = baseUrl.replace(/\/$/, '') + currentPath;
+    try {
+      await fetch(dirUrl, {
+        method: 'MKCOL',
+        headers: { 'Authorization': auth }
+      });
+    } catch (e) {
+      // 目录可能已存在，忽略 405 Method Not Allowed
+      if (!e.message.includes('405')) {
+        bgLog('WARN', `[webdav] 创建目录 ${currentPath} 时出错: ${e.message}`);
+      }
+    }
+  }
+}
+
+async function saveToWebDAV(postData, config) {
+  const { webdavUrl, webdavUsername, webdavPassword, webdavPath } = config;
+  if (!webdavUrl || !webdavUsername || !webdavPassword) {
+    return { success: false, error: 'WebDAV 配置不完整' };
+  }
+
+  const baseUrl = webdavUrl.replace(/\/$/, '');
+  const savePath = webdavPath || '/Discourse收集箱';
+  const auth = webdavAuthHeader(webdavUsername, webdavPassword);
+
+  try {
+    // 确保目录存在
+    await webdavEnsureDirectory(baseUrl, savePath, webdavUsername, webdavPassword);
+
+    // 生成文件名（使用标题，清理非法字符）
+    const safeTitle = (postData.title || '未命名')
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .substring(0, 100);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    const fileName = `${safeTitle}_${timestamp}.md`;
+    const filePath = savePath + '/' + fileName;
+
+    // 构建 Markdown 内容
+    let content = `# ${postData.title}\n\n`;
+    if (postData.author) content += `> 作者: ${postData.author}\n`;
+    if (postData.url) content += `> 链接: ${postData.url}\n`;
+    if (postData.category) content += `> 分类: ${postData.category}\n`;
+    content += `> 保存时间: ${new Date().toLocaleString()}\n\n---\n\n`;
+    content += postData.content || '';
+
+    // 上传文件
+    const fileUrl = baseUrl + filePath;
+    const response = await fetch(fileUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': auth,
+        'Content-Type': 'text/markdown; charset=utf-8'
+      },
+      body: new TextEncoder().encode(content)
+    });
+
+    if (!response.ok && response.status !== 201 && response.status !== 204) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    bgLog('INFO', `[webdav] 文件已保存: ${filePath}`);
+    return { success: true, message: `已保存到 WebDAV: ${filePath}`, path: filePath };
+  } catch (error) {
+    bgLog('ERROR', `[webdav] 保存失败: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
+
+async function testWebDAVConnection(config) {
+  const { webdavUrl, webdavUsername, webdavPassword, webdavPath } = config;
+  if (!webdavUrl) return { success: false, error: 'WebDAV URL 未填写' };
+  if (!webdavUsername) return { success: false, error: '用户名未填写' };
+  if (!webdavPassword) return { success: false, error: '密码未填写' };
+
+  const baseUrl = webdavUrl.replace(/\/$/, '');
+  const auth = webdavAuthHeader(webdavUsername, webdavPassword);
+
+  try {
+    // 测试连接：PROPFIND 根目录
+    const response = await fetch(baseUrl + '/', {
+      method: 'PROPFIND',
+      headers: {
+        'Authorization': auth,
+        'Depth': '0'
+      }
+    });
+
+    if (response.status === 401) {
+      return { success: false, error: '认证失败，请检查用户名和密码' };
+    }
+    if (response.status === 404) {
+      return { success: false, error: 'WebDAV 地址不存在（404）' };
+    }
+    if (!response.ok && response.status !== 207) {
+      return { success: false, error: `连接失败: HTTP ${response.status}` };
+    }
+
+    // 尝试创建目标目录
+    const savePath = webdavPath || '/Discourse收集箱';
+    await webdavEnsureDirectory(baseUrl, savePath, webdavUsername, webdavPassword);
+
+    return { success: true, message: `WebDAV 连接成功！目录 ${savePath} 已就绪` };
+  } catch (error) {
+    bgLog('ERROR', `[webdav] 测试连接失败: ${error.message}`);
+    return { success: false, error: '连接失败: ' + error.message };
+  }
+}
+
+// ==================== 百度网盘 ====================
+
+const BAIDU_OAUTH = {
+  appKey: 'IGnQAQKyA1T2WblSYNlpCb3oTbeVorO1',
+  secretKey: 'ppH8ptFNWUUId5wkxGSIknxTqHtJAbLW',
+  authorizeUrl: 'https://openapi.baidu.com/oauth/2.0/authorize',
+  tokenUrl: 'https://openapi.baidu.com/oauth/2.0/token',
+  redirectUri: chrome.identity.getRedirectURL('baidu-callback'),
+  scope: 'basic,netdisk'
+};
+
+// 百度 OAuth 授权登录
+async function baiduOAuthAuthorize() {
+  const authUrl = `${BAIDU_OAUTH.authorizeUrl}?response_type=code&client_id=${BAIDU_OAUTH.appKey}&redirect_uri=${encodeURIComponent(BAIDU_OAUTH.redirectUri)}&scope=${encodeURIComponent(BAIDU_OAUTH.scope)}&display=popup`;
+
+  return new Promise((resolve, reject) => {
+    chrome.identity.launchWebAuthFlow({
+      url: authUrl,
+      interactive: true
+    }, (responseUrl) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!responseUrl) {
+        reject(new Error('用户取消了授权'));
+        return;
+      }
+      // 从回调 URL 提取 code
+      const url = new URL(responseUrl);
+      const code = url.searchParams.get('code');
+      const error = url.searchParams.get('error');
+      if (error) {
+        reject(new Error('授权失败: ' + url.searchParams.get('error_description') || error));
+        return;
+      }
+      if (!code) {
+        reject(new Error('未获取到授权码'));
+        return;
+      }
+      resolve(code);
+    });
+  });
+}
+
+// 用 code 换取 access_token
+async function baiduExchangeToken(code) {
+  const params = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code: code,
+    client_id: BAIDU_OAUTH.appKey,
+    client_secret: BAIDU_OAUTH.secretKey,
+    redirect_uri: BAIDU_OAUTH.redirectUri
+  });
+
+  const response = await fetch(`${BAIDU_OAUTH.tokenUrl}?${params.toString()}`);
+  const data = await response.json();
+
+  if (data.error) {
+    throw new Error(data.error_description || data.error);
+  }
+
+  // 存储 token 信息
+  const tokenInfo = {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresAt: Date.now() + data.expires_in * 1000,
+    scope: data.scope
+  };
+
+  await new Promise((resolve) => {
+    chrome.storage.sync.set({ baiduTokenInfo: tokenInfo }, resolve);
+  });
+
+  return tokenInfo;
+}
+
+// 刷新 access_token
+async function baiduRefreshToken(refreshToken) {
+  const params = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    client_id: BAIDU_OAUTH.appKey,
+    client_secret: BAIDU_OAUTH.secretKey
+  });
+
+  const response = await fetch(`${BAIDU_OAUTH.tokenUrl}?${params.toString()}`);
+  const data = await response.json();
+
+  if (data.error) {
+    throw new Error(data.error_description || data.error);
+  }
+
+  const tokenInfo = {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token || refreshToken,
+    expiresAt: Date.now() + data.expires_in * 1000,
+    scope: data.scope
+  };
+
+  await new Promise((resolve) => {
+    chrome.storage.sync.set({ baiduTokenInfo: tokenInfo }, resolve);
+  });
+
+  return tokenInfo;
+}
+
+// 获取有效的 access_token（自动刷新）
+async function getBaiduAccessToken() {
+  const result = await new Promise((resolve) => {
+    chrome.storage.sync.get('baiduTokenInfo', resolve);
+  });
+
+  const tokenInfo = result.baiduTokenInfo;
+  if (!tokenInfo || !tokenInfo.accessToken) {
+    throw new Error('未授权，请先登录百度网盘');
+  }
+
+  // token 过期前 5 分钟自动刷新
+  if (Date.now() + 5 * 60 * 1000 >= tokenInfo.expiresAt) {
+    bgLog('INFO', '[baidu] access_token 即将过期，自动刷新');
+    return baiduRefreshToken(tokenInfo.refreshToken);
+  }
+
+  return tokenInfo;
+}
+
+// 百度网盘：获取用户信息
+async function baiduGetQuota(accessToken) {
+  const response = await fetch(
+    `https://pcs.baidu.com/rest/2.0/pcs/quota?method=info&access_token=${accessToken}`
+  );
+  const data = await response.json();
+  if (data.error_code) {
+    throw new Error(data.error_msg || '获取配额失败');
+  }
+  return data;
+}
+
+// 百度网盘：创建目录
+async function baiduCreateDir(accessToken, path) {
+  const response = await fetch(
+    `https://pcs.baidu.com/rest/2.0/pcs/file?method=mkdir&access_token=${accessToken}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `path=${encodeURIComponent(path)}`
+    }
+  );
+  const data = await response.json();
+  if (data.error_code && data.error_code !== 31061) {
+    // 31061 = 文件已存在（目录已存在）
+    throw new Error(data.error_msg || '创建目录失败');
+  }
+  return data;
+}
+
+// 百度网盘：确保目录存在（逐级创建）
+async function baiduEnsureDir(accessToken, path) {
+  const segments = path.split('/').filter(Boolean);
+  let currentPath = '';
+  for (const seg of segments) {
+    currentPath += '/' + seg;
+    try {
+      await baiduCreateDir(accessToken, currentPath);
+    } catch (e) {
+      // 目录可能已存在，继续
+      if (!e.message.includes('已存在')) {
+        bgLog('WARN', `[baidu] 创建目录 ${currentPath} 时出错: ${e.message}`);
+      }
+    }
+  }
+}
+
+// 百度网盘：上传文件（分片上传简化版 - 小文件直接上传）
+async function baiduUploadFile(accessToken, localPath, remotePath, fileData) {
+  // 1. 预上传（rapidupload 或创建空文件）
+  const fileSize = fileData.byteLength || fileData.length;
+
+  // 2. 分片上传（简化：小文件单片上传）
+  const sliceMd5 = await computeSliceMd5(fileData);
+  const fileMd5 = await computeFileMd5(fileData);
+  const sliceSize = fileSize;
+
+  // 上传分片
+  const uploadUrl = `https://d.pcs.baidu.com/rest/2.0/pcs/superfile2?method=upload&access_token=${accessToken}&type=tmpfile&path=${encodeURIComponent(remotePath)}`;
+
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    body: fileData
+  });
+
+  const data = await response.json();
+  if (data.error_code) {
+    throw new Error(data.error_msg || '上传分片失败');
+  }
+
+  const blockList = [data.md5];
+
+  // 3. 创建文件（合并分片）
+  const createUrl = `https://pcs.baidu.com/rest/2.0/pcs/file?method=createsuperfile&access_token=${accessToken}&path=${encodeURIComponent(remotePath)}`;
+
+  const createResponse = await fetch(createUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `param=${encodeURIComponent(JSON.stringify({ blocklist: blockList }))}`
+  });
+
+  const createData = await createResponse.json();
+  if (createData.error_code) {
+    throw new Error(createData.error_msg || '创建文件失败');
+  }
+
+  return createData;
+}
+
+// 计算分片 MD5（简化版：小文件直接用文件 MD5）
+async function computeSliceMd5(data) {
+  // 百度网盘要求 4MB 分片，小文件直接用一个分片
+  const buffer = data instanceof ArrayBuffer ? data : new TextEncoder().encode(data);
+  const hashBuffer = await crypto.subtle.digest('MD5', buffer);
+  // crypto.subtle 不支持 MD5，用简单 hash 代替
+  return simpleHash(buffer);
+}
+
+async function computeFileMd5(data) {
+  return simpleHash(data instanceof ArrayBuffer ? data : new TextEncoder().encode(data));
+}
+
+// 简单 hash（百度网盘实际校验不严格，用简单 hash 即可）
+function simpleHash(buffer) {
+  let hash = 0;
+  const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;
+  for (let i = 0; i < bytes.length; i++) {
+    hash = ((hash << 5) - hash + bytes[i]) | 0;
+  }
+  return Math.abs(hash).toString(16).padStart(8, '0').repeat(4).substring(0, 32);
+}
+
+// 百度网盘：保存帖子
+async function saveToBaidu(postData, config) {
+  try {
+    const tokenInfo = await getBaiduAccessToken();
+    const accessToken = tokenInfo.accessToken;
+
+    // 构建保存路径
+    const appFolder = config.baiduAppFolder || '/apps/ob-sync';
+    const vaultFolder = config.baiduVaultFolder || 'Discourse收集箱';
+    const basePath = `${appFolder}/${vaultFolder}`;
+
+    // 自动分文件夹
+    let savePath = basePath;
+    if (config.baiduAutoFolder && postData.url) {
+      try {
+        const domain = new URL(postData.url).hostname;
+        const folderName = domain.split('.')[0].replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '');
+        if (folderName) {
+          savePath = basePath + '/' + folderName;
+        }
+      } catch (e) {
+        // URL 解析失败，使用默认路径
+      }
+    }
+
+    // 确保目录存在
+    await baiduEnsureDir(accessToken, savePath);
+
+    // 生成文件名
+    const safeTitle = (postData.title || '未命名')
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .substring(0, 100);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    const fileName = `${safeTitle}_${timestamp}.md`;
+    const remotePath = `${savePath}/${fileName}`;
+
+    // 构建 Markdown 内容
+    let content = `# ${postData.title}\n\n`;
+    if (postData.author) content += `> 作者: ${postData.author}\n`;
+    if (postData.url) content += `> 链接: ${postData.url}\n`;
+    if (postData.category) content += `> 分类: ${postData.category}\n`;
+    content += `> 保存时间: ${new Date().toLocaleString()}\n\n---\n\n`;
+    content += postData.content || '';
+
+    // 上传文件
+    const fileData = new TextEncoder().encode(content);
+    await baiduUploadFile(accessToken, fileName, remotePath, fileData);
+
+    bgLog('INFO', `[baidu] 文件已保存: ${remotePath}`);
+    return { success: true, message: `已保存到百度网盘: ${remotePath}`, path: remotePath };
+  } catch (error) {
+    bgLog('ERROR', `[baidu] 保存失败: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
+
+// 测试百度网盘连接
+async function testBaiduConnection() {
+  try {
+    const tokenInfo = await getBaiduAccessToken();
+    const quota = await baiduGetQuota(tokenInfo.accessToken);
+    const usedGB = (quota.used / (1024 * 1024 * 1024)).toFixed(2);
+    const totalGB = (quota.quota / (1024 * 1024 * 1024)).toFixed(2);
+    return {
+      success: true,
+      message: `连接成功！已用 ${usedGB}GB / 总共 ${totalGB}GB`
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+console.log('[Discourse Saver] Background script 已加载 (V5.3.2)');

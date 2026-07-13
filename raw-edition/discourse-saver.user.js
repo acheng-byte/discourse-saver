@@ -117,7 +117,7 @@
       downloadImages: false,
       downloadVideos: true,
       restApiKey: '',
-      restApiPort: 27124,
+      restApiPort: 27123,
       mediaFolderName: 'media',
 
       // 评论设置
@@ -530,10 +530,23 @@
       const mediaFolderName = config.mediaFolderName || 'media';
       const vaultPath = siteFolderPath ? `${siteFolderPath}/${mediaFolderName}` : mediaFolderName;
 
-      // 优先使用 HTTP (27123) 避免自签名证书问题
-      const configPort = config.restApiPort || 27124;
-      const httpPort = configPort === 27124 ? 27123 : configPort;
-      const apiBase = `http://127.0.0.1:${httpPort}`;
+      // 优先使用 HTTP (27123) 避免自签名证书问题，失败时自动升级到 HTTPS (27124)
+      const configPort = config.restApiPort || 27123;
+      let apiBase = `http://127.0.0.1:${configPort}`;
+      try {
+        await new Promise((resolve, reject) => {
+          GM_xmlhttpRequest({
+            method: 'GET', url: `${apiBase}/`, timeout: 5000,
+            headers: { 'Authorization': `Bearer ${config.restApiKey}` },
+            onload: (r) => r.status >= 200 && r.status < 500 ? resolve() : reject(new Error()),
+            onerror: () => reject(new Error())
+          });
+        });
+      } catch (e) {
+        const httpsPort = configPort === 27123 ? 27124 : configPort + 1;
+        apiBase = `https://127.0.0.1:${httpsPort}`;
+        console.log('[Discourse Saver] HTTP 失败，升级到 HTTPS:', apiBase);
+      }
 
       const results = [];
 
@@ -665,34 +678,41 @@
 
     // V5.1: 测试 Obsidian Local REST API 连接
     async function testRestApiConnection(apiKey, apiPort) {
-      const httpPort = (apiPort || 27124) === 27124 ? 27123 : apiPort;
-      const apiBase = `http://127.0.0.1:${httpPort}`;
+      const port = apiPort || 27123;
 
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: 'GET',
-          url: `${apiBase}/`,
-          headers: {
-            'Authorization': `Bearer ${apiKey}`
-          },
-          timeout: 5000,
-          onload: function(response) {
-            if (response.status >= 200 && response.status < 300) {
-              resolve({ success: true, message: '连接成功' });
-            } else if (response.status === 401 || response.status === 403) {
-              resolve({ success: false, message: 'API Key 错误' });
-            } else {
-              resolve({ success: false, message: `HTTP ${response.status}` });
-            }
-          },
-          onerror: function() {
-            resolve({ success: false, message: '无法连接，请确认 Obsidian 已启动且已安装 Local REST API 插件' });
-          },
-          ontimeout: function() {
-            resolve({ success: false, message: '连接超时' });
-          }
+      function tryConnect(baseUrl) {
+        return new Promise((resolve, reject) => {
+          GM_xmlhttpRequest({
+            method: 'GET',
+            url: `${baseUrl}/`,
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+            timeout: 5000,
+            onload: function(response) {
+              if (response.status >= 200 && response.status < 300) {
+                resolve({ success: true, message: '连接成功' });
+              } else if (response.status === 401 || response.status === 403) {
+                resolve({ success: false, message: 'API Key 错误' });
+              } else {
+                resolve({ success: false, message: `HTTP ${response.status}` });
+              }
+            },
+            onerror: () => reject(new Error('connection_failed')),
+            ontimeout: () => reject(new Error('timeout'))
+          });
         });
-      });
+      }
+
+      // 先试 HTTP，失败再试 HTTPS
+      try {
+        return await tryConnect(`http://127.0.0.1:${port}`);
+      } catch (e) {
+        const httpsPort = port === 27123 ? 27124 : port + 1;
+        try {
+          return await tryConnect(`https://127.0.0.1:${httpsPort}`);
+        } catch (e2) {
+          return { success: false, message: '无法连接，请确认 Obsidian 已启动且已安装 Local REST API 插件' };
+        }
+      }
     }
 
     return { getBeijingTime, sanitizeFileName, showNotification, fetchImageAsBase64, embedImagesInMarkdown, isValidUrl, buildSafeUrl, sanitizeHtml, collectMediaUrls, downloadAndReplaceMedia, testRestApiConnection };
@@ -4905,7 +4925,7 @@ ${tagsYaml}
             <div class="ds-form-group">
               <label>端口</label>
               <input type="number" id="ds-rest-api-port" value="${config.restApiPort}" min="1" max="65535" style="width: 100px;">
-              <span class="ds-hint" style="margin-left: 8px;">默认 27124</span>
+              <span class="ds-hint" style="margin-left: 8px;">默认 27123</span>
             </div>
             <div class="ds-form-group" style="display: flex; gap: 8px;">
               <button class="ds-btn ds-btn-secondary" id="ds-test-rest-api" style="flex: none; padding: 6px 12px;">测试连接</button>
@@ -5140,7 +5160,7 @@ ${tagsYaml}
       overlay.querySelector('#ds-test-rest-api').addEventListener('click', async () => {
         const statusEl = overlay.querySelector('#ds-rest-api-status');
         const apiKey = overlay.querySelector('#ds-rest-api-key').value.trim();
-        const apiPort = parseInt(overlay.querySelector('#ds-rest-api-port').value) || 27124;
+        const apiPort = parseInt(overlay.querySelector('#ds-rest-api-port').value) || 27123;
 
         statusEl.textContent = '正在测试...';
         statusEl.style.color = '#6b7280';
@@ -5256,7 +5276,7 @@ ${tagsYaml}
           downloadImages: overlay.querySelector('#ds-download-images').checked,
           downloadVideos: overlay.querySelector('#ds-download-videos').checked,
           restApiKey: overlay.querySelector('#ds-rest-api-key').value.trim(),
-          restApiPort: parseInt(overlay.querySelector('#ds-rest-api-port').value) || 27124,
+          restApiPort: parseInt(overlay.querySelector('#ds-rest-api-port').value) || 27123,
           mediaFolderName: overlay.querySelector('#ds-media-folder-name').value.trim() || 'media',
           // Notion设置
           notionToken: overlay.querySelector('#ds-notion-token').value.trim(),

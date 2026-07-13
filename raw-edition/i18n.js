@@ -9,6 +9,8 @@ const i18n = {
       general: '通用',
       feishu: '飞书',
       siyuan: '思源',
+      webdav: 'WebDAV',
+      baidu: '百度网盘',
       yuque: '语雀',
       comments: '评论'
     },
@@ -20,6 +22,8 @@ const i18n = {
       feishu: '飞书多维表格设置',
       notion: 'Notion Database 设置',
       siyuan: '思源笔记设置',
+      webdav: 'WebDAV 设置',
+      baidu: '百度网盘设置',
       yuque: '语雀设置',
       content: '内容设置',
       comments: '评论设置',
@@ -52,6 +56,8 @@ const i18n = {
       notion: '保存到 Notion Database',
       exportHtml: '导出 HTML 文件',
       siyuan: '保存到思源笔记',
+      webdav: '保存到 WebDAV 网盘',
+      baidu: '保存到百度网盘',
       yuque: '保存到语雀',
       multiSaveHelp: '可以同时保存到多个地方'
     },
@@ -76,7 +82,7 @@ const i18n = {
       testConnection: '测试连接',
       showLogs: '查看日志',
       folderHelpDetail2: '支持多种路径格式：Linux do/子目录、D:\\Vault\\文件夹、/Users/me/vault/folder',
-      restApiPortHelp: '默认 27124'
+      restApiPortHelp: '默认 27123'
     },
     feishu: {
       version: 'API 版本',
@@ -96,7 +102,13 @@ const i18n = {
       tableIdHelp: 'URL 中 ?table= 后面的字符串（以 tbl 开头）',
       tableIdPlaceholder: 'tblxxxxxxxxxxxxxxxx',
       tableIdHelpDetail: '从 URL 中获取：?table=tblxxx&view=...',
+      importFolderToken: '云文档导入文件夹 token（可选）',
+      importFolderTokenHelp: '建议填写固定文件夹 token，云文档将统一导入到该文件夹；留空则导入到云空间根目录。',
+      contentFixed: '正文将固定写入「正文」字段（文本）。',
       uploadContent: '上传正文到「正文」字段',
+      uploadContentAsCloudDoc: '将正文导入飞书云文档，并写入「云文档链接」字段（无该字段则追加到正文顶部）',
+      uploadContentAsCloudDocHelp: '需先启用“保存到飞书”后，才能启用该选项。',
+      advancedOptions: '高级选项（附件与权限说明）',
       uploadMd: '上传 MD 附件（需额外权限，可选）',
       uploadMdHelp: '将完整内容作为 .md 文件上传到飞书',
       uploadMdHelpDetail: '不勾选则只保存文本摘要，无需 drive 权限',
@@ -110,14 +122,16 @@ const i18n = {
       perm2Content: 'drive:file:upload（上传文件到云空间）',
       perm3Title: '3. 多维表格字段（9个必填）：',
       perm3Content1: '标题（文本）、链接（超链接）、作者（文本）、分类（文本）、标签（文本）、保存时间（日期）、评论数（数字）',
-      perm3Content2: '如勾选上传附件：附件（附件）；否则：正文（文本）',
+      perm3Content2: '如勾选上传附件：附件（附件）；正文字段必须为文本，云文档链接建议单独字段存放',
       uploadHtml: '上传 HTML 附件（需额外权限，可选）',
       permRequired: '必须的权限：',
       permAttachment: '附件权限：',
+      permImport: '导入云文档权限：',
       permFields: '字段：',
       permRequiredContent: 'bitable:app（多维表格读写）',
       permAttachmentContent: 'drive:file:upload（可选）',
-      permFieldsContent: '标题(文本)、链接(超链接)、作者(文本)、分类(文本)、标签(文本)、保存时间(日期)、评论数(数字)、正文(文本)、附件(附件)'
+      permImportContent: 'docs:document:import（启用“正文导入云文档”时必需）',
+      permFieldsContent: '标题(文本)、链接(超链接)、作者(文本)、分类(文本)、标签(文本)、保存时间(日期)、评论数(数字)、正文(文本)、附件(附件)；可选：云文档链接(超链接/文本)'
     },
     siyuan: {
       apiUrl: 'API 地址',
@@ -148,6 +162,36 @@ const i18n = {
       notebookHelpShort: '可先留空点击「测试连接」，会列出所有笔记本及 ID',
       savePathHelpShort: '支持 /文件夹/子目录 格式，留空保存到笔记本根目录',
       configStepsTip: '<strong>配置步骤：</strong><br>1. 确保思源笔记已启动（默认端口 6806）<br>2. 如需鉴权：设置 → 关于 → 设置访问授权码<br>3. 笔记本 ID 留空，先点「测试连接」查看可用笔记本列表<br>4. 复制目标笔记本 ID 填入上方输入框<br>5. 再次测试连接确认成功'
+    },
+    webdav: {
+      enable: '启用 WebDAV 保存',
+      enableHelp: '保存到支持 WebDAV 协议的网盘（坚果云、Nextcloud 等）',
+      url: 'WebDAV 服务器地址',
+      urlHelp: 'WebDAV 服务端点地址。坚果云: https://dav.jianguoyun.com/dav/',
+      username: '用户名',
+      password: '密码（或应用密码）',
+      passwordHelp: '坚果云请使用「账户信息 → 安全选项 → 应用密码」',
+      path: '保存路径',
+      pathHelp: '网盘上的保存目录，不存在时会自动创建',
+      autoFolder: '按论坛域名自动分文件夹',
+      autoFolderHelp: '开启后，在保存路径下自动创建以论坛域名为名的子文件夹（如 linux.do → /Discourse收集箱/linux/）',
+      testConnection: '测试连接',
+      configStepsTip: '<strong>配置步骤（以坚果云为例）：</strong><br>1. 登录坚果云网页版<br>2. 进入「账户信息 → 安全选项」<br>3. 添加「应用密码」，复制生成的密码<br>4. 填入上方：URL=https://dav.jianguoyun.com/dav/，用户名=邮箱，密码=应用密码<br>5. 点击「测试连接」确认配置正确'
+    },
+    baidu: {
+      enable: '启用百度网盘保存',
+      enableHelp: '通过百度网盘开放 API 保存帖子到网盘',
+      auth: '授权状态',
+      authorize: '百度网盘授权登录',
+      authHelp: '点击按钮弹出百度登录页进行授权，授权后 token 自动刷新',
+      appFolder: '应用文件夹',
+      appFolderHelp: '百度网盘 /apps/ 下的应用目录名，默认 ob-sync',
+      vaultFolder: 'Vault 名称（网盘子目录）',
+      vaultFolderHelp: '应用文件夹下的子目录名',
+      autoFolder: '按论坛域名自动分文件夹',
+      autoFolderHelp: '开启后，在保存路径下自动创建以论坛域名为名的子文件夹（如 linux.do → /apps/ob-sync/Discourse收集箱/linux/）',
+      testConnection: '测试连接',
+      configStepsTip: '<strong>配置步骤：</strong><br>1. 勾选「启用百度网盘保存」<br>2. 点击「百度网盘授权登录」，在弹出页面登录百度账号并授权<br>3. 授权成功后可点击「测试连接」查看网盘使用情况<br>4. 可选：开启「按论坛域名自动分文件夹」自动归类'
     },
     yuque: {
       token: '个人访问令牌 (Token)',
@@ -217,6 +261,9 @@ const i18n = {
     },
     content: {
       addMetadata: '添加元数据到笔记（Frontmatter）',
+      addPostInfoCallout: '添加“帖子信息”引用框（Obsidian Callout）',
+      calloutFollowMetadata: '字段跟随元数据设置（默认）',
+      calloutFieldsHelp: '关闭上面的选项后，可独立选择引用框字段；可只选 1 条或任意多条。',
       metadataNote: '仅影响 Obsidian / 语雀 / 思源的 Frontmatter 字段，飞书多维表格和 Notion 数据库字段不受影响。',
       metadataFieldsHint: '勾选字段 / 可自定义字段名（tags 固定为英文）',
       keepImages: '保留图片链接',
@@ -253,7 +300,7 @@ const i18n = {
       restApiKeyHelp: '在 Obsidian 设置 → Local REST API 中查看',
       restApiKeyPlaceholder: '粘贴你的 API Key',
       restApiPort: '端口',
-      restApiPortHelp: '默认 27124，一般不需要修改',
+      restApiPortHelp: '默认 27123，一般不需要修改',
       testRestApi: '测试连接',
       restApiConfigTitle: '配置步骤：',
       restApiStep1: '1. 在 Obsidian 中安装社区插件「Local REST API」',
@@ -373,6 +420,8 @@ const i18n = {
       general: 'General',
       feishu: 'Feishu',
       siyuan: 'SiYuan',
+      webdav: 'WebDAV',
+      baidu: 'Baidu Netdisk',
       yuque: 'Yuque',
       comments: 'Comments'
     },
@@ -384,6 +433,8 @@ const i18n = {
       feishu: 'Feishu Bitable Settings',
       notion: 'Notion Database Settings',
       siyuan: 'SiYuan Note Settings',
+      webdav: 'WebDAV Settings',
+      baidu: 'Baidu Netdisk Settings',
       yuque: 'Yuque Settings',
       content: 'Content Settings',
       comments: 'Comment Settings',
@@ -416,6 +467,8 @@ const i18n = {
       notion: 'Save to Notion Database',
       exportHtml: 'Export HTML File',
       siyuan: 'Save to SiYuan Note',
+      webdav: 'Save to WebDAV Storage',
+      baidu: 'Save to Baidu Netdisk',
       yuque: 'Save to Yuque',
       multiSaveHelp: 'Can save to multiple destinations simultaneously'
     },
@@ -440,7 +493,7 @@ const i18n = {
       testConnection: 'Test Connection',
       showLogs: 'View Logs',
       folderHelpDetail2: 'Supports multiple path formats: subfolder, D:\\Vault\\folder, /Users/me/vault/folder',
-      restApiPortHelp: 'Default 27124'
+      restApiPortHelp: 'Default 27123'
     },
     feishu: {
       version: 'API Version',
@@ -460,7 +513,13 @@ const i18n = {
       tableIdHelp: 'String after ?table= in URL (starts with tbl)',
       tableIdPlaceholder: 'tblxxxxxxxxxxxxxxxx',
       tableIdHelpDetail: 'Get from URL: ?table=tblxxx&view=...',
+      importFolderToken: 'Import folder token for docs (optional)',
+      importFolderTokenHelp: 'Recommended: set a fixed folder token so imported docs always go into that folder; leave empty to use root.',
+      contentFixed: 'Body text is always written into the "Content" text field.',
       uploadContent: 'Upload body text to "Content" field',
+      uploadContentAsCloudDoc: 'Import body as Feishu doc, write to "Doc Link" field (or prepend link to content if missing)',
+      uploadContentAsCloudDocHelp: 'Enable "Save to Feishu" first to use this option.',
+      advancedOptions: 'Advanced Options (Attachments & Permission Notes)',
       uploadMd: 'Upload MD Attachment (extra permission, optional)',
       uploadMdHelp: 'Upload complete content as .md file to Feishu',
       uploadMdHelpDetail: 'If unchecked, only save text summary without drive permission',
@@ -474,14 +533,16 @@ const i18n = {
       perm2Content: 'drive:file:upload (Upload files to cloud)',
       perm3Title: '3. Bitable Fields (9 required):',
       perm3Content1: 'Title (Text), Link (Hyperlink), Author (Text), Category (Text), Tags (Text), Save Time (Date), Comments (Number)',
-      perm3Content2: 'If upload attachment checked: Attachment (Attachment); otherwise: Content (Text)',
+      perm3Content2: 'If attachment is enabled: Attachment field is used; Content must remain Text. Use a separate doc-link field when possible.',
       uploadHtml: 'Upload HTML Attachment (extra permission, optional)',
       permRequired: 'Required permissions:',
       permAttachment: 'Attachment permission:',
+      permImport: 'Doc import permission:',
       permFields: 'Fields:',
       permRequiredContent: 'bitable:app (Bitable read/write)',
       permAttachmentContent: 'drive:file:upload (optional)',
-      permFieldsContent: 'Title(Text), Link(Hyperlink), Author(Text), Category(Text), Tags(Text), Save Time(Date), Comments(Number), Content(Text), Attachment(Attachment)'
+      permImportContent: 'docs:document:import (required when "import body as doc" is enabled)',
+      permFieldsContent: 'Title(Text), Link(Hyperlink), Author(Text), Category(Text), Tags(Text), Save Time(Date), Comments(Number), Content(Text), Attachment(Attachment); Optional: Doc Link(Hyperlink/Text)'
     },
     siyuan: {
       apiUrl: 'API URL',
@@ -512,6 +573,36 @@ const i18n = {
       notebookHelpShort: 'Leave empty and click "Test Connection" to list all notebooks with IDs',
       savePathHelpShort: 'Supports /folder/subfolder format, leave empty for notebook root',
       configStepsTip: '<strong>Configuration Steps:</strong><br>1. Ensure SiYuan Note is running (default port 6806)<br>2. If auth needed: Settings → About → Set Access Authorization Code<br>3. Leave Notebook ID empty, click "Test Connection" to see available notebooks<br>4. Copy target notebook ID into the input field above<br>5. Test connection again to confirm success'
+    },
+    webdav: {
+      enable: 'Enable WebDAV Save',
+      enableHelp: 'Save to WebDAV-compatible cloud storage (Jianguoyun, Nextcloud, etc.)',
+      url: 'WebDAV Server URL',
+      urlHelp: 'WebDAV service endpoint. Jianguoyun: https://dav.jianguoyun.com/dav/',
+      username: 'Username',
+      password: 'Password (or App Password)',
+      passwordHelp: 'For Jianguoyun, use "Account Info → Security → App Password"',
+      path: 'Save Path',
+      pathHelp: 'Directory on the storage, will be created automatically if not exists',
+      autoFolder: 'Auto-sort by Forum Domain',
+      autoFolderHelp: 'When enabled, creates subfolders named after the forum domain (e.g., linux.do → /Discourse Inbox/linux/)',
+      testConnection: 'Test Connection',
+      configStepsTip: '<strong>Configuration Steps (Jianguoyun example):</strong><br>1. Log in to Jianguoyun web version<br>2. Go to "Account Info → Security Options"<br>3. Add "App Password" and copy the generated password<br>4. Fill in: URL=https://dav.jianguoyun.com/dav/, Username=email, Password=app password<br>5. Click "Test Connection" to verify'
+    },
+    baidu: {
+      enable: 'Enable Baidu Netdisk Save',
+      enableHelp: 'Save posts to Baidu Netdisk via Open API',
+      auth: 'Authorization Status',
+      authorize: 'Baidu Netdisk OAuth Login',
+      authHelp: 'Click to open Baidu login page for authorization, token auto-refreshes after auth',
+      appFolder: 'App Folder',
+      appFolderHelp: 'Application directory under /apps/ on Baidu Netdisk, default: ob-sync',
+      vaultFolder: 'Vault Name (Subdirectory)',
+      vaultFolderHelp: 'Subdirectory name under the app folder',
+      autoFolder: 'Auto-sort by Forum Domain',
+      autoFolderHelp: 'When enabled, creates subfolders named after the forum domain (e.g., linux.do → /apps/ob-sync/Discourse Inbox/linux/)',
+      testConnection: 'Test Connection',
+      configStepsTip: '<strong>Configuration Steps:</strong><br>1. Check "Enable Baidu Netdisk Save"<br>2. Click "Baidu Netdisk OAuth Login" to authorize in the popup<br>3. After authorization, click "Test Connection" to check storage usage<br>4. Optional: Enable "Auto-sort by Forum Domain" for automatic categorization'
     },
     yuque: {
       token: 'Personal Access Token',
@@ -581,6 +672,9 @@ const i18n = {
     },
     content: {
       addMetadata: 'Add metadata to notes (Frontmatter)',
+      addPostInfoCallout: 'Add "Post Info" callout block (Obsidian Callout)',
+      calloutFollowMetadata: 'Follow metadata field settings (default)',
+      calloutFieldsHelp: 'Disable the option above to choose callout fields independently. You can select only one field or multiple fields.',
       metadataNote: 'Only affects Frontmatter in Obsidian / Yuque / Siyuan. Feishu table and Notion database fields are not affected.',
       metadataFieldsHint: 'Toggle fields / Customize field names (tags key is fixed)',
       keepImages: 'Keep image links',
@@ -617,7 +711,7 @@ const i18n = {
       restApiKeyHelp: 'Find in Obsidian Settings → Local REST API',
       restApiKeyPlaceholder: 'Paste your API Key',
       restApiPort: 'Port',
-      restApiPortHelp: 'Default 27124, usually no need to change',
+      restApiPortHelp: 'Default 27123, usually no need to change',
       testRestApi: 'Test Connection',
       restApiConfigTitle: 'Configuration Steps:',
       restApiStep1: '1. Install community plugin "Local REST API" in Obsidian',
@@ -798,3 +892,4 @@ function initLanguage() {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { i18n, setLanguage, initLanguage };
 }
+
