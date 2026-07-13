@@ -3788,10 +3788,11 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
   // HTTP优先，失败时自动升级到HTTPS（端口+1）
   let useHttps = false;
   try {
-    await fetch(`${apiBase}/`, {
+    const probeResp = await fetch(`${apiBase}/`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${config.restApiKey}` }
     });
+    if (!probeResp.ok) throw new Error(`HTTP ${probeResp.status}`);
   } catch (e) {
     // HTTP 失败，升级到 HTTPS（端口+1）
     const httpsPort = port + 1;
@@ -4271,13 +4272,18 @@ async function webdavEnsureDirectory(baseUrl, path, username, password) {
     currentPath += '/' + seg;
     const dirUrl = baseUrl.replace(/\/$/, '') + currentPath;
     try {
-      await fetch(dirUrl, {
+      const mkcolResp = await fetch(dirUrl, {
         method: 'MKCOL',
         headers: { 'Authorization': auth }
       });
+      // 201=创建成功, 207=多状态, 405=已存在, 409=冲突(已存在)
+      if (![201, 207, 405, 409].includes(mkcolResp.status)) {
+        throw new Error(`MKCOL ${mkcolResp.status} ${mkcolResp.statusText}`);
+      }
     } catch (e) {
-      // 目录可能已存在，忽略 405 Method Not Allowed
-      if (!e.message.includes('405')) {
+      if (e.message && (e.message.includes('405') || e.message.includes('409'))) {
+        // 目录已存在，忽略
+      } else {
         bgLog('WARN', `[webdav] 创建目录 ${currentPath} 时出错: ${e.message}`);
       }
     }
@@ -4327,7 +4333,7 @@ async function saveToWebDAV(postData, config) {
       body: new TextEncoder().encode(content)
     });
 
-    if (!response.ok && response.status !== 201 && response.status !== 204) {
+    if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
@@ -4412,7 +4418,7 @@ async function baiduOAuthAuthorize() {
       const code = url.searchParams.get('code');
       const error = url.searchParams.get('error');
       if (error) {
-        reject(new Error('授权失败: ' + url.searchParams.get('error_description') || error));
+        reject(new Error('授权失败: ' + (url.searchParams.get('error_description') || error)));
         return;
       }
       if (!code) {
@@ -4435,6 +4441,7 @@ async function baiduExchangeToken(code) {
   });
 
   const response = await fetch(`${BAIDU_OAUTH.tokenUrl}?${params.toString()}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   const data = await response.json();
 
   if (data.error) {
@@ -4466,6 +4473,10 @@ async function baiduRefreshToken(refreshToken) {
   });
 
   const response = await fetch(`${BAIDU_OAUTH.tokenUrl}?${params.toString()}`);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`刷新 token 失败: HTTP ${response.status} - ${text}`);
+  }
   const data = await response.json();
 
   if (data.error) {
@@ -4597,10 +4608,8 @@ async function baiduUploadFile(accessToken, localPath, remotePath, fileData) {
 
 // 计算分片 MD5（简化版：小文件直接用文件 MD5）
 async function computeSliceMd5(data) {
-  // 百度网盘要求 4MB 分片，小文件直接用一个分片
-  const buffer = data instanceof ArrayBuffer ? data : new TextEncoder().encode(data);
-  const hashBuffer = await crypto.subtle.digest('MD5', buffer);
   // crypto.subtle 不支持 MD5，用简单 hash 代替
+  const buffer = data instanceof ArrayBuffer ? data : new TextEncoder().encode(data);
   return simpleHash(buffer);
 }
 
