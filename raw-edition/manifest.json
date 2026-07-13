@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Discourse Saver [Raw Edition]",
-  "version": "5.6.5",
+  "version": "1.1.0",
   "description": "通用Discourse论坛内容保存工具 Raw特别版 - 直接使用 Discourse 原始 Markdown，表格/代码块零损耗，支持Obsidian/飞书/Notion/HTML",
   "permissions": [
     "storage",

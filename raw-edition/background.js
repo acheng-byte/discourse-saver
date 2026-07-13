@@ -3880,7 +3880,7 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
         throw new Error(`REST API ${putResponse.status}`);
       }
 
-      // V5.3.2: 详细日志，记录协议类型
+      // V1.1.0: 详细日志，记录协议类型
       bgLog('INFO', `媒体文件已保存: ${finalName} → Vault路径: ${filePath} (${binaryData.byteLength}B, 协议: ${useHttps ? 'HTTPS' : 'HTTP'})`);
 
       results.push({
@@ -4692,4 +4692,4 @@ async function testBaiduConnection() {
   }
 }
 
-console.log('[Discourse Saver] Background script 已加载 (V5.3.2)');
+console.log('[Discourse Saver] Background script 已加载 (V1.1.0)');
