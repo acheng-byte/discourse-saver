@@ -338,6 +338,13 @@
         color: #4a90d9;
         font-size: 13px;
       }
+      #ds-fab-menu .ds-menu-subtitle {
+        font-size: 11px;
+        color: #999;
+        padding: 4px 10px 2px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
       #ds-fab-menu .ds-menu-item {
         padding: 8px 10px;
         border-radius: 6px;
@@ -540,6 +547,7 @@
   }
 
   // V5.4.1: 悬浮按钮长按菜单
+  // V1.1.2: 新增仅保存到指定目标、复制Markdown、复制纯文本、导出HTML/MD等选项
   function showFabMenu(anchorBtn) {
     // 关闭已有菜单
     closeFabMenu();
@@ -552,6 +560,37 @@
       <div class="ds-menu-item" data-action="save-all">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         <span>保存整个帖子</span>
+      </div>
+      <div class="ds-menu-divider"></div>
+      <div class="ds-menu-subtitle">仅保存到</div>
+      <div class="ds-menu-item" data-action="save-obsidian">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        <span>仅保存到 Obsidian</span>
+      </div>
+      <div class="ds-menu-item" data-action="save-feishu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+        <span>仅保存到飞书</span>
+      </div>
+      <div class="ds-menu-item" data-action="save-baidu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>仅保存到百度网盘</span>
+      </div>
+      <div class="ds-menu-item" data-action="save-html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <span>导出 HTML 文件</span>
+      </div>
+      <div class="ds-menu-item" data-action="save-md">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span>导出 MD 文件</span>
+      </div>
+      <div class="ds-menu-divider"></div>
+      <div class="ds-menu-item" data-action="copy-md">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span>复制为 Markdown</span>
+      </div>
+      <div class="ds-menu-item" data-action="copy-text">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <span>复制纯文本</span>
       </div>
       <div class="ds-menu-divider"></div>
       <div class="ds-menu-toggle">
@@ -573,7 +612,7 @@
 
     // 定位菜单：在按钮左侧弹出
     const btnRect = anchorBtn.getBoundingClientRect();
-    const menuWidth = 220;
+    const menuWidth = 240;
     let menuLeft = btnRect.left - menuWidth - 10;
     let menuTop = btnRect.top;
     // 如果左边放不下，放右边
@@ -581,19 +620,124 @@
       menuLeft = btnRect.right + 10;
     }
     // 底部超出屏幕则上移
-    if (menuTop + 160 > window.innerHeight) {
-      menuTop = window.innerHeight - 170;
+    if (menuTop + 350 > window.innerHeight) {
+      menuTop = window.innerHeight - 360;
     }
     menu.style.left = menuLeft + 'px';
     menu.style.top = menuTop + 'px';
 
-    // 保存整帖
+    // 保存整帖（所有已启用目标）
     menu.querySelector('[data-action="save-all"]').addEventListener('click', () => {
       closeFabMenu();
       anchorBtn.classList.add('ds-fab-saving');
-      saveToObsidian(null).finally(() => {
+      saveToObsidian(null, 'all').finally(() => {
         anchorBtn.classList.remove('ds-fab-saving');
       });
+    });
+
+    // 仅保存到 Obsidian
+    menu.querySelector('[data-action="save-obsidian"]').addEventListener('click', () => {
+      closeFabMenu();
+      anchorBtn.classList.add('ds-fab-saving');
+      saveToObsidian(null, 'obsidian').finally(() => {
+        anchorBtn.classList.remove('ds-fab-saving');
+      });
+    });
+
+    // 仅保存到飞书
+    menu.querySelector('[data-action="save-feishu"]').addEventListener('click', () => {
+      closeFabMenu();
+      anchorBtn.classList.add('ds-fab-saving');
+      saveToObsidian(null, 'feishu').finally(() => {
+        anchorBtn.classList.remove('ds-fab-saving');
+      });
+    });
+
+    // 仅保存到百度网盘
+    menu.querySelector('[data-action="save-baidu"]').addEventListener('click', () => {
+      closeFabMenu();
+      anchorBtn.classList.add('ds-fab-saving');
+      saveToObsidian(null, 'baidu').finally(() => {
+        anchorBtn.classList.remove('ds-fab-saving');
+      });
+    });
+
+    // 导出 HTML
+    menu.querySelector('[data-action="save-html"]').addEventListener('click', () => {
+      closeFabMenu();
+      anchorBtn.classList.add('ds-fab-saving');
+      saveToObsidian(null, 'html').finally(() => {
+        anchorBtn.classList.remove('ds-fab-saving');
+      });
+    });
+
+    // 导出 MD
+    menu.querySelector('[data-action="save-md"]').addEventListener('click', () => {
+      closeFabMenu();
+      anchorBtn.classList.add('ds-fab-saving');
+      saveToObsidian(null, 'md').finally(() => {
+        anchorBtn.classList.remove('ds-fab-saving');
+      });
+    });
+
+    // 复制为 Markdown
+    menu.querySelector('[data-action="copy-md"]').addEventListener('click', async () => {
+      closeFabMenu();
+      try {
+        showNotification('正在提取内容...', 'info');
+        const topicIdFromUrl = window.location.pathname.match(/\/t\/[^/]+\/(\d+)/)?.[1] || null;
+        let extracted = null;
+        if (topicIdFromUrl) {
+          extracted = await extractContentViaAPI(topicIdFromUrl);
+        }
+        if (!extracted) {
+          extracted = extractContent();
+        }
+        if (extracted) {
+          const config = await chrome.storage.sync.get(DEFAULT_CONFIG);
+          const langResult = await chrome.storage.local.get(['uiLanguage']);
+          const uiLang = langResult.uiLanguage || 'zh';
+          let rawMainContent = extracted.rawMarkdown || null;
+          let apiCookedHtml = extracted.contentHTML;
+          const markdown = convertToMarkdownWithComments(
+            extracted.contentHTML,
+            { title: extracted.title, url: extracted.url, author: extracted.author, authorUrl: extracted.authorUrl || '', createdAt: extracted.createdAt || null, topicId: extracted.topicId, category: extracted.category, tags: extracted.tags },
+            [],
+            config,
+            rawMainContent,
+            apiCookedHtml,
+            extracted.reactions || []
+          );
+          await navigator.clipboard.writeText(markdown);
+          showNotification('已复制为 Markdown', 'success');
+          rlog('INFO', '复制Markdown成功');
+        } else {
+          showNotification('无法提取内容', 'error');
+        }
+      } catch (e) {
+        console.error('[Discourse Saver] 复制Markdown失败:', e);
+        showNotification('复制失败: ' + e.message, 'error');
+      }
+    });
+
+    // 复制纯文本
+    menu.querySelector('[data-action="copy-text"]').addEventListener('click', async () => {
+      closeFabMenu();
+      try {
+        showNotification('正在提取内容...', 'info');
+        const contentEl = document.querySelector('.topic-body .cooked') || document.querySelector('.cooked');
+        if (contentEl) {
+          const text = contentEl.innerText || contentEl.textContent;
+          await navigator.clipboard.writeText(text);
+          showNotification('已复制纯文本', 'success');
+          rlog('INFO', '复制纯文本成功');
+        } else {
+          showNotification('无法提取内容', 'error');
+        }
+      } catch (e) {
+        console.error('[Discourse Saver] 复制纯文本失败:', e);
+        showNotification('复制失败: ' + e.message, 'error');
+      }
     });
 
     // 保存评论 toggle：读取当前状态并监听变更写回 storage
@@ -2834,13 +2978,52 @@
   // - 为 null 或 '1' 时：保存主帖（可选带所有评论）
   // - 为字符串时：保存主帖 + 该楼层评论
   // - V5.4.2: 为数组时：保存主帖 + 多个指定楼层评论（合并为一个文件）
-  async function saveToObsidian(targetPostNumber = null) {
+  async function saveToObsidian(targetPostNumber = null, saveTarget = null) {
     try {
       // 获取配置
       const config = await chrome.storage.sync.get(DEFAULT_CONFIG);
       // V4.2.3: 获取语言设置，用于 Notion 属性默认值
       const langResult = await chrome.storage.local.get(['uiLanguage']);
       const uiLang = langResult.uiLanguage || 'zh';
+
+      // V1.1.2: 长按菜单指定目标时，覆盖配置
+      if (saveTarget) {
+        // 先关闭所有目标
+        config.saveToObsidian = false;
+        config.saveToFeishu = false;
+        config.saveToNotion = false;
+        config.saveToYuque = false;
+        config.saveToSiyuan = false;
+        config.saveToWebDAV = false;
+        config.saveToBaidu = false;
+        config.exportHtml = false;
+        config.exportMd = false;
+        // 再开启指定目标
+        switch (saveTarget) {
+          case 'obsidian': config.saveToObsidian = true; break;
+          case 'feishu': config.saveToFeishu = true; break;
+          case 'notion': config.saveToNotion = true; break;
+          case 'yuque': config.saveToYuque = true; break;
+          case 'siyuan': config.saveToSiyuan = true; break;
+          case 'webdav': config.saveToWebDAV = true; break;
+          case 'baidu': config.saveToBaidu = true; break;
+          case 'html': config.exportHtml = true; break;
+          case 'md': config.exportMd = true; break;
+          case 'all':
+            config.saveToObsidian = true;
+            config.saveToFeishu = true;
+            config.saveToNotion = true;
+            config.saveToYuque = true;
+            config.saveToSiyuan = true;
+            config.saveToWebDAV = true;
+            config.saveToBaidu = true;
+            config.exportHtml = true;
+            config.exportMd = true;
+            break;
+        }
+        console.log('[Discourse Saver] 长按菜单指定目标:', saveTarget);
+      }
+
       console.log('[Discourse Saver] 读取到的配置:', config);
       console.log('[Discourse Saver] UI语言:', uiLang);
       console.log('[Discourse Saver] 目标楼层:', targetPostNumber || '主帖');
