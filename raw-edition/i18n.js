@@ -29,10 +29,19 @@ const i18n = {
       yuque: '语雀设置',
       content: '内容设置',
       comments: '评论设置',
+      checkUpdate: '检查更新',
       runtimeLogs: '运行日志'
     },
+    checkUpdate: {
+      help: '从 GitHub Releases 检查并下载最新版本。当前版本会在按钮旁显示。',
+      checkBtn: '检查更新',
+      currentVersion: '当前版本：',
+      latestVersion: '最新版本：',
+      downloadBtn: '下载最新版本',
+      autoCheck: '启动浏览器时自动检查更新'
+    },
     runtimeLogs: {
-      help: '记录插件检测、注入、按钮拦截等运行状态，用于排查问题。最多保留500条，自动覆盖旧日志。',
+      help: '记录插件检测、注入、保存等操作日志。最多保留1000条，自动覆盖旧日志。错误日志以红色显示。',
       filterAll: '全部',
       refresh: '刷新',
       export: '导出',
@@ -455,10 +464,19 @@ const i18n = {
       yuque: 'Yuque Settings',
       content: 'Content Settings',
       comments: 'Comment Settings',
+      checkUpdate: 'Check for Updates',
       runtimeLogs: 'Runtime Logs'
     },
+    checkUpdate: {
+      help: 'Check and download the latest version from GitHub Releases. Current version is shown next to the button.',
+      checkBtn: 'Check for Updates',
+      currentVersion: 'Current: ',
+      latestVersion: 'Latest: ',
+      downloadBtn: 'Download Latest',
+      autoCheck: 'Auto-check for updates on browser startup'
+    },
     runtimeLogs: {
-      help: 'Records plugin detection, injection, button interception status for troubleshooting. Max 500 entries, auto-overwrites oldest.',
+      help: 'Records plugin detection, injection, save operations. Max 1000 entries, auto-overwrites oldest. Errors shown in red.',
       filterAll: 'All',
       refresh: 'Refresh',
       export: 'Export',

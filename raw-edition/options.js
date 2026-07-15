@@ -1597,6 +1597,125 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // 「检查更新」折叠/展开，状态记忆
+  const checkUpdateToggle = document.getElementById('checkUpdateToggle');
+  const checkUpdateSection = document.getElementById('checkUpdateSection');
+  if (checkUpdateToggle && checkUpdateSection) {
+    chrome.storage.local.get({ checkUpdateSectionCollapsed: true }, (result) => {
+      if (result.checkUpdateSectionCollapsed) {
+        checkUpdateSection.classList.add('collapsed');
+        checkUpdateToggle.querySelector('.ds-collapse-icon').classList.add('rotated');
+      }
+    });
+    checkUpdateToggle.addEventListener('click', () => {
+      const isCollapsed = checkUpdateSection.classList.toggle('collapsed');
+      checkUpdateToggle.querySelector('.ds-collapse-icon').classList.toggle('rotated', isCollapsed);
+      chrome.storage.local.set({ checkUpdateSectionCollapsed: isCollapsed });
+    });
+  }
+
+  // ── 检查更新功能 ──
+  const GITHUB_REPO = 'acheng-byte/discourse-saver';
+  const btnCheckUpdate = document.getElementById('btnCheckUpdate');
+  const updateStatus = document.getElementById('updateStatus');
+  const updateResult = document.getElementById('updateResult');
+  const currentVersionDisplay = document.getElementById('currentVersionDisplay');
+  const latestVersionDisplay = document.getElementById('latestVersionDisplay');
+  const updateDownloadArea = document.getElementById('updateDownloadArea');
+  const btnDownloadUpdate = document.getElementById('btnDownloadUpdate');
+  const downloadStatus = document.getElementById('downloadStatus');
+  const autoCheckUpdate = document.getElementById('autoCheckUpdate');
+
+  // 获取当前版本号
+  const currentVersion = chrome.runtime.getManifest().version;
+  currentVersionDisplay.textContent = 'v' + currentVersion;
+
+  // 加载自动检查设置
+  chrome.storage.local.get({ autoCheckUpdate: false }, (result) => {
+    autoCheckUpdate.checked = result.autoCheckUpdate;
+  });
+  autoCheckUpdate.addEventListener('change', () => {
+    chrome.storage.local.set({ autoCheckUpdate: autoCheckUpdate.checked });
+  });
+
+  // 版本比较：返回 true 表示 remote > local
+  function isNewerVersion(remote, local) {
+    const r = remote.replace(/^v/, '').split('.').map(Number);
+    const l = local.replace(/^v/, '').split('.').map(Number);
+    for (let i = 0; i < Math.max(r.length, l.length); i++) {
+      const diff = (r[i] || 0) - (l[i] || 0);
+      if (diff > 0) return true;
+      if (diff < 0) return false;
+    }
+    return false;
+  }
+
+  // 检查更新
+  let latestReleaseInfo = null;
+  btnCheckUpdate.addEventListener('click', async () => {
+    btnCheckUpdate.disabled = true;
+    updateStatus.textContent = '正在检查...';
+    updateResult.style.display = 'none';
+    try {
+      const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
+      if (!res.ok) throw new Error('GitHub API 返回 ' + res.status);
+      const release = await res.json();
+      const latestVersion = release.tag_name.replace(/^v/, '');
+      latestVersionDisplay.textContent = 'v' + latestVersion;
+      updateResult.style.display = 'block';
+
+      if (isNewerVersion(latestVersion, currentVersion)) {
+        updateStatus.textContent = '发现新版本！';
+        updateStatus.style.color = 'var(--success)';
+        updateDownloadArea.style.display = 'block';
+        latestReleaseInfo = {
+          version: latestVersion,
+          tagName: release.tag_name,
+          zipUrl: (release.assets || []).find(a => a.name.endsWith('.zip'))?.browser_download_url || null,
+          releaseUrl: release.html_url
+        };
+        if (!latestReleaseInfo.zipUrl) {
+          downloadStatus.textContent = '未找到压缩包';
+          btnDownloadUpdate.disabled = true;
+        }
+      } else {
+        updateStatus.textContent = '已是最新版本';
+        updateStatus.style.color = 'var(--text-muted)';
+        updateDownloadArea.style.display = 'none';
+      }
+    } catch (e) {
+      updateStatus.textContent = '检查失败: ' + e.message;
+      updateStatus.style.color = 'var(--danger, #e53e3e)';
+      console.warn('[Discourse Saver] 检查更新失败:', e);
+    } finally {
+      btnCheckUpdate.disabled = false;
+    }
+  });
+
+  // 下载更新
+  btnDownloadUpdate.addEventListener('click', () => {
+    if (!latestReleaseInfo?.zipUrl) return;
+    downloadStatus.textContent = '正在下载...';
+    chrome.runtime.sendMessage({
+      action: 'downloadUpdate',
+      url: latestReleaseInfo.zipUrl,
+      filename: `discourse-saver-raw-edition-v${latestReleaseInfo.version}.zip`
+    }, (response) => {
+      if (response?.success) {
+        downloadStatus.textContent = '下载完成！请手动解压覆盖扩展文件夹';
+        downloadStatus.style.color = 'var(--success)';
+      } else {
+        downloadStatus.textContent = '下载失败: ' + (response?.error || '未知错误');
+        downloadStatus.style.color = 'var(--danger, #e53e3e)';
+      }
+    });
+  });
+
+  // 自动检查更新（页面加载时）
+  if (autoCheckUpdate.checked) {
+    btnCheckUpdate.click();
+  }
+
   // 「运行日志」折叠/展开，状态记忆
   const runtimeLogsToggle = document.getElementById('runtimeLogsToggle');
   const runtimeLogsSection = document.getElementById('runtimeLogsSection');
@@ -1910,7 +2029,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderLogs() {
     const filter = logLevelFilter ? logLevelFilter.value : 'ALL';
-    const filtered = filter === 'ALL' ? allLogs : allLogs.filter(e => e.l === filter);
+    let filtered;
+    if (filter === 'ALL') {
+      filtered = allLogs;
+    } else if (filter === 'DEBUG') {
+      filtered = allLogs.filter(e => e.l === 'DEBUG');
+    } else if (filter === 'INFO') {
+      // INFO 及以上（INFO + WARN + ERROR）
+      filtered = allLogs.filter(e => e.l === 'INFO' || e.l === 'WARN' || e.l === 'ERROR');
+    } else {
+      filtered = allLogs.filter(e => e.l === filter);
+    }
 
     if (!logContainer) return;
 
@@ -1926,7 +2055,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const lvl = e.l || 'INFO';
         const src = e.s || '?';
         const msg = (e.m || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        return '<div class="log-entry">' +
+        const errorClass = lvl === 'ERROR' ? ' log-error-row' : '';
+        return '<div class="log-entry' + errorClass + '">' +
           '<span class="log-time">' + time + '</span> ' +
           '<span class="log-level-' + lvl + '">[' + lvl + ']</span> ' +
           '<span class="log-source">[' + src + ']</span> ' +

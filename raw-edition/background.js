@@ -24,7 +24,7 @@ if (chrome.action?.onClicked) {
 }
 
 // ==================== 运行日志管理器 ====================
-const LOG_MAX_ENTRIES = 500;
+const LOG_MAX_ENTRIES = 1000;
 const LOG_STORAGE_KEY = 'runtimeLogs';
 let logBuffer = [];       // 内存缓冲区
 let logFlushTimer = null; // 定时刷写计时器
@@ -3230,6 +3230,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'openOptionsPage') {
     chrome.runtime.openOptionsPage();
     return false;
+  }
+
+  // V1.1.4: 下载更新压缩包
+  if (request.action === 'downloadUpdate') {
+    (async () => {
+      try {
+        console.log('[Discourse Saver] 下载更新:', request.url, request.filename);
+        const downloadId = await chrome.downloads.download({
+          url: request.url,
+          filename: request.filename || 'discourse-saver-update.zip',
+          saveAs: true  // 让用户选择保存位置（方便找到扩展目录）
+        });
+        sendResponse({ success: true, downloadId });
+      } catch (e) {
+        console.warn('[Discourse Saver] 下载更新失败:', e);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true; // 异步响应
   }
 
   // V4.3.6: 处理 HTML 文件下载请求

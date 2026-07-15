@@ -1108,25 +1108,48 @@
         userIdMap[firstPost.user_id] = firstPost.username;
       }
 
-      // V1.1.2: 获取主帖 Reactions
+      // V1.1.2: 获取 Reactions（打call/Boosts/表情回应）
       let reactions = [];
       const config = await chrome.storage.sync.get({ renderReactions: false });
       if (config.renderReactions) {
-        // 获取所有帖子的 Reactions（不仅限主帖）
         const allPosts = data.post_stream?.posts || [];
+        const origin = window.location.origin;
         for (const post of allPosts) {
-          if (post.id) {
-            const postReactions = await fetchPostReactions(post.id, userIdMap);
-            if (postReactions && postReactions.length > 0) {
-              // 为主帖 reactions 添加楼层标识
-              const postNumber = post.post_number || 1;
-              for (const r of postReactions) {
-                r.postNumber = postNumber;
+          // reactions 直接在 topic API 的 post 对象中，格式：[{ id: "heart", type: "emoji", count: 6 }]
+          const postReactions = post.reactions || [];
+          if (postReactions.length === 0) continue;
+          const postNumber = post.post_number || 1;
+
+          for (const r of postReactions) {
+            const reactionId = r.id || '';  // "heart", "+1", "laughing", "bili_057" 等
+            const count = r.count || 0;
+            if (!reactionId || count === 0) continue;
+
+            let users = [];
+            // heart/like 对应标准 post_action_type_id=2，可获取用户列表
+            if (reactionId === 'heart' || reactionId === 'like') {
+              try {
+                const usersRes = await fetch(`${origin}/post_action_users.json?id=${post.id}&post_action_type_id=2`, {
+                  credentials: 'include'
+                });
+                if (usersRes.ok) {
+                  const usersData = await usersRes.json();
+                  users = (usersData.post_action_users || []).map(u => u.username).filter(Boolean);
+                }
+              } catch (e) {
+                console.warn('[Discourse Saver] 获取 reaction 用户列表失败:', e);
               }
-              reactions = reactions.concat(postReactions);
             }
+
+            reactions.push({
+              type: reactionId,
+              count,
+              users,
+              postNumber
+            });
           }
         }
+        console.log('[Discourse Saver] Reactions 获取完成:', reactions.length, '条');
       }
 
       console.log('[Discourse Saver] API 提取主帖成功:', title, '作者:', author, 'raw长度:', rawMarkdown?.length, 'reactions:', reactions.length);
@@ -1137,62 +1160,33 @@
     }
   }
 
-  // V1.1.2: 获取帖子的 Reactions 详情（含用户名）
-  async function fetchPostReactions(postId, userIdMap = {}) {
-    try {
-      const res = await fetch(`${window.location.origin}/post_reactions.json?post_id=${postId}`, {
-        credentials: 'include',
-        cache: 'no-store'
-      });
-      if (!res.ok) return [];
-      const data = await res.json();
-
-      // Discourse Reactions 插件返回格式：{ reactions: [{ reaction_type, count, users: [{ id, username, ... }] }] }
-      // 或简化格式：{ reactions: [{ reaction_type, count, user_ids: [...] }] }
-      const reactionsList = Array.isArray(data) ? data : (data.reactions || []);
-      const reactions = [];
-
-      for (const r of reactionsList) {
-        const reactionType = r.reaction_type || r.value || '';
-        const count = r.count || 0;
-        let users = [];
-
-        if (Array.isArray(r.users)) {
-          users = r.users.map(u => u.username || userIdMap[u.id] || `user${u.id}`).filter(Boolean);
-        } else if (Array.isArray(r.user_ids)) {
-          users = r.user_ids.map(id => userIdMap[id] || `user${id}`).filter(Boolean);
-        }
-
-        if (reactionType && count > 0) {
-          reactions.push({ type: reactionType, count, users });
-        }
-      }
-
-      return reactions;
-    } catch (e) {
-      console.warn('[Discourse Saver] 获取 Reactions 失败:', e);
-      return [];
-    }
-  }
+  // fetchPostReactions 已废弃 — reactions 数据直接从 topic API 的 post.reactions 读取
 
   // V1.1.2: 渲染 Reactions 为 Markdown 评论样式
   function renderReactionsToMarkdown(reactions, forumOrigin = '') {
     if (!reactions || reactions.length === 0) return '';
 
-    // Linux.do Reactions 类型 → emoji 映射
+    // Discourse Reactions 类型 → emoji 映射（覆盖标准 + Linux.do 自定义表情）
     const REACTION_EMOJI = {
+      'heart': '❤️',
+      'like': '❤️',
+      '+1': '👍',
+      'thumbs_up': '👍',
+      '-1': '👎',
+      'thumbs_down': '👎',
+      'laughing': '😂',
+      'laugh': '😂',
+      'joy': '😂',
       'call': '',
       'boost': '',
-      'heart': '❤️',
-      'thumbs_up': '👍',
       'clap': '👏',
       'smile': '😊',
       'thinking': '🤔',
       'fire': '🔥',
       '100': '💯',
       'party': '🎉',
+      'tada': '🎉',
       'pray': '🙏',
-      'laugh': '😂',
       'cry': '😢',
       'angry': '😡',
       'star': '⭐',
@@ -1200,7 +1194,6 @@
       'muscle': '💪',
       'coffee': '',
       'rocket': '',
-      'tada': '',
       'bulb': '💡',
       'warning': '⚠️',
       'question': '',
@@ -1213,25 +1206,37 @@
       'arrow_down': '⬇️',
     };
 
+    // 按楼层分组
+    const grouped = {};
+    for (const reaction of reactions) {
+      const pn = reaction.postNumber || 1;
+      if (!grouped[pn]) grouped[pn] = [];
+      grouped[pn].push(reaction);
+    }
+
     let markdown = '\n\n---\n\n';
     markdown += '## 反应（Reactions）\n\n';
 
-    for (const reaction of reactions) {
-      const emoji = REACTION_EMOJI[reaction.type] || reaction.type || '❓';
-      // 渲染用户列表为可点击链接（Obsidian 支持外链点击）
-      let userList;
-      if (reaction.users && reaction.users.length > 0) {
-        const userLinks = reaction.users.map(u => {
-          const username = typeof u === 'string' ? u : (u.username || `user${u.id}`);
-          const userUrl = forumOrigin ? `${forumOrigin}/u/${username}` : `https://linux.do/u/${username}`;
-          return `[@${username}](${userUrl})`;
-        });
-        userList = userLinks.join('、');
-      } else {
-        userList = `${reaction.count}人`;
+    for (const [pn, rxns] of Object.entries(grouped)) {
+      if (Object.keys(grouped).length > 1) {
+        markdown += `**${pn}楼**\n\n`;
       }
-
-      markdown += `- **${emoji} ${reaction.count}** ${userList}\n`;
+      for (const reaction of rxns) {
+        const emoji = REACTION_EMOJI[reaction.type] || reaction.type || '❓';
+        let userList;
+        if (reaction.users && reaction.users.length > 0) {
+          const userLinks = reaction.users.map(u => {
+            const username = typeof u === 'string' ? u : (u.username || `user${u.id}`);
+            const userUrl = forumOrigin ? `${forumOrigin}/u/${username}` : `/u/${username}`;
+            return `[@${username}](${userUrl})`;
+          });
+          userList = userLinks.join('、');
+        } else {
+          userList = `${reaction.count}人`;
+        }
+        markdown += `- **${emoji} ${reaction.count}** ${userList}\n`;
+      }
+      markdown += '\n';
     }
 
     return markdown;

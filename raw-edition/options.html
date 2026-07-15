@@ -531,14 +531,15 @@
     }
 
     /* Log entries */
-    .log-entry { padding: 3px 8px; border-bottom: 1px solid var(--border-light); word-break: break-all; }
+    .log-entry { padding: 2px 6px; border-bottom: 1px solid var(--border-light); word-break: break-all; font-size: 10px; line-height: 1.5; }
     .log-entry:last-child { border-bottom: none; }
-    .log-time { color: var(--text-muted); }
+    .log-entry.log-error-row { color: var(--error); background: var(--error-bg); }
+    .log-time { color: var(--text-muted); font-size: 10px; }
     .log-source { color: var(--accent); font-weight: 500; }
     .log-level-ERROR { color: var(--error); font-weight: 600; }
     .log-level-WARN { color: var(--warning); font-weight: 600; }
-    .log-level-INFO { color: var(--success); }
-    .log-level-DEBUG { color: var(--text-muted); }
+    .log-level-INFO { color: var(--text); }
+    .log-level-DEBUG { color: var(--text-muted); font-size: 10px; }
 
     @media (max-width: 560px) {
       body { padding: 16px 10px; }
@@ -829,6 +830,42 @@
           </div>
         </div>
 
+        <!-- Check Update -->
+        <div class="form-group" style="margin-top: 20px;">
+          <label style="font-weight: 600; font-size: 14px; margin-bottom: 12px; cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between;" id="checkUpdateToggle">
+            <span data-i18n="sections.checkUpdate">检查更新</span>
+            <span class="ds-collapse-icon" style="transition: transform 0.2s; font-size: 12px;">▼</span>
+          </label>
+          <div id="checkUpdateSection" class="ds-collapse-section" style="transition: max-height 0.25s ease;">
+          <div class="help-text" style="margin-bottom: 12px;" data-i18n="checkUpdate.help">从 GitHub Releases 检查并下载最新版本。当前版本会在按钮旁显示。</div>
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+            <button id="btnCheckUpdate" style="padding: 8px 20px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;">
+              <span data-i18n="checkUpdate.checkBtn">检查更新</span>
+            </button>
+            <span id="updateStatus" style="font-size: 13px; color: var(--text-muted);"></span>
+          </div>
+          <div id="updateResult" style="display: none; padding: 12px 14px; background: var(--sub-bg); border: 1px solid var(--input-border); border-radius: 8px; margin-bottom: 12px;">
+            <div style="font-size: 13px; margin-bottom: 8px;">
+              <span data-i18n="checkUpdate.currentVersion">当前版本：</span><span id="currentVersionDisplay" style="font-weight: 600;"></span>
+              &nbsp;&nbsp;
+              <span data-i18n="checkUpdate.latestVersion">最新版本：</span><span id="latestVersionDisplay" style="font-weight: 600; color: var(--success);"></span>
+            </div>
+            <div id="updateDownloadArea" style="display: none; margin-top: 8px;">
+              <button id="btnDownloadUpdate" style="padding: 8px 20px; border: none; border-radius: 8px; background: var(--success); color: #fff; font-size: 13px; font-weight: 500; cursor: pointer;">
+                <span data-i18n="checkUpdate.downloadBtn">下载最新版本</span>
+              </button>
+              <span id="downloadStatus" style="font-size: 12px; color: var(--text-muted); margin-left: 8px;"></span>
+            </div>
+          </div>
+          <div style="margin-top: 8px;">
+            <div class="checkbox-row">
+              <input type="checkbox" id="autoCheckUpdate">
+              <label for="autoCheckUpdate" data-i18n="checkUpdate.autoCheck">启动浏览器时自动检查更新</label>
+            </div>
+          </div>
+          </div>
+        </div>
+
         <!-- Runtime Logs -->
         <div class="form-group" style="margin-top: 20px;">
           <label style="font-weight: 600; font-size: 14px; margin-bottom: 8px; cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between;" id="runtimeLogsToggle">
@@ -842,7 +879,7 @@
               <option value="ALL" data-i18n="runtimeLogs.filterAll">全部</option>
               <option value="ERROR">ERROR</option>
               <option value="WARN">WARN</option>
-              <option value="INFO">INFO</option>
+              <option value="INFO" selected>INFO</option>
               <option value="DEBUG">DEBUG</option>
             </select>
             <span id="logCountLabel" style="font-size:12px;color:var(--text-muted);">0 条</span>
@@ -851,7 +888,7 @@
             <button type="button" id="exportLogsBtn" style="padding:6px 12px;font-size:12px;border-radius:6px;background:var(--success);color:#fff;border:none;cursor:pointer;" data-i18n="runtimeLogs.export">导出</button>
             <button type="button" id="clearLogsBtn" style="padding:6px 12px;font-size:12px;border-radius:6px;background:var(--error);color:#fff;border:none;cursor:pointer;" data-i18n="runtimeLogs.clear">清空</button>
           </div>
-          <div id="logContainer" style="border:1px solid var(--input-border);border-radius:6px;max-height:300px;overflow-y:auto;background:var(--sub-bg);font-family:monospace;font-size:12px;line-height:1.6;">
+          <div id="logContainer" style="border:1px solid var(--input-border);border-radius:6px;max-height:400px;overflow-y:auto;background:var(--sub-bg);font-family:monospace;font-size:10px;line-height:1.4;">
             <div id="logEmpty" style="padding:20px;text-align:center;color:var(--text-muted);" data-i18n="runtimeLogs.empty">暂无日志</div>
           </div>
           </div>
