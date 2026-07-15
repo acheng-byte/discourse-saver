@@ -263,15 +263,11 @@
   // V5.4.1: 长按弹出操作菜单，支持指定楼层保存
   let floatingBtnAdded = false;
 
-  // V1.1.2: 论坛标识徽章（右上角显示论坛名称）
-  function createForumBadge() {
-    if (document.getElementById('ds-forum-badge')) return;
-
+  // V1.1.2: 获取当前论坛友好名称（用于长按菜单内显示）
+  function getForumName() {
     const host = window.location.hostname.toLowerCase();
-    // 提取论坛名称（去掉 www. 前缀和常见后缀）
     let forumName = host.replace(/^www\./, '');
 
-    // 已知论坛的友好名称映射
     const forumNameMap = {
       'linux.do': 'Linux.do',
       'meta.discourse.org': 'Meta Discourse',
@@ -300,49 +296,12 @@
     if (forumNameMap[host]) {
       forumName = forumNameMap[host];
     } else if (forumName.includes('.')) {
-      // 取第一个子域名作为名称（如 forum.obsidian.md -> Obsidian）
       const parts = forumName.split('.');
       if (parts.length >= 2) {
         forumName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
       }
     }
-
-    const badge = document.createElement('div');
-    badge.id = 'ds-forum-badge';
-    badge.textContent = forumName;
-    badge.title = '当前论坛: ' + forumName;
-
-    // 添加样式
-    const style = document.createElement('style');
-    style.textContent = `
-      #ds-forum-badge {
-        position: fixed;
-        top: 12px;
-        right: 20px;
-        z-index: 2147483646;
-        background: rgba(74, 144, 217, 0.9);
-        color: #fff;
-        padding: 6px 14px;
-        border-radius: 20px;
-        font-size: 13px;
-        font-weight: 600;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        transition: opacity 0.3s, transform 0.2s;
-        opacity: 0.9;
-        pointer-events: none;
-      }
-      #ds-forum-badge:hover {
-        opacity: 1;
-        transform: translateY(-1px);
-      }
-    `;
-    document.head.appendChild(style);
-    document.body.appendChild(badge);
-
-    console.log('[Discourse Saver] 论坛徽章已创建: ' + forumName);
+    return forumName;
   }
 
   function createFloatingButton() {
@@ -359,9 +318,6 @@
         <polyline points="17 21 17 13 7 13 7 21"/>
         <polyline points="7 3 7 8 15 8"/>
       </svg>`;
-
-    // 创建论坛标识徽章
-    createForumBadge();
 
     const style = document.createElement('style');
     style.textContent = `
@@ -662,8 +618,10 @@
     const menu = document.createElement('div');
     menu.id = 'ds-fab-menu';
 
+    const forumName = getForumName();
+
     menu.innerHTML = `
-      <div class="ds-menu-title">Discourse Saver</div>
+      <div class="ds-menu-title">Discourse Saver <span style="font-size:11px;font-weight:400;opacity:0.7;background:rgba(255,255,255,0.15);padding:2px 8px;border-radius:10px;margin-left:6px;">${forumName}</span></div>
       <div class="ds-menu-item" data-action="save-all">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         <span>保存整个帖子</span>
@@ -858,7 +816,7 @@
     // 设置按钮
     menu.querySelector('[data-action="settings"]').addEventListener('click', () => {
       closeFabMenu();
-      chrome.runtime.openOptionsPage();
+      chrome.runtime.sendMessage({ action: 'openOptionsPage' });
     });
 
     // 导出 HTML
@@ -4174,8 +4132,8 @@
       }
 
       // V4.0.1: 如果所有保存目标都没有启用，提示用户
-      // V4.2.6: 增加 exportHtml 为有效保存目标
-      if (!shouldSaveToObsidian && !feishuConfigComplete && !notionConfigComplete && !yuqueConfigComplete && !siyuanConfigComplete && !webdavConfigComplete && !baiduConfigComplete && !config.exportHtml) {
+      // V4.2.6: 增加 exportHtml/exportMd 为有效保存目标
+      if (!shouldSaveToObsidian && !feishuConfigComplete && !notionConfigComplete && !yuqueConfigComplete && !siyuanConfigComplete && !webdavConfigComplete && !baiduConfigComplete && !config.exportHtml && !config.exportMd) {
         showNotification('请在设置中至少启用一个保存目标', 'warning');
       }
 

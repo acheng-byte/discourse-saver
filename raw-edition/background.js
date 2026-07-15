@@ -3226,6 +3226,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // 异步响应
   }
 
+  // V1.1.2: 打开选项页（从 content script 发消息触发）
+  if (request.action === 'openOptionsPage') {
+    chrome.runtime.openOptionsPage();
+    return false;
+  }
+
   // V4.3.6: 处理 HTML 文件下载请求
   if (request.action === 'downloadHtml') {
     (async () => {
