@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from manifest
+        id: version
+        run: |
+          VERSION=$(node -p "require('./raw-edition/manifest.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Zip name: discourse-saver-raw-edition-v$VERSION.zip"
+
+      - name: Package raw-edition zip
+        run: |
+          cd raw-edition
+          zip -r "../discourse-saver-raw-edition-v${{ steps.version.outputs.version }}.zip" . \
+            -x "*.git*" -x "*.DS_Store" -x "node_modules/*"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ steps.version.outputs.version }}
+          files: discourse-saver-raw-edition-v${{ steps.version.outputs.version }}.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
