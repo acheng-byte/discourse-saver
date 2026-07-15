@@ -2,7 +2,7 @@
 > Use Raw Edition for latest features and bug fixes.
 > One-click userscript install: [discourse-saver-raw.user.js](https://raw.githubusercontent.com/acheng-byte/discourse-saver/main/raw-edition/discourse-saver.user.js)
 
-# Discourse Saver v1.1.0
+# Discourse Saver v1.1.2
 
 **[中文](README.md) | English**
 
@@ -85,6 +85,14 @@ All save targets are **completely independent**. You can enable any combination:
 | Brave / Opera | Supported | Supported |
 
 ## Changelog
+
+### v1.1.2
+
+- Fixed Baidu OAuth authorization by switching to device code flow
+- Added attachment download support (PDF/DOCX/XLSX etc.) with documentEmbed format detection
+- Improved filename extraction with Content-Disposition header parsing
+- Fixed missing WebDAV/Baidu Netdisk options in settings save targets
+- Unified version number management
 
 ### v1.1.0
 

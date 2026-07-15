@@ -494,15 +494,15 @@
         </div>
       </div>
       <h1>Discourse Saver</h1>
-      <p data-i18n="header.subtitle">保存 Discourse 论坛帖子到 Obsidian、飞书、Notion，或导出 HTML V5.6.5</p>
+      <p data-i18n="header.subtitle">保存 Discourse 论坛帖子到 Obsidian、飞书、Notion、WebDAV、百度网盘，或导出 HTML V1.1.2</p>
     </div>
 
     <!-- Tab Navigation -->
     <nav class="tab-nav" id="tabNav">
       <button class="tab-btn active" data-tab="general" data-i18n="tabs.general">通用</button>
-      <button class="tab-btn" data-tab="obsidian">Obsidian</button>
+      <button class="tab-btn" data-tab="obsidian" data-i18n="tabs.obsidian">Obsidian</button>
       <button class="tab-btn" data-tab="feishu" data-i18n="tabs.feishu">飞书</button>
-      <button class="tab-btn" data-tab="notion">Notion</button>
+      <button class="tab-btn" data-tab="notion" data-i18n="tabs.notion">Notion</button>
       <button class="tab-btn" data-tab="siyuan" data-i18n="tabs.siyuan">思源</button>
       <button class="tab-btn" data-tab="webdav" data-i18n="tabs.webdav">WebDAV</button>
       <button class="tab-btn" data-tab="baidu" data-i18n="tabs.baidu">百度网盘</button>
@@ -547,10 +547,27 @@
             <input type="checkbox" id="exportHtml">
             <label for="exportHtml" data-i18n="saveTarget.exportHtml">导出 HTML 文件</label>
           </div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="exportMd">
+            <label for="exportMd" data-i18n="saveTarget.exportMd">下载 MD 文件到本地</label>
+          </div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="saveToWebDAV">
+            <label for="saveToWebDAV" data-i18n="saveTarget.webdav">保存到 WebDAV</label>
+          </div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="saveToBaidu">
+            <label for="saveToBaidu" data-i18n="saveTarget.baidu">保存到百度网盘</label>
+          </div>
           <div class="form-group" style="margin-left: 24px; margin-top: 8px;">
             <label data-i18n="html.folder">HTML 导出文件夹</label>
             <input type="text" id="htmlExportFolder" value="Discourse导出" data-i18n="html.folderPlaceholder" placeholder="Discourse导出">
             <div class="help-text" data-i18n="html.folderHelp">支持 Windows(D:\folder) / Mac(/Users/me/folder) / 相对路径</div>
+          </div>
+          <div class="form-group" style="margin-left: 24px; margin-top: 8px;">
+            <label data-i18n="md.folder">MD 导出文件夹</label>
+            <input type="text" id="mdExportFolder" value="Discourse导出" data-i18n="md.folderPlaceholder" placeholder="Discourse导出">
+            <div class="help-text" data-i18n="md.folderHelp">Markdown 文件将下载到此路径，留空则保存到浏览器默认下载目录</div>
           </div>
           <div class="help-text" data-i18n="saveTarget.multiSaveHelp">可以同时保存到多个平台</div>
         </div>
@@ -798,7 +815,7 @@
           <!-- Download Images via REST API -->
           <div class="checkbox-row" style="margin-top: 16px;">
             <input type="checkbox" id="downloadImages">
-            <label for="downloadImages"><span data-i18n="content.downloadImages">下载图片/视频到 Vault 文件夹</span><span class="badge-new">新</span></label>
+            <label for="downloadImages"><span data-i18n="content.downloadImages">下载图片/视频/附件到 Vault 文件夹</span><span class="badge-new">新</span></label>
           </div>
           <div class="image-settings-panel disabled" id="downloadImagesPanel">
             <div class="warning-text" style="margin-top: 0;">
@@ -820,6 +837,10 @@
             <div class="checkbox-row" style="margin-top: 10px;">
               <input type="checkbox" id="downloadVideos" checked>
               <label for="downloadVideos" data-i18n="content.downloadVideos">同时下载视频文件</label>
+            </div>
+            <div class="checkbox-row" style="margin-top: 6px;">
+              <input type="checkbox" id="downloadAttachments" checked>
+              <label for="downloadAttachments" data-i18n="content.downloadAttachments">同时下载附件文件（PDF/DOCX/XLSX等）</label>
             </div>
             <div class="form-group" style="margin-top: 10px;">
               <label data-i18n="content.mediaFolderName">媒体文件夹名称</label>
@@ -1002,7 +1023,7 @@
       <div class="tab-panel" id="tab-webdav">
         <div class="form-group">
           <label>
-            <input type="checkbox" id="saveToWebDAV">
+            <input type="checkbox" id="saveToWebDAV2">
             <span data-i18n="webdav.enable">启用 WebDAV 保存</span>
           </label>
           <div class="help-text" data-i18n="webdav.enableHelp">保存到支持 WebDAV 协议的网盘（坚果云、Nextcloud 等）</div>
@@ -1047,7 +1068,7 @@
       <div class="tab-panel" id="tab-baidu">
         <div class="form-group">
           <label>
-            <input type="checkbox" id="saveToBaidu">
+            <input type="checkbox" id="saveToBaidu2">
             <span data-i18n="baidu.enable">启用百度网盘保存</span>
           </label>
           <div class="help-text" data-i18n="baidu.enableHelp">通过百度网盘开放 API 保存帖子到网盘</div>
@@ -1155,6 +1176,12 @@
             <label for="foldComments" data-i18n="comments.collapseComments">折叠评论（使用 HTML details 标签）</label>
           </div>
 
+          <div class="checkbox-row" style="margin-top: 8px;">
+            <input type="checkbox" id="renderReactions">
+            <label for="renderReactions" data-i18n="comments.renderReactions">渲染 Reactions（打call/Boosts）为评论<span class="badge-new">新</span></label>
+            <div class="help-text" data-i18n="comments.renderReactionsHelp">将帖子的反应/打call渲染为带用户链接的评论，支持 Linux.do 等论坛</div>
+          </div>
+
           <div class="tip-box" style="margin-top: 12px; background: var(--success-bg); border-left-color: var(--success);">
             <p data-i18n="comments.fetchExplainTip"><strong>获取说明：</strong><br>&#8226; ≤30条：从页面提取（快速）<br>&#8226; >30条或保存全部：通过 API 获取（完整）<br>&#8226; 超500条时显示加载进度</p>
           </div>
@@ -1186,7 +1213,7 @@
       <a href="https://github.com/acheng-byte/discourse-saver" target="_blank">GitHub</a> |
       <a href="https://linux.do" target="_blank">LinuxDo</a> |
       <a href="https://obsidian.md" target="_blank">Obsidian</a> |
-      Discourse Saver V5.6.5 &copy; 2026 acheng-byte
+      Discourse Saver V1.1.2 &copy; 2026 acheng-byte
     </div>
   </div>
 

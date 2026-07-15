@@ -3,7 +3,7 @@
 > 请使用 Raw Edition 获取最新功能与 Bug 修复。
 > 油猴脚本一键安装：[discourse-saver-raw.user.js](https://raw.githubusercontent.com/acheng-byte/discourse-saver/main/raw-edition/discourse-saver.user.js)
 
-# Discourse Saver v1.1.0
+# Discourse Saver v1.1.2
 
 **中文 | [English](README_EN.md)**
 
@@ -86,6 +86,14 @@
 | Safari | ❌ | ✅ |
 
 ## 更新日志
+
+### v1.1.2
+
+- 修复百度网盘 OAuth 授权问题，改用设备码授权流程（device code flow）
+- 新增附件下载功能（PDF/DOCX/XLSX等），支持 documentEmbed 格式识别
+- 改进文件名提取逻辑，支持 Content-Disposition 头解析
+- 修复设置页面保存目标缺少 WebDAV/百度网盘选项
+- 统一版本号管理
 
 ### v1.1.0
 

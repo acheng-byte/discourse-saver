@@ -3270,6 +3270,45 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // 保持消息通道开放
   }
 
+  // V1.1.2: 处理 MD 文件下载请求
+  if (request.action === 'downloadMd') {
+    (async () => {
+      try {
+        console.log('[Discourse Saver] 收到 MD 下载请求:', request.filename);
+
+        let safeFilename = request.filename
+          .replace(/[<>:"|?*]/g, '')
+          .replace(/\\/g, '/')
+          .replace(/\/+/g, '/')
+          .replace(/^\//, '')
+          .replace(/\.\./g, '')
+          .trim();
+
+        if (!safeFilename || safeFilename === '.md') {
+          safeFilename = 'discourse-export.md';
+        }
+
+        console.log('[Discourse Saver] MD 清理后的文件名:', safeFilename);
+
+        const base64Content = btoa(unescape(encodeURIComponent(request.content)));
+        const dataUrl = 'data:text/markdown;charset=utf-8;base64,' + base64Content;
+
+        const downloadId = await chrome.downloads.download({
+          url: dataUrl,
+          filename: safeFilename,
+          saveAs: false
+        });
+
+        console.log('[Discourse Saver] MD 下载已启动, downloadId:', downloadId);
+        sendResponse({ success: true, downloadId });
+      } catch (error) {
+        console.error('[Discourse Saver] MD 下载失败:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  }
+
   // V3.6.0: 处理动态脚本注入请求（来自 detector.js）
   if (request.action === 'injectContentScript') {
     console.log('[Discourse Saver] 收到脚本注入请求，URL:', request.tabUrl);
@@ -3741,13 +3780,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // ==================== 百度网盘 ====================
   if (request.action === 'baiduOAuth') {
-    console.log('[Discourse Saver→百度] 开始 OAuth 授权');
-    bgLog('INFO', '[baidu] 开始 OAuth 授权');
+    console.log('[Discourse Saver→百度] 开始设备码授权流程');
+    bgLog('INFO', '[baidu] 开始设备码授权流程');
 
     (async () => {
       try {
-        const code = await baiduOAuthAuthorize();
-        const tokenInfo = await baiduExchangeToken(code);
+        const tokenInfo = await baiduOAuthAuthorize();
+        await new Promise((resolve) => {
+          chrome.storage.sync.set({ baiduTokenInfo: tokenInfo }, resolve);
+        });
         bgLog('INFO', `[baidu] 授权成功, token 过期时间: ${new Date(tokenInfo.expiresAt).toLocaleString()}`);
         sendResponse({ success: true, message: '百度网盘授权成功' });
       } catch (error) {
@@ -3874,17 +3915,55 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
         binaryData = await response.arrayBuffer();
       }
 
-      // 2. 提取文件名（使用实际 fetch URL，避免 upload:// 无法解析）
+      // 2. 提取文件名（优先使用 fileNameHint，其次从 URL 提取）
+      // V1.1.2: 支持附件文件名，改进文件名提取逻辑
+      const MIME_EXTENSION_MAP = {
+        'application/pdf': '.pdf',
+        'application/msword': '.doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+        'application/vnd.ms-excel': '.xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+        'application/vnd.ms-powerpoint': '.ppt',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+        'application/zip': '.zip',
+        'application/x-zip-compressed': '.zip',
+        'application/x-7z-compressed': '.7z',
+        'application/x-rar-compressed': '.rar',
+        'application/gzip': '.gz',
+        'text/csv': '.csv',
+        'text/plain': '.txt',
+        'text/markdown': '.md',
+        'application/json': '.json',
+        'application/xml': '.xml',
+        'text/xml': '.xml',
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/gif': '.gif',
+        'image/webp': '.webp',
+        'image/svg+xml': '.svg',
+        'video/mp4': '.mp4',
+        'video/webm': '.webm',
+        'video/quicktime': '.mov'
+      };
+
       let fileName;
-      try {
-        const urlObj = new URL(fetchUrl);
-        fileName = urlObj.pathname.split('/').pop() || `media_${i}`;
-      } catch(e) {
-        fileName = `media_${i}`;
+      // 优先使用 fileNameHint（来自 documentEmbed 等）
+      if (media.fileNameHint) {
+        fileName = media.fileNameHint;
+      } else {
+        try {
+          const urlObj = new URL(fetchUrl);
+          fileName = urlObj.pathname.split('/').pop() || `media_${i}`;
+        } catch(e) {
+          fileName = `media_${i}`;
+        }
       }
-      fileName = fileName.replace(/[<>:"\/\\|?*\u0000-\u001F]/g, '_').replace(/\s+/g, '_');
+      // 清理文件名
+      fileName = decodeURIComponent(fileName).replace(/[<>:"\/\\|?*\u0000-\u001F]/g, '_').replace(/\s+/g, '_').trim();
       if (!fileName.includes('.')) {
-        fileName += media.type === 'video' ? '.mp4' : '.jpg';
+        // 从 mimeType 推断扩展名
+        const ext = MIME_EXTENSION_MAP[media.mimeType] || (media.type === 'video' ? '.mp4' : media.type === 'attachment' ? '.bin' : '.jpg');
+        fileName += ext;
       }
 
       // 3. 去重文件名
@@ -3918,11 +3997,12 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
         throw new Error(`REST API ${putResponse.status}`);
       }
 
-      // V1.1.0: 详细日志，记录协议类型
+      // V1.1.2: 详细日志，记录协议类型
       bgLog('INFO', `媒体文件已保存: ${finalName} → Vault路径: ${filePath} (${binaryData.byteLength}B, 协议: ${useHttps ? 'HTTPS' : 'HTTP'})`);
 
       results.push({
         originalUrl: media.url,
+        sourceUrl: media.originalUrl || media.url,
         localName: finalName,
         relativePath: `${safeVaultMediaPath}/${finalName}`,
         success: true
@@ -3931,6 +4011,7 @@ async function downloadMediaToVault(config, mediaUrls, vaultMediaPath, mediaFold
       console.warn(`[Discourse Saver] 下载媒体失败: ${media.url}`, err);
       results.push({
         originalUrl: media.url,
+        sourceUrl: media.originalUrl || media.url,
         localName: null,
         relativePath: null,
         success: false,
@@ -4423,44 +4504,108 @@ async function testWebDAVConnection(config) {
 const BAIDU_OAUTH = {
   appKey: 'IGnQAQKyA1T2WblSYNlpCb3oTbeVorO1',
   secretKey: 'ppH8ptFNWUUId5wkxGSIknxTqHtJAbLW',
+  deviceAuthUrl: 'https://openapi.baidu.com/oauth/2.0/device/authorize',
   authorizeUrl: 'https://openapi.baidu.com/oauth/2.0/authorize',
   tokenUrl: 'https://openapi.baidu.com/oauth/2.0/token',
-  redirectUri: chrome.identity.getRedirectURL('baidu-callback'),
+  devicePageUrl: 'https://openapi.baidu.com/device',
   scope: 'basic,netdisk'
 };
 
-// 百度 OAuth 授权登录
+// V1.1.2: 百度 OAuth 设备码授权流程（解决 redirect_uri_mismatch 问题）
+// 不再依赖 chrome.identity.getRedirectURL()，改用设备码轮询方式
 async function baiduOAuthAuthorize() {
-  const authUrl = `${BAIDU_OAUTH.authorizeUrl}?response_type=code&client_id=${BAIDU_OAUTH.appKey}&redirect_uri=${encodeURIComponent(BAIDU_OAUTH.redirectUri)}&scope=${encodeURIComponent(BAIDU_OAUTH.scope)}&display=popup`;
-
-  return new Promise((resolve, reject) => {
-    chrome.identity.launchWebAuthFlow({
-      url: authUrl,
-      interactive: true
-    }, (responseUrl) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
-      if (!responseUrl) {
-        reject(new Error('用户取消了授权'));
-        return;
-      }
-      // 从回调 URL 提取 code
-      const url = new URL(responseUrl);
-      const code = url.searchParams.get('code');
-      const error = url.searchParams.get('error');
-      if (error) {
-        reject(new Error('授权失败: ' + (url.searchParams.get('error_description') || error)));
-        return;
-      }
-      if (!code) {
-        reject(new Error('未获取到授权码'));
-        return;
-      }
-      resolve(code);
-    });
+  // 1. 请求设备码
+  const deviceParams = new URLSearchParams({
+    client_id: BAIDU_OAUTH.appKey,
+    scope: BAIDU_OAUTH.scope,
+    response_type: 'device_code'
   });
+
+  const deviceResp = await fetch(`${BAIDU_OAUTH.deviceAuthUrl}?${deviceParams.toString()}`);
+  if (!deviceResp.ok) {
+    const text = await deviceResp.text();
+    throw new Error(`获取设备码失败: HTTP ${deviceResp.status} - ${text}`);
+  }
+  const deviceData = await deviceResp.json();
+
+  if (deviceData.error) {
+    throw new Error(deviceData.error_description || deviceData.error);
+  }
+
+  const { device_code, user_code, verification_url, expires_in, interval } = deviceData;
+  const pollInterval = (interval || 5) * 1000; // 转毫秒
+
+  console.log('[Discourse Saver→百度] 设备码:', user_code, '验证页:', verification_url || BAIDU_OAUTH.devicePageUrl);
+
+  // 2. 打开百度设备授权页面（让用户输入授权码）
+  const verifyUrl = verification_url || BAIDU_OAUTH.devicePageUrl;
+  chrome.tabs.create({ url: verifyUrl, active: true });
+
+  // 3. 通知 options 页面显示授权码
+  chrome.runtime.sendMessage({
+    action: 'baiduDeviceCode',
+    userCode: user_code,
+    expiresIn: expires_in,
+    verifyUrl: verifyUrl
+  }).catch(() => {}); // options 页面可能未打开，忽略错误
+
+  // 4. 轮询等待用户授权
+  const maxWait = (expires_in || 900) * 1000;
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < maxWait) {
+    await new Promise(r => setTimeout(r, pollInterval));
+
+    const tokenParams = new URLSearchParams({
+      grant_type: 'device_token',
+      code: device_code,
+      client_id: BAIDU_OAUTH.appKey,
+      client_secret: BAIDU_OAUTH.secretKey
+    });
+
+    try {
+      const tokenResp = await fetch(`${BAIDU_OAUTH.tokenUrl}?${tokenParams.toString()}`);
+      if (!tokenResp.ok) {
+        const text = await tokenResp.text();
+        console.warn('[Discourse Saver→百度] 轮询请求失败:', tokenResp.status, text);
+        continue;
+      }
+      const tokenData = await tokenResp.json();
+
+      if (tokenData.error) {
+        if (tokenData.error === 'authorization_pending') {
+          // 用户还未授权，继续等待
+          continue;
+        }
+        if (tokenData.error === 'slow_down') {
+          // 请求过快，延长间隔
+          await new Promise(r => setTimeout(r, pollInterval));
+          continue;
+        }
+        if (tokenData.error === 'expired_token') {
+          throw new Error('授权码已过期，请重新授权');
+        }
+        if (tokenData.error === 'denied') {
+          throw new Error('用户拒绝了授权');
+        }
+        throw new Error(tokenData.error_description || tokenData.error);
+      }
+
+      // 授权成功，返回 token 信息
+      return {
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        expiresAt: Date.now() + tokenData.expires_in * 1000,
+        scope: tokenData.scope
+      };
+    } catch (e) {
+      if (e.message.includes('过期') || e.message.includes('拒绝')) throw e;
+      console.warn('[Discourse Saver→百度] 轮询异常:', e.message);
+      continue;
+    }
+  }
+
+  throw new Error('授权超时，请重新尝试');
 }
 
 // 用 code 换取 access_token

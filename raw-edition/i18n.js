@@ -3,10 +3,12 @@ const i18n = {
   zh: {
     header: {
       title: 'Discourse Saver - 设置',
-      subtitle: '保存 Discourse 论坛帖子到 Obsidian、飞书、Notion、思源笔记、语雀，或导出 HTML V1.1.0'
+      subtitle: '保存 Discourse 论坛帖子到 Obsidian、飞书、Notion、WebDAV、百度网盘，或导出 HTML V1.1.2'
     },
     tabs: {
       general: '通用',
+      obsidian: 'Obsidian',
+      notion: 'Notion',
       feishu: '飞书',
       siyuan: '思源',
       webdav: 'WebDAV',
@@ -55,6 +57,7 @@ const i18n = {
       feishu: '保存到飞书多维表格',
       notion: '保存到 Notion Database',
       exportHtml: '导出 HTML 文件',
+      exportMd: '下载 MD 文件到本地',
       siyuan: '保存到思源笔记',
       webdav: '保存到 WebDAV 网盘',
       baidu: '保存到百度网盘',
@@ -65,6 +68,11 @@ const i18n = {
       folder: 'HTML 导出文件夹',
       folderPlaceholder: 'Discourse导出',
       folderHelp: '相对于浏览器下载目录，留空则直接保存到下载目录'
+    },
+    md: {
+      folder: 'MD 导出文件夹',
+      folderPlaceholder: 'Discourse导出',
+      folderHelp: 'Markdown 文件将下载到此路径，留空则保存到浏览器默认下载目录'
     },
     obsidian: {
       vaultName: 'Vault 名称',
@@ -107,7 +115,7 @@ const i18n = {
       contentFixed: '正文将固定写入「正文」字段（文本）。',
       uploadContent: '上传正文到「正文」字段',
       uploadContentAsCloudDoc: '将正文导入飞书云文档，并写入「云文档链接」字段（无该字段则追加到正文顶部）',
-      uploadContentAsCloudDocHelp: '需先启用“保存到飞书”后，才能启用该选项。',
+      uploadContentAsCloudDocHelp: '需先勾选「上传正文到正文字段」后，才能启用该选项。',
       advancedOptions: '高级选项（附件与权限说明）',
       uploadMd: '上传 MD 附件（需额外权限，可选）',
       uploadMdHelp: '将完整内容作为 .md 文件上传到飞书',
@@ -292,8 +300,8 @@ const i18n = {
       skipGif: '跳过 GIF 动图（保留原链接）',
       skipGifHelp: 'GIF 转 Base64 会失去动画效果，启用后保留原链接',
       skipGifHelpDetail: 'GIF 转换后会失去动画效果',
-      downloadImages: '下载图片/视频到 Vault 文件夹',
-      downloadImagesHelp: '通过 Obsidian Local REST API 将图片/视频直接写入 Vault，Markdown 使用相对路径引用',
+      downloadImages: '下载图片/视频/附件到 Vault 文件夹',
+      downloadImagesHelp: '通过 Obsidian Local REST API 将图片/视频/附件直接写入 Vault，Markdown 使用相对路径引用',
       downloadImagesWarning: '需要安装 Obsidian 社区插件「Local REST API」，在 Obsidian 设置中获取 API Key。',
       downloadImagesNote: '此选项与"图片嵌入（Base64）"互斥，启用本选项将自动关闭 Base64 嵌入。',
       restApiKey: 'API Key',
@@ -309,6 +317,8 @@ const i18n = {
       restApiStep4: '4. 点击「测试连接」确认可用',
       downloadVideos: '同时下载视频文件',
       downloadVideosHelp: '启用后也会下载帖子中嵌入的视频文件',
+      downloadAttachments: '同时下载附件文件（PDF/DOCX/XLSX等）',
+      downloadAttachmentsHelp: '启用后也会下载帖子中的附件文件',
       mediaFolderName: '媒体文件夹名称',
       mediaFolderHelp: '媒体文件保存的文件夹路径，默认 media。可用 {title} 代表帖子标题，例：media/{title}',
       mediaFolderPerTitle: '按帖子标题建立子文件夹',
@@ -325,6 +335,8 @@ const i18n = {
       saveAllWarning: '⚠️ 评论较多时可能需要较长时间加载',
       collapseComments: '折叠评论（使用HTML details标签）',
       collapseHelp: '使用 <details> 标签折叠评论内容',
+      renderReactions: '渲染 Reactions（打call/Boosts）为评论',
+      renderReactionsHelp: '将帖子的反应/打call渲染为带用户链接的评论，支持 Linux.do 等论坛',
       // V4.3.7: 楼层范围
       useFloorRange: '指定楼层范围',
       floorFrom: '从第',
@@ -414,10 +426,12 @@ const i18n = {
   en: {
     header: {
       title: 'Discourse Saver - Settings',
-      subtitle: 'Save Discourse Forum Posts to Obsidian, Feishu, Notion, SiYuan Note, Yuque or Export HTML V1.1.0'
+      subtitle: 'Save Discourse Forum Posts to Obsidian, Feishu, Notion, WebDAV, Baidu Netdisk or Export HTML V1.1.2'
     },
     tabs: {
       general: 'General',
+      obsidian: 'Obsidian',
+      notion: 'Notion',
       feishu: 'Feishu',
       siyuan: 'SiYuan',
       webdav: 'WebDAV',
@@ -466,6 +480,7 @@ const i18n = {
       feishu: 'Save to Feishu Bitable',
       notion: 'Save to Notion Database',
       exportHtml: 'Export HTML File',
+      exportMd: 'Download MD File Locally',
       siyuan: 'Save to SiYuan Note',
       webdav: 'Save to WebDAV Storage',
       baidu: 'Save to Baidu Netdisk',
@@ -476,6 +491,11 @@ const i18n = {
       folder: 'HTML Export Folder',
       folderPlaceholder: 'Discourse Export',
       folderHelp: 'Relative to browser download directory, leave empty to save directly'
+    },
+    md: {
+      folder: 'MD Export Folder',
+      folderPlaceholder: 'Discourse Export',
+      folderHelp: 'Markdown files will be downloaded to this path, leave empty for default browser download directory'
     },
     obsidian: {
       vaultName: 'Vault Name',
@@ -518,7 +538,7 @@ const i18n = {
       contentFixed: 'Body text is always written into the "Content" text field.',
       uploadContent: 'Upload body text to "Content" field',
       uploadContentAsCloudDoc: 'Import body as Feishu doc, write to "Doc Link" field (or prepend link to content if missing)',
-      uploadContentAsCloudDocHelp: 'Enable "Save to Feishu" first to use this option.',
+      uploadContentAsCloudDocHelp: 'Enable "Upload content to content field" first to use this option.',
       advancedOptions: 'Advanced Options (Attachments & Permission Notes)',
       uploadMd: 'Upload MD Attachment (extra permission, optional)',
       uploadMdHelp: 'Upload complete content as .md file to Feishu',
@@ -703,8 +723,8 @@ const i18n = {
       skipGif: 'Skip GIF animations (keep original link)',
       skipGifHelp: 'GIF to Base64 loses animation, keep original link when enabled',
       skipGifHelpDetail: 'GIF will lose animation after conversion',
-      downloadImages: 'Download images/videos to Vault folder',
-      downloadImagesHelp: 'Write images/videos directly to Vault via Obsidian Local REST API, Markdown uses relative paths',
+      downloadImages: 'Download images/videos/attachments to Vault folder',
+      downloadImagesHelp: 'Write images/videos/attachments directly to Vault via Obsidian Local REST API, Markdown uses relative paths',
       downloadImagesWarning: 'Requires Obsidian community plugin "Local REST API". Get API Key from Obsidian settings.',
       downloadImagesNote: 'This option is mutually exclusive with "Embed images (Base64)". Enabling this will disable Base64 embedding.',
       restApiKey: 'API Key',
@@ -720,6 +740,8 @@ const i18n = {
       restApiStep4: '4. Click "Test Connection" to verify',
       downloadVideos: 'Also download video files',
       downloadVideosHelp: 'Also download embedded video files from posts',
+      downloadAttachments: 'Also download attachment files (PDF/DOCX/XLSX etc.)',
+      downloadAttachmentsHelp: 'Also download attachment files in posts',
       mediaFolderName: 'Media Folder Name',
       mediaFolderHelp: 'Folder path for media files, default: media. Use {title} for post title, e.g. media/{title}',
       mediaFolderPerTitle: 'Create subfolder per post title',
@@ -736,6 +758,8 @@ const i18n = {
       saveAllWarning: '⚠️ Loading may take longer for many comments',
       collapseComments: 'Collapse Comments (use HTML details tag)',
       collapseHelp: 'Use <details> tag to collapse comment content',
+      renderReactions: 'Render Reactions (Boosts) as comments',
+      renderReactionsHelp: 'Render post reactions/boosts as comments with clickable user links, supports Linux.do etc.',
       // V4.3.7: Floor range
       useFloorRange: 'Specify Floor Range',
       floorFrom: 'From floor',

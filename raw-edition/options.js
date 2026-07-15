@@ -79,6 +79,10 @@ const DEFAULT_CONFIG = {
   feishuUploadHtml: false,
   htmlExportFolder: 'Discourse导出',  // V4.3.6: HTML 导出文件夹
 
+  // V1.1.2: MD 文件下载设置
+  exportMd: false,
+  mdExportFolder: 'Discourse导出',
+
   // 内容设置
   addMetadata: false,
   addPostInfoCallout: false,
@@ -95,7 +99,7 @@ const DEFAULT_CONFIG = {
   metaSource: true,       metaSourceKey: '来源',
   metaTitle: true,        metaTitleKey: '标题',
   metaAuthor: true,       metaAuthorKey: '作者',
-  metaAuthorUrl: true,                         // 控制作者字段是否附带主页链接
+  metaAuthorUrl: true,  // 控制作者字段是否附带主页链接
   metaCategory: true,     metaCategoryKey: '类别',
   metaTags: true,                              // key 固定为 tags
   metaSaveTime: true,     metaSaveTimeKey: '保存时间',
@@ -116,14 +120,16 @@ const DEFAULT_CONFIG = {
   commentCount: 100,
   saveAllComments: false,
   foldComments: false,
+  renderReactions: false,  // V1.1.2: 渲染 Reactions（打call/Boosts）为评论
   // V4.3.7: 楼层范围设置
   useFloorRange: false,
   floorFrom: 1,
   floorTo: 100,
 
-  // 下载图片/视频到Vault
+  // 下载图片/视频/附件到Vault
   downloadImages: false,
   downloadVideos: true,
+  downloadAttachments: true,  // V1.1.2: 下载附件文件
   restApiKey: '',
   restApiPort: 27123,
   mediaFolderName: 'media',
@@ -274,6 +280,8 @@ function loadOptions() {
     document.getElementById('saveToFeishu').checked = config.saveToFeishu;
     document.getElementById('exportHtml').checked = config.exportHtml || false;
     document.getElementById('htmlExportFolder').value = config.htmlExportFolder || 'Discourse导出';
+    document.getElementById('exportMd').checked = config.exportMd || false;
+    document.getElementById('mdExportFolder').value = config.mdExportFolder || 'Discourse导出';
 
     // Obsidian 设置
     document.getElementById('vaultName').value = config.vaultName;
@@ -320,6 +328,9 @@ function loadOptions() {
 
     // WebDAV 设置
     document.getElementById('saveToWebDAV').checked = config.saveToWebDAV;
+    // V1.1.2: 同步到 WebDAV Tab 内的复选框
+    const webdav2 = document.getElementById('saveToWebDAV2');
+    if (webdav2) webdav2.checked = config.saveToWebDAV;
     document.getElementById('webdavUrl').value = config.webdavUrl || '';
     document.getElementById('webdavUsername').value = config.webdavUsername || '';
     document.getElementById('webdavPassword').value = config.webdavPassword || '';
@@ -328,6 +339,9 @@ function loadOptions() {
 
     // 百度网盘设置
     document.getElementById('saveToBaidu').checked = config.saveToBaidu;
+    // V1.1.2: 同步到百度 Tab 内的复选框
+    const baidu2 = document.getElementById('saveToBaidu2');
+    if (baidu2) baidu2.checked = config.saveToBaidu;
     document.getElementById('baiduAppFolder').value = config.baiduAppFolder || '/apps/ob-sync';
     document.getElementById('baiduVaultFolder').value = config.baiduVaultFolder || 'Discourse收集箱';
     document.getElementById('baiduAutoFolder').checked = config.baiduAutoFolder === true;
@@ -394,6 +408,7 @@ function loadOptions() {
     document.getElementById('restApiKey').value = config.restApiKey || '';
     document.getElementById('restApiPort').value = config.restApiPort || 27123;
     document.getElementById('downloadVideos').checked = config.downloadVideos !== false;
+    document.getElementById('downloadAttachments').checked = config.downloadAttachments !== false;
     document.getElementById('mediaFolderName').value = config.mediaFolderName || 'media';
     document.getElementById('mediaFolderPerTitle').checked = config.mediaFolderPerTitle === true;
     updateDownloadImagesVisibility();
@@ -403,6 +418,7 @@ function loadOptions() {
     document.getElementById('commentCount').value = config.commentCount;
     document.getElementById('saveAllComments').checked = config.saveAllComments;
     document.getElementById('foldComments').checked = config.foldComments;
+    document.getElementById('renderReactions').checked = config.renderReactions || false;
     // V4.3.7: 楼层范围设置
     document.getElementById('useFloorRange').checked = config.useFloorRange;
     document.getElementById('floorFrom').value = config.floorFrom || 1;
@@ -596,6 +612,8 @@ function saveOptions(e) {
     saveToNotion: document.getElementById('saveToNotion').checked,
     exportHtml: document.getElementById('exportHtml').checked,
     htmlExportFolder: document.getElementById('htmlExportFolder').value.trim(),
+    exportMd: document.getElementById('exportMd').checked,
+    mdExportFolder: document.getElementById('mdExportFolder').value.trim(),
 
     // Obsidian 设置
     vaultName: document.getElementById('vaultName').value.trim(),
@@ -665,7 +683,6 @@ function saveOptions(e) {
     metaAuthor:      document.getElementById('metaAuthor')?.checked !== false,
     metaAuthorKey:   document.getElementById('metaAuthorKey')?.value.trim() || '作者',
     metaAuthorUrl:   document.getElementById('metaAuthorUrl')?.checked !== false,
-    metaAuthorUrlKey:document.getElementById('metaAuthorUrlKey')?.value.trim() || '作者主页',
     metaCategory:    document.getElementById('metaCategory')?.checked !== false,
     metaCategoryKey: document.getElementById('metaCategoryKey')?.value.trim() || '类别',
     metaTags:        document.getElementById('metaTags')?.checked !== false,
@@ -705,6 +722,7 @@ function saveOptions(e) {
     // 下载图片/视频到Vault
     downloadImages: document.getElementById('downloadImages').checked,
     downloadVideos: document.getElementById('downloadVideos').checked,
+    downloadAttachments: document.getElementById('downloadAttachments').checked,
     restApiKey: document.getElementById('restApiKey').value.trim(),
     restApiPort: parseInt(document.getElementById('restApiPort').value) || 27123,
     mediaFolderName: document.getElementById('mediaFolderName').value.trim() || 'media',
@@ -715,6 +733,7 @@ function saveOptions(e) {
     commentCount: commentCount,
     saveAllComments: document.getElementById('saveAllComments').checked,
     foldComments: document.getElementById('foldComments').checked,
+    renderReactions: document.getElementById('renderReactions').checked,
     // V4.3.7: 楼层范围设置
     useFloorRange: document.getElementById('useFloorRange').checked,
     floorFrom: Math.max(1, parseInt(document.getElementById('floorFrom').value) || 1),
@@ -722,7 +741,7 @@ function saveOptions(e) {
   };
 
   // 验证：插件启用时至少选择一个保存目标
-  if (config.pluginEnabled && !config.saveToObsidian && !config.saveToFeishu && !config.saveToNotion && !config.saveToYuque && !config.saveToSiyuan && !config.saveToWebDAV && !config.saveToBaidu && !config.exportHtml) {
+  if (config.pluginEnabled && !config.saveToObsidian && !config.saveToFeishu && !config.saveToNotion && !config.saveToYuque && !config.saveToSiyuan && !config.saveToWebDAV && !config.saveToBaidu && !config.exportHtml && !config.exportMd) {
     showStatus('请至少选择一个保存目标', 'error');
     return;
   }
@@ -1432,13 +1451,14 @@ function updateBaiduOptionsVisibility(enabled) {
   }
 }
 
-// 百度网盘 OAuth 授权
+// V1.1.2: 百度网盘 OAuth 设备码授权流程
 async function baiduOAuth() {
   const btn = document.getElementById('baiduAuthBtn');
   const originalText = btn.textContent;
 
-  btn.textContent = '授权中...';
+  btn.textContent = '获取授权码中...';
   btn.disabled = true;
+  showStatus('正在获取百度设备授权码...', 'info');
 
   try {
     const result = await new Promise((resolve) => {
@@ -1463,6 +1483,17 @@ async function baiduOAuth() {
   btn.textContent = originalText;
   btn.disabled = false;
 }
+
+// V1.1.2: 监听背景脚本发来的设备码，在页面上显示
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.action === 'baiduDeviceCode') {
+    const minutes = Math.floor((msg.expiresIn || 900) / 60);
+    showStatus(
+      `请在打开的百度页面输入授权码：<b style="font-size:18px;letter-spacing:3px;color:#2563eb;">${msg.userCode}</b>（${minutes}分钟内有效）`,
+      'info'
+    );
+  }
+});
 
 // 测试百度网盘连接
 async function testBaiduConnection() {
@@ -1602,13 +1633,37 @@ document.addEventListener('DOMContentLoaded', () => {
   // WebDAV 相关事件
   document.getElementById('saveToWebDAV').addEventListener('change', (e) => {
     updateWebDAVOptionsVisibility(e.target.checked);
+    // V1.1.2: 同步到 WebDAV Tab 内的复选框
+    const cb2 = document.getElementById('saveToWebDAV2');
+    if (cb2) cb2.checked = e.target.checked;
   });
+  // V1.1.2: WebDAV Tab 内复选框反向同步
+  const webdav2Cb = document.getElementById('saveToWebDAV2');
+  if (webdav2Cb) {
+    webdav2Cb.addEventListener('change', (e) => {
+      const master = document.getElementById('saveToWebDAV');
+      if (master) master.checked = e.target.checked;
+      updateWebDAVOptionsVisibility(e.target.checked);
+    });
+  }
   document.getElementById('testWebDAVBtn').addEventListener('click', testWebDAVConnection);
 
   // 百度网盘相关事件
   document.getElementById('saveToBaidu').addEventListener('change', (e) => {
     updateBaiduOptionsVisibility(e.target.checked);
+    // V1.1.2: 同步到百度 Tab 内的复选框
+    const cb2 = document.getElementById('saveToBaidu2');
+    if (cb2) cb2.checked = e.target.checked;
   });
+  // V1.1.2: 百度 Tab 内复选框反向同步
+  const baidu2Cb = document.getElementById('saveToBaidu2');
+  if (baidu2Cb) {
+    baidu2Cb.addEventListener('change', (e) => {
+      const master = document.getElementById('saveToBaidu');
+      if (master) master.checked = e.target.checked;
+      updateBaiduOptionsVisibility(e.target.checked);
+    });
+  }
   document.getElementById('baiduAuthBtn').addEventListener('click', baiduOAuth);
   document.getElementById('testBaiduBtn').addEventListener('click', testBaiduConnection);
 
