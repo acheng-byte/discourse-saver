@@ -2969,7 +2969,7 @@
       markdown += fm;
     }
 
-    // 可选：在正文前追加 Obsidian Callout 形式的“帖子信息”引用框
+    // 可选：在正文前追加 Obsidian Callout 形式的"帖子信息"引用框
     if (config.addPostInfoCallout) {
       const exportTime = new Date().toLocaleString('zh-CN', {
         timeZone: 'Asia/Shanghai',

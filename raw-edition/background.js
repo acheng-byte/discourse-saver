@@ -284,7 +284,7 @@ function asBool(v, defaultValue = false) {
   return defaultValue;
 }
 
-// 根据飞书字段类型构造“链接”字段：
+// 根据飞书字段类型构造"链接"字段：
 // - URL(15): 传纯字符串，兼容性最好
 // - TEXT(1): 传 "标题 - URL" 文本
 // - 其他: 回退传纯 URL 字符串
@@ -303,7 +303,7 @@ function buildFeishuLinkFieldValue(postData, linkFieldType) {
   return safeUrl;
 }
 
-// 根据飞书字段类型构造“作者”字段：
+// 根据飞书字段类型构造"作者"字段：
 // - URL(15): 优先写作者主页链接；无主页则回退帖子链接
 // - TEXT(1): 写作者名；若有主页则附加在后面
 // - 其他: 回退作者名
@@ -373,7 +373,7 @@ function normalizeMarkdownTableSeparators(markdown) {
   return lines.join('\n');
 }
 
-// 兼容不同命名的“云文档链接”字段
+// 兼容不同命名的"云文档链接"字段
 function findFeishuCloudDocFieldName(fieldTypeMap) {
   if (!fieldTypeMap || typeof fieldTypeMap !== 'object') return null;
   const exact = ['云文档链接', '云文档', '文档链接', 'Cloud Doc Link', 'Doc Link', 'doc_link'];

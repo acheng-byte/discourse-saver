@@ -138,7 +138,7 @@ const i18n = {
       permFields: '字段：',
       permRequiredContent: 'bitable:app（多维表格读写）',
       permAttachmentContent: 'drive:file:upload（可选）',
-      permImportContent: 'docs:document:import（启用“正文导入云文档”时必需）',
+      permImportContent: 'docs:document:import（启用"正文导入云文档"时必需）',
       permFieldsContent: '标题(文本)、链接(超链接)、作者(文本)、分类(文本)、标签(文本)、保存时间(日期)、评论数(数字)、正文(文本)、附件(附件)；可选：云文档链接(超链接/文本)'
     },
     siyuan: {
@@ -269,7 +269,7 @@ const i18n = {
     },
     content: {
       addMetadata: '添加元数据到笔记（Frontmatter）',
-      addPostInfoCallout: '添加“帖子信息”引用框（Obsidian Callout）',
+      addPostInfoCallout: '添加"帖子信息"引用框（Obsidian Callout）',
       calloutFollowMetadata: '字段跟随元数据设置（默认）',
       calloutFieldsHelp: '关闭上面的选项后，可独立选择引用框字段；可只选 1 条或任意多条。',
       metadataNote: '仅影响 Obsidian / 语雀 / 思源的 Frontmatter 字段，飞书多维表格和 Notion 数据库字段不受影响。',
