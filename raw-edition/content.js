@@ -403,10 +403,14 @@
       }
       #ds-fab-menu .ds-collapse-section {
         overflow: hidden;
-        transition: max-height 0.25s ease;
+        max-height: 500px;
+        opacity: 1;
+        transition: max-height 0.25s ease, opacity 0.2s ease;
       }
       #ds-fab-menu .ds-collapse-section.collapsed {
         max-height: 0 !important;
+        opacity: 0;
+        pointer-events: none;
       }
       #ds-fab-menu .ds-menu-item {
         padding: 8px 10px;
@@ -722,8 +726,6 @@
     const collapseTitle = menu.querySelector('#ds-collapse-targets');
     const collapseSection = menu.querySelector('#ds-collapse-targets-section');
     if (collapseTitle && collapseSection) {
-      // 设置初始高度
-      collapseSection.style.maxHeight = collapseSection.scrollHeight + 'px';
       // 读取保存的状态
       chrome.storage.local.get({ fabMenuTargetsCollapsed: true }, (result) => {
         if (result.fabMenuTargetsCollapsed) {
@@ -734,9 +736,6 @@
       collapseTitle.addEventListener('click', () => {
         const isCollapsed = collapseSection.classList.toggle('collapsed');
         collapseTitle.classList.toggle('collapsed', isCollapsed);
-        if (!isCollapsed) {
-          collapseSection.style.maxHeight = collapseSection.scrollHeight + 'px';
-        }
         chrome.storage.local.set({ fabMenuTargetsCollapsed: isCollapsed });
       });
     }
@@ -1112,11 +1111,25 @@
       // V1.1.2: 获取主帖 Reactions
       let reactions = [];
       const config = await chrome.storage.sync.get({ renderReactions: false });
-      if (config.renderReactions && firstPost.reactions && firstPost.reactions.length > 0) {
-        reactions = await fetchPostReactions(firstPost.id, userIdMap);
+      if (config.renderReactions) {
+        // 获取所有帖子的 Reactions（不仅限主帖）
+        const allPosts = data.post_stream?.posts || [];
+        for (const post of allPosts) {
+          if (post.id) {
+            const postReactions = await fetchPostReactions(post.id, userIdMap);
+            if (postReactions && postReactions.length > 0) {
+              // 为主帖 reactions 添加楼层标识
+              const postNumber = post.post_number || 1;
+              for (const r of postReactions) {
+                r.postNumber = postNumber;
+              }
+              reactions = reactions.concat(postReactions);
+            }
+          }
+        }
       }
 
-      console.log('[Discourse Saver] API 提取主帖成功:', title, '作者:', author, 'raw长度:', rawMarkdown?.length);
+      console.log('[Discourse Saver] API 提取主帖成功:', title, '作者:', author, 'raw长度:', rawMarkdown?.length, 'reactions:', reactions.length);
       return { title, contentHTML, rawMarkdown, url, author, authorUrl, createdAt, topicId, category, tags, reactions };
     } catch (e) {
       console.warn('[Discourse Saver] extractContentViaAPI 失败:', e);

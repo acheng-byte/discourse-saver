@@ -122,16 +122,16 @@
     /* Tab Navigation */
     .tab-nav {
       display: flex;
+      flex-wrap: wrap;
       border-bottom: 2px solid var(--border);
       background: var(--card-bg);
-      overflow-x: auto;
       scrollbar-width: none;
     }
     .tab-nav::-webkit-scrollbar { display: none; }
     .tab-btn {
       flex: none;
-      padding: 12px 16px;
-      font-size: 13px;
+      padding: 10px 12px;
+      font-size: 12px;
       font-weight: 500;
       color: var(--tab-inactive);
       background: none;
@@ -451,9 +451,62 @@
     /* Badge */
     .badge-new { background: var(--success); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 500; margin-left: 4px; }
 
+    /* Info Icon with Tooltip */
+    .info-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: help;
+      margin-left: 6px;
+      flex-shrink: 0;
+      position: relative;
+      vertical-align: middle;
+      font-style: normal;
+    }
+    .info-icon:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: calc(100% + 6px);
+      background: var(--text);
+      color: var(--card-bg);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 400;
+      max-width: 300px;
+      white-space: normal;
+      z-index: 10000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      pointer-events: none;
+      line-height: 1.5;
+    }
+
     /* Collapsible section */
+    .ds-collapse-section {
+      max-height: 2000px;
+      opacity: 1;
+      transition: max-height 0.3s ease, opacity 0.2s ease;
+    }
     .ds-collapse-section.collapsed {
       max-height: 0 !important;
+      opacity: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .ds-collapse-icon {
+      transition: transform 0.2s ease;
+    }
+    .ds-collapse-icon.rotated {
+      transform: rotate(-90deg);
     }
 
     /* Notion property mapping panel */
@@ -544,7 +597,7 @@
             <span data-i18n="sections.saveTarget">保存目标</span>
             <span class="ds-collapse-icon" style="transition: transform 0.2s; font-size: 12px;">▼</span>
           </label>
-          <div id="saveTargetSection" class="ds-collapse-section" style="overflow: hidden; transition: max-height 0.25s ease;">
+          <div id="saveTargetSection" class="ds-collapse-section" style="transition: max-height 0.25s ease;">
           <div class="checkbox-row">
             <input type="checkbox" id="saveToObsidian" checked>
             <label for="saveToObsidian" data-i18n="saveTarget.obsidian">保存到 Obsidian</label>
@@ -601,7 +654,7 @@
             <span data-i18n="sections.siteSettings">自定义站点</span>
             <span class="ds-collapse-icon" style="transition: transform 0.2s; font-size: 12px;">▼</span>
           </label>
-          <div id="siteSettingsSection" class="ds-collapse-section" style="overflow: hidden; transition: max-height 0.25s ease;">
+          <div id="siteSettingsSection" class="ds-collapse-section" style="transition: max-height 0.25s ease;">
           <div class="help-text" style="margin-bottom: 10px;" data-i18n="siteSettings.autoDetectHelp">插件自动检测 Discourse 论坛，未被识别的站点可手动添加。</div>
           <div id="customSitesList" class="custom-sites-list" data-empty-text="暂无自定义站点"></div>
           <div class="inline-row" style="margin-top: 8px;">
@@ -617,14 +670,16 @@
             <span data-i18n="sections.content">内容设置</span>
             <span class="ds-collapse-icon" style="transition: transform 0.2s; font-size: 12px;">▼</span>
           </label>
-          <div id="contentSettingsSection" class="ds-collapse-section" style="overflow: hidden; transition: max-height 0.25s ease;">
+          <div id="contentSettingsSection" class="ds-collapse-section" style="transition: max-height 0.25s ease;">
           <div class="checkbox-row">
             <input type="checkbox" id="addMetadata">
             <label for="addMetadata" data-i18n="content.addMetadata">添加元数据到笔记（Frontmatter）</label>
+            <span class="info-icon" data-tooltip="在 Markdown 文件头部添加 YAML Frontmatter 元数据，包含来源、标题、作者、类别、标签等字段。仅影响 Obsidian/语雀/思源。">i</span>
           </div>
           <div class="checkbox-row" style="margin-top: 8px;">
             <input type="checkbox" id="addPostInfoCallout">
             <label for="addPostInfoCallout" data-i18n="content.addPostInfoCallout">添加"帖子信息"引用框（Obsidian Callout）</label>
+            <span class="info-icon" data-tooltip="在笔记开头添加 Obsidian Callout 引用框，显示帖子来源、标题、作者等信息">i</span>
           </div>
           <div id="postInfoCalloutPanel" style="display:none; margin-left:24px; margin-top:8px; padding:12px 14px; background:var(--sub-bg); border:1px solid var(--input-border); border-radius:8px;">
             <div class="checkbox-row" style="margin-bottom:8px;">
@@ -760,9 +815,16 @@
           <div class="checkbox-row" style="margin-top:12px;">
             <input type="checkbox" id="includeImages" checked>
             <label for="includeImages" data-i18n="content.keepImages">保留图片链接</label>
+            <span class="info-icon" data-tooltip="保留帖子中的图片链接。取消勾选将移除正文中所有图片。">i</span>
           </div>
           <div class="help-text" style="margin-left:24px; margin-top:4px;" data-i18n="content.includeImagesHelp">
             必须勾选才能使用"图片嵌入 Base64"和"下载图片/视频到 Vault"功能。取消勾选将移除正文中所有图片。
+          </div>
+
+          <div class="checkbox-row" style="margin-top:12px;">
+            <input type="checkbox" id="renderReactions">
+            <label for="renderReactions" data-i18n="content.renderReactions">渲染 Reactions（打call/Boosts）为评论</label>
+            <span class="info-icon" data-tooltip="将帖子的反应/打call/Boosts 渲染为带用户链接的评论，支持 Linux.do 等论坛。默认关闭，按需启用。">i</span>
           </div>
           </div>
         </div>
@@ -773,7 +835,7 @@
             <span data-i18n="sections.runtimeLogs">运行日志</span>
             <span class="ds-collapse-icon" style="transition: transform 0.2s; font-size: 12px;">▼</span>
           </label>
-          <div id="runtimeLogsSection" class="ds-collapse-section" style="overflow: hidden; transition: max-height 0.25s ease;">
+          <div id="runtimeLogsSection" class="ds-collapse-section" style="transition: max-height 0.25s ease;">
           <div class="help-text" style="margin-bottom: 10px;" data-i18n="runtimeLogs.help">记录插件检测、注入、按钮拦截等运行状态，用于排查问题。最多保留500条，自动覆盖旧日志。</div>
           <div id="logFilterRow" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
             <select id="logLevelFilter" style="padding:6px 10px;border:1px solid var(--input-border);border-radius:6px;font-size:13px;background:var(--input-bg);color:var(--text);">
@@ -821,6 +883,7 @@
           <div class="checkbox-row" style="margin-top: 12px;">
             <input type="checkbox" id="embedImages">
             <label for="embedImages"><span data-i18n="content.embedImages">将图片嵌入笔记（Base64）</span><span class="badge-new">新</span></label>
+            <span class="info-icon" data-tooltip="图片转换为 Base64 格式嵌入 Markdown 文件。优点：单文件完整保存。缺点：文件体积显著增大。">i</span>
           </div>
           <div class="image-settings-panel disabled" id="imageSettingsPanel">
             <div class="warning-text" style="margin-top: 0;">
@@ -1212,12 +1275,6 @@
           <div class="checkbox-row" style="margin-top: 12px;">
             <input type="checkbox" id="foldComments">
             <label for="foldComments" data-i18n="comments.collapseComments">折叠评论（使用 HTML details 标签）</label>
-          </div>
-
-          <div class="checkbox-row" style="margin-top: 8px;">
-            <input type="checkbox" id="renderReactions">
-            <label for="renderReactions" data-i18n="comments.renderReactions">渲染 Reactions（打call/Boosts）为评论<span class="badge-new">新</span></label>
-            <div class="help-text" data-i18n="comments.renderReactionsHelp">将帖子的反应/打call渲染为带用户链接的评论，支持 Linux.do 等论坛</div>
           </div>
 
           <div class="tip-box" style="margin-top: 12px; background: var(--success-bg); border-left-color: var(--success);">

@@ -1549,21 +1549,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveTargetToggle = document.getElementById('saveTargetToggle');
   const saveTargetSection = document.getElementById('saveTargetSection');
   if (saveTargetToggle && saveTargetSection) {
-    // 设置初始高度
-    saveTargetSection.style.maxHeight = saveTargetSection.scrollHeight + 'px';
     // 读取保存的状态（默认折叠）
     chrome.storage.local.get({ saveTargetSectionCollapsed: true }, (result) => {
       if (result.saveTargetSectionCollapsed) {
         saveTargetSection.classList.add('collapsed');
-        saveTargetToggle.querySelector('.ds-collapse-icon').style.transform = 'rotate(-90deg)';
+        saveTargetToggle.querySelector('.ds-collapse-icon').classList.add('rotated');
       }
     });
     saveTargetToggle.addEventListener('click', () => {
       const isCollapsed = saveTargetSection.classList.toggle('collapsed');
-      saveTargetToggle.querySelector('.ds-collapse-icon').style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
-      if (!isCollapsed) {
-        saveTargetSection.style.maxHeight = saveTargetSection.scrollHeight + 'px';
-      }
+      saveTargetToggle.querySelector('.ds-collapse-icon').classList.toggle('rotated', isCollapsed);
       chrome.storage.local.set({ saveTargetSectionCollapsed: isCollapsed });
     });
   }
@@ -1572,19 +1567,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const siteSettingsToggle = document.getElementById('siteSettingsToggle');
   const siteSettingsSection = document.getElementById('siteSettingsSection');
   if (siteSettingsToggle && siteSettingsSection) {
-    siteSettingsSection.style.maxHeight = siteSettingsSection.scrollHeight + 'px';
     chrome.storage.local.get({ siteSettingsSectionCollapsed: true }, (result) => {
       if (result.siteSettingsSectionCollapsed) {
         siteSettingsSection.classList.add('collapsed');
-        siteSettingsToggle.querySelector('.ds-collapse-icon').style.transform = 'rotate(-90deg)';
+        siteSettingsToggle.querySelector('.ds-collapse-icon').classList.add('rotated');
       }
     });
     siteSettingsToggle.addEventListener('click', () => {
       const isCollapsed = siteSettingsSection.classList.toggle('collapsed');
-      siteSettingsToggle.querySelector('.ds-collapse-icon').style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
-      if (!isCollapsed) {
-        siteSettingsSection.style.maxHeight = siteSettingsSection.scrollHeight + 'px';
-      }
+      siteSettingsToggle.querySelector('.ds-collapse-icon').classList.toggle('rotated', isCollapsed);
       chrome.storage.local.set({ siteSettingsSectionCollapsed: isCollapsed });
     });
   }
@@ -1593,19 +1584,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const contentSettingsToggle = document.getElementById('contentSettingsToggle');
   const contentSettingsSection = document.getElementById('contentSettingsSection');
   if (contentSettingsToggle && contentSettingsSection) {
-    contentSettingsSection.style.maxHeight = contentSettingsSection.scrollHeight + 'px';
     chrome.storage.local.get({ contentSettingsSectionCollapsed: true }, (result) => {
       if (result.contentSettingsSectionCollapsed) {
         contentSettingsSection.classList.add('collapsed');
-        contentSettingsToggle.querySelector('.ds-collapse-icon').style.transform = 'rotate(-90deg)';
+        contentSettingsToggle.querySelector('.ds-collapse-icon').classList.add('rotated');
       }
     });
     contentSettingsToggle.addEventListener('click', () => {
       const isCollapsed = contentSettingsSection.classList.toggle('collapsed');
-      contentSettingsToggle.querySelector('.ds-collapse-icon').style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
-      if (!isCollapsed) {
-        contentSettingsSection.style.maxHeight = contentSettingsSection.scrollHeight + 'px';
-      }
+      contentSettingsToggle.querySelector('.ds-collapse-icon').classList.toggle('rotated', isCollapsed);
       chrome.storage.local.set({ contentSettingsSectionCollapsed: isCollapsed });
     });
   }
@@ -1614,19 +1601,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const runtimeLogsToggle = document.getElementById('runtimeLogsToggle');
   const runtimeLogsSection = document.getElementById('runtimeLogsSection');
   if (runtimeLogsToggle && runtimeLogsSection) {
-    runtimeLogsSection.style.maxHeight = runtimeLogsSection.scrollHeight + 'px';
     chrome.storage.local.get({ runtimeLogsSectionCollapsed: true }, (result) => {
       if (result.runtimeLogsSectionCollapsed) {
         runtimeLogsSection.classList.add('collapsed');
-        runtimeLogsToggle.querySelector('.ds-collapse-icon').style.transform = 'rotate(-90deg)';
+        runtimeLogsToggle.querySelector('.ds-collapse-icon').classList.add('rotated');
       }
     });
     runtimeLogsToggle.addEventListener('click', () => {
       const isCollapsed = runtimeLogsSection.classList.toggle('collapsed');
-      runtimeLogsToggle.querySelector('.ds-collapse-icon').style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
-      if (!isCollapsed) {
-        runtimeLogsSection.style.maxHeight = runtimeLogsSection.scrollHeight + 'px';
-      }
+      runtimeLogsToggle.querySelector('.ds-collapse-icon').classList.toggle('rotated', isCollapsed);
       chrome.storage.local.set({ runtimeLogsSectionCollapsed: isCollapsed });
     });
   }
