@@ -11,6 +11,87 @@
     } catch (_) { /* 扩展上下文失效时忽略 */ }
   }
 
+  // 已知 Discourse 论坛域名列表（快速匹配，无需等待 DOM 检测）
+  const KNOWN_DISCOURSE_HOSTS = [
+    // 热门论坛
+    'linux.do',
+    'meta.discourse.org',
+    'community.openai.com',
+    'forum.obsidian.md',
+    'forum.cursor.com',
+    'community.cloudflare.com',
+    'forums.docker.com',
+    'discuss.python.org',
+    'forum.gitlab.com',
+    'discuss.hashicorp.com',
+    'discuss.elastic.co',
+    'community.home-assistant.io',
+    'community.bitwarden.com',
+    'forum.proxmox.com',
+    'forum.unity.com',
+    'forums.unrealengine.com',
+    'community.letsencrypt.org',
+    'forum.seafile.com',
+    'forum.syncthing.net',
+    'forum.owncloud.com',
+    // 编程语言/框架
+    'users.rust-lang.org',
+    'discourse.haskell.org',
+    'discourse.julialang.org',
+    'discourse.nixos.org',
+    'discourse.llvm.org',
+    'discuss.rubyonrails.org',
+    'discuss.ocaml.org',
+    'discuss.kotlinlang.org',
+    'discuss.flarum.org',
+    'discuss.emberjs.com',
+    'elixirforum.com',
+    'discourse.naaln.com',
+    'discuss.grin.mw',
+    // 开发者工具/平台
+    'discourse.mozilla.org',
+    'forums.swift.org',
+    'forum.rclone.org',
+    'community.fly.io',
+    'community.render.com',
+    'community.grafana.com',
+    'community.hivemq.com',
+    'community.paperspace.com',
+    'discuss.codecademy.com',
+    'discuss.atom.io',
+    'forum.taichi-lang.org',
+    // Trae
+    'trae.ai',
+    'www.trae.ai',
+    'trae.com.cn',
+    'www.trae.com.cn'
+  ];
+
+  // 通配符匹配的域名模式
+  const KNOWN_DISCOURSE_PATTERNS = [
+    /\.discourse\.group$/i  // 所有 *.discourse.group 子域名
+  ];
+
+  // 快速检查是否是已知的 Discourse 论坛
+  function isKnownDiscourseHost() {
+    const host = window.location.hostname.toLowerCase();
+    // 精确匹配
+    if (KNOWN_DISCOURSE_HOSTS.includes(host)) {
+      console.log('[Discourse Saver] 已知 Discourse 论坛: ' + host);
+      rlog('INFO', '已知Discourse站点命中: ' + host);
+      return true;
+    }
+    // 通配符匹配
+    for (const pattern of KNOWN_DISCOURSE_PATTERNS) {
+      if (pattern.test(host)) {
+        console.log('[Discourse Saver] 匹配 Discourse 域名模式: ' + host);
+        rlog('INFO', 'Discourse域名模式命中: ' + host);
+        return true;
+      }
+    }
+    return false;
+  }
+
   // 检测当前站点是否是 Discourse 论坛
   function isDiscourseSite() {
     // 方法1: 检测 meta generator 标签
@@ -125,8 +206,11 @@
       return;
     }
 
-    // 检查是否是 Discourse 站点
-    const isDiscourse = isDiscourseSite();
+    // 快速匹配已知 Discourse 论坛（无需等待 DOM 加载）
+    const isKnown = isKnownDiscourseHost();
+
+    // 检查是否是 Discourse 站点（DOM 检测）
+    const isDiscourse = isKnown || isDiscourseSite();
 
     // 检查是否在自定义站点列表中
     const isCustom = await isInCustomSiteList();

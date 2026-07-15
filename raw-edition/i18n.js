@@ -416,8 +416,11 @@ const i18n = {
       subtitle: '如果这个插件对你有帮助，感谢你的支持！',
       wechat: '微信支付',
       alipay: '支付宝',
+      afdian: '爱发电',
       wechatAlt: '微信收款码',
-      alipayAlt: '支付宝收款码'
+      alipayAlt: '支付宝收款码',
+      afdianHelp: '通过爱发电支持我们，无手续费 ❤️',
+      afdianBtn: '前往爱发电支持'
     },
     site: {
       empty: '暂无自定义站点'
@@ -839,8 +842,11 @@ const i18n = {
       subtitle: 'If this extension helps you, thanks for your support!',
       wechat: 'WeChat Pay',
       alipay: 'Alipay',
+      afdian: 'Afdian',
       wechatAlt: 'WeChat Pay QR Code',
-      alipayAlt: 'Alipay QR Code'
+      alipayAlt: 'Alipay QR Code',
+      afdianHelp: 'Support us via Afdian, no fees ❤️',
+      afdianBtn: 'Go to Afdian'
     },
     site: {
       empty: 'No custom sites yet'

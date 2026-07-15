@@ -1804,17 +1804,19 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // 捐赠标签切换（微信/支付宝）
+    // 捐赠标签切换（微信/支付宝/爱发电）
     document.querySelectorAll('.donate-tab-btn[data-donate]').forEach(tabBtn => {
       tabBtn.addEventListener('click', () => {
         const target = tabBtn.getAttribute('data-donate');
         document.querySelectorAll('.donate-tab-btn').forEach(b => {
-          b.classList.remove('active-wechat', 'active-alipay');
+          b.classList.remove('active-wechat', 'active-alipay', 'active-afdian');
         });
-        tabBtn.classList.add(target === 'wechat' ? 'active-wechat' : 'active-alipay');
+        const activeClass = target === 'wechat' ? 'active-wechat' : target === 'alipay' ? 'active-alipay' : 'active-afdian';
+        tabBtn.classList.add(activeClass);
 
         document.getElementById('donate-wechat').style.display = target === 'wechat' ? 'block' : 'none';
         document.getElementById('donate-alipay').style.display = target === 'alipay' ? 'block' : 'none';
+        document.getElementById('donate-afdian').style.display = target === 'afdian' ? 'block' : 'none';
       });
     });
   }

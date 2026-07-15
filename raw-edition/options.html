@@ -420,6 +420,19 @@
     }
     .donate-tab-btn.active-wechat { border-color: #07c160; background: #07c16015; color: #07c160; }
     .donate-tab-btn.active-alipay { border-color: #1677ff; background: #1677ff15; color: #1677ff; }
+    .donate-tab-btn.active-afdian { border-color: #9b59b6; background: #9b59b615; color: #9b59b6; }
+    .donate-afdian-link {
+      display: inline-block;
+      padding: 12px 28px;
+      background: linear-gradient(135deg, #9b59b6, #8e44ad);
+      color: #fff;
+      text-decoration: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .donate-afdian-link:hover { transform: scale(1.03); box-shadow: 0 4px 16px rgba(155,89,182,0.35); }
     .donate-qr { max-width: 260px; border-radius: 12px; margin: 0 auto; display: block; }
     .donate-close {
       position: absolute;
@@ -1226,9 +1239,14 @@
       <div class="donate-tabs">
         <button type="button" class="donate-tab-btn active-wechat" data-donate="wechat" data-i18n="coffee.wechat">微信支付</button>
         <button type="button" class="donate-tab-btn" data-donate="alipay" data-i18n="coffee.alipay">支付宝</button>
+        <button type="button" class="donate-tab-btn" data-donate="afdian" data-i18n="coffee.afdian">爱发电</button>
       </div>
       <div id="donate-wechat" style="display:block;"><img src="icons/wechat-pay.png" class="donate-qr" alt="微信收款码"></div>
       <div id="donate-alipay" style="display:none;"><img src="icons/alipay.jpg" class="donate-qr" alt="支付宝收款码"></div>
+      <div id="donate-afdian" style="display:none;">
+        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;" data-i18n="coffee.afdianHelp">通过爱发电支持我们，无手续费 ❤️</p>
+        <a href="https://ifdian.net/a/acheng111" target="_blank" rel="noopener noreferrer" class="donate-afdian-link" data-i18n="coffee.afdianBtn">前往爱发电支持</a>
+      </div>
     </div>
   </div>
 
