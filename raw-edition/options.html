@@ -451,6 +451,11 @@
     /* Badge */
     .badge-new { background: var(--success); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 500; margin-left: 4px; }
 
+    /* Collapsible section */
+    .ds-collapse-section.collapsed {
+      max-height: 0 !important;
+    }
+
     /* Notion property mapping panel */
     .prop-mapping {
       background: var(--sub-bg);
@@ -535,7 +540,11 @@
 
         <!-- Save Targets -->
         <div class="form-group">
-          <label style="font-weight: 600; font-size: 14px; margin-bottom: 12px;" data-i18n="sections.saveTarget">保存目标</label>
+          <label style="font-weight: 600; font-size: 14px; margin-bottom: 12px; cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between;" data-i18n="sections.saveTarget" id="saveTargetToggle">
+            <span>保存目标</span>
+            <span class="ds-collapse-icon" style="transition: transform 0.2s; font-size: 12px;">▼</span>
+          </label>
+          <div id="saveTargetSection" class="ds-collapse-section" style="overflow: hidden; transition: max-height 0.25s ease;">
           <div class="checkbox-row">
             <input type="checkbox" id="saveToObsidian" checked>
             <label for="saveToObsidian" data-i18n="saveTarget.obsidian">保存到 Obsidian</label>
@@ -583,29 +592,39 @@
             <div class="help-text" data-i18n="md.folderHelp">Markdown 文件将下载到此路径，留空则保存到浏览器默认下载目录</div>
           </div>
           <div class="help-text" data-i18n="saveTarget.multiSaveHelp">可以同时保存到多个平台</div>
+          </div>
         </div>
 
         <!-- Custom Sites -->
         <div class="form-group" style="margin-top: 20px;">
-          <label style="font-weight: 600; font-size: 14px; margin-bottom: 8px;" data-i18n="sections.siteSettings">自定义站点</label>
+          <label style="font-weight: 600; font-size: 14px; margin-bottom: 8px; cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between;" data-i18n="sections.siteSettings" id="siteSettingsToggle">
+            <span>自定义站点</span>
+            <span class="ds-collapse-icon" style="transition: transform 0.2s; font-size: 12px;">▼</span>
+          </label>
+          <div id="siteSettingsSection" class="ds-collapse-section" style="overflow: hidden; transition: max-height 0.25s ease;">
           <div class="help-text" style="margin-bottom: 10px;" data-i18n="siteSettings.autoDetectHelp">插件自动检测 Discourse 论坛，未被识别的站点可手动添加。</div>
           <div id="customSitesList" class="custom-sites-list" data-empty-text="暂无自定义站点"></div>
           <div class="inline-row" style="margin-top: 8px;">
             <input type="text" id="newSiteInput" placeholder="forum.example.com" style="flex: 1;">
             <button type="button" class="btn-test" id="addSiteBtn" data-i18n="buttons.add">添加</button>
           </div>
+          </div>
         </div>
 
         <!-- Content Settings -->
-        <div class="form-group" style="margin-top: 20px;">
-          <label style="font-weight: 600; font-size: 14px; margin-bottom: 12px;" data-i18n="sections.content">内容设置</label>
-          <div class="checkbox-row">
-            <input type="checkbox" id="addMetadata">
-            <label for="addMetadata" data-i18n="content.addMetadata">添加元数据到笔记（Frontmatter）</label>
+        <div class=”form-group” style=”margin-top: 20px;”>
+          <label style=”font-weight: 600; font-size: 14px; margin-bottom: 12px; cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between;” data-i18n=”sections.content” id=”contentSettingsToggle”>
+            <span>内容设置</span>
+            <span class=”ds-collapse-icon” style=”transition: transform 0.2s; font-size: 12px;”>▼</span>
+          </label>
+          <div id=”contentSettingsSection” class=”ds-collapse-section” style=”overflow: hidden; transition: max-height 0.25s ease;”>
+          <div class=”checkbox-row”>
+            <input type=”checkbox” id=”addMetadata”>
+            <label for=”addMetadata” data-i18n=”content.addMetadata”>添加元数据到笔记（Frontmatter）</label>
           </div>
-          <div class="checkbox-row" style="margin-top: 8px;">
-            <input type="checkbox" id="addPostInfoCallout">
-            <label for="addPostInfoCallout" data-i18n="content.addPostInfoCallout">添加“帖子信息”引用框（Obsidian Callout）</label>
+          <div class=”checkbox-row” style=”margin-top: 8px;”>
+            <input type=”checkbox” id=”addPostInfoCallout”>
+            <label for=”addPostInfoCallout” data-i18n=”content.addPostInfoCallout”>添加”帖子信息”引用框（Obsidian Callout）</label>
           </div>
           <div id="postInfoCalloutPanel" style="display:none; margin-left:24px; margin-top:8px; padding:12px 14px; background:var(--sub-bg); border:1px solid var(--input-border); border-radius:8px;">
             <div class="checkbox-row" style="margin-bottom:8px;">
@@ -745,11 +764,16 @@
           <div class="help-text" style="margin-left:24px; margin-top:4px;" data-i18n="content.includeImagesHelp">
             必须勾选才能使用"图片嵌入 Base64"和"下载图片/视频到 Vault"功能。取消勾选将移除正文中所有图片。
           </div>
+          </div>
         </div>
 
         <!-- Runtime Logs -->
         <div class="form-group" style="margin-top: 20px;">
-          <label style="font-weight: 600; font-size: 14px; margin-bottom: 8px;" data-i18n="sections.runtimeLogs">运行日志</label>
+          <label style="font-weight: 600; font-size: 14px; margin-bottom: 8px; cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between;" data-i18n="sections.runtimeLogs" id="runtimeLogsToggle">
+            <span>运行日志</span>
+            <span class="ds-collapse-icon" style="transition: transform 0.2s; font-size: 12px;">▼</span>
+          </label>
+          <div id="runtimeLogsSection" class="ds-collapse-section" style="overflow: hidden; transition: max-height 0.25s ease;">
           <div class="help-text" style="margin-bottom: 10px;" data-i18n="runtimeLogs.help">记录插件检测、注入、按钮拦截等运行状态，用于排查问题。最多保留500条，自动覆盖旧日志。</div>
           <div id="logFilterRow" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
             <select id="logLevelFilter" style="padding:6px 10px;border:1px solid var(--input-border);border-radius:6px;font-size:13px;background:var(--input-bg);color:var(--text);">
@@ -767,6 +791,7 @@
           </div>
           <div id="logContainer" style="border:1px solid var(--input-border);border-radius:6px;max-height:300px;overflow-y:auto;background:var(--sub-bg);font-family:monospace;font-size:12px;line-height:1.6;">
             <div id="logEmpty" style="padding:20px;text-align:center;color:var(--text-muted);" data-i18n="runtimeLogs.empty">暂无日志</div>
+          </div>
           </div>
         </div>
       </div>

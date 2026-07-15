@@ -263,6 +263,88 @@
   // V5.4.1: 长按弹出操作菜单，支持指定楼层保存
   let floatingBtnAdded = false;
 
+  // V1.1.2: 论坛标识徽章（右上角显示论坛名称）
+  function createForumBadge() {
+    if (document.getElementById('ds-forum-badge')) return;
+
+    const host = window.location.hostname.toLowerCase();
+    // 提取论坛名称（去掉 www. 前缀和常见后缀）
+    let forumName = host.replace(/^www\./, '');
+
+    // 已知论坛的友好名称映射
+    const forumNameMap = {
+      'linux.do': 'Linux.do',
+      'meta.discourse.org': 'Meta Discourse',
+      'community.openai.com': 'OpenAI Community',
+      'forum.obsidian.md': 'Obsidian Forum',
+      'forum.cursor.com': 'Cursor Forum',
+      'community.cloudflare.com': 'Cloudflare',
+      'forums.docker.com': 'Docker Forums',
+      'discuss.python.org': 'Python Discourse',
+      'forum.gitlab.com': 'GitLab Forum',
+      'discuss.hashicorp.com': 'HashiCorp',
+      'discuss.elastic.co': 'Elastic',
+      'community.home-assistant.io': 'Home Assistant',
+      'community.bitwarden.com': 'Bitwarden',
+      'forum.proxmox.com': 'Proxmox',
+      'forum.unity.com': 'Unity',
+      'forums.unrealengine.com': 'Unreal Engine',
+      'users.rust-lang.org': 'Rust Users',
+      'discourse.mozilla.org': 'Mozilla',
+      'forums.swift.org': 'Swift Forums',
+      'elixirforum.com': 'Elixir Forum',
+      'trae.ai': 'Trae',
+      'trae.com.cn': 'Trae'
+    };
+
+    if (forumNameMap[host]) {
+      forumName = forumNameMap[host];
+    } else if (forumName.includes('.')) {
+      // 取第一个子域名作为名称（如 forum.obsidian.md -> Obsidian）
+      const parts = forumName.split('.');
+      if (parts.length >= 2) {
+        forumName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+      }
+    }
+
+    const badge = document.createElement('div');
+    badge.id = 'ds-forum-badge';
+    badge.textContent = forumName;
+    badge.title = '当前论坛: ' + forumName;
+
+    // 添加样式
+    const style = document.createElement('style');
+    style.textContent = `
+      #ds-forum-badge {
+        position: fixed;
+        top: 12px;
+        right: 20px;
+        z-index: 2147483646;
+        background: rgba(74, 144, 217, 0.9);
+        color: #fff;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        transition: opacity 0.3s, transform 0.2s;
+        opacity: 0.9;
+        pointer-events: none;
+      }
+      #ds-forum-badge:hover {
+        opacity: 1;
+        transform: translateY(-1px);
+      }
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(badge);
+
+    console.log('[Discourse Saver] 论坛徽章已创建: ' + forumName);
+  }
+
   function createFloatingButton() {
     if (floatingBtnAdded) return;
     if (document.getElementById('ds-fab')) return;
@@ -277,6 +359,9 @@
         <polyline points="17 21 17 13 7 13 7 21"/>
         <polyline points="7 3 7 8 15 8"/>
       </svg>`;
+
+    // 创建论坛标识徽章
+    createForumBadge();
 
     const style = document.createElement('style');
     style.textContent = `
@@ -344,6 +429,28 @@
         padding: 4px 10px 2px;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      #ds-fab-menu .ds-menu-subtitle:hover {
+        color: #666;
+      }
+      #ds-fab-menu .ds-menu-subtitle .ds-collapse-icon {
+        transition: transform 0.2s;
+        font-size: 10px;
+      }
+      #ds-fab-menu .ds-menu-subtitle.collapsed .ds-collapse-icon {
+        transform: rotate(-90deg);
+      }
+      #ds-fab-menu .ds-collapse-section {
+        overflow: hidden;
+        transition: max-height 0.25s ease;
+      }
+      #ds-fab-menu .ds-collapse-section.collapsed {
+        max-height: 0 !important;
       }
       #ds-fab-menu .ds-menu-item {
         padding: 8px 10px;
@@ -562,7 +669,11 @@
         <span>保存整个帖子</span>
       </div>
       <div class="ds-menu-divider"></div>
-      <div class="ds-menu-subtitle">仅保存到</div>
+      <div class="ds-menu-subtitle" id="ds-collapse-targets">
+        <span>仅保存到</span>
+        <span class="ds-collapse-icon">▼</span>
+      </div>
+      <div class="ds-collapse-section" id="ds-collapse-targets-section">
       <div class="ds-menu-item" data-action="save-obsidian">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
         <span>仅保存到 Obsidian</span>
@@ -575,6 +686,24 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         <span>仅保存到百度网盘</span>
       </div>
+      <div class="ds-menu-item" data-action="save-notion">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span>仅保存到 Notion</span>
+      </div>
+      <div class="ds-menu-item" data-action="save-yuque">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <span>仅保存到语雀</span>
+      </div>
+      <div class="ds-menu-item" data-action="save-siyuan">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        <span>仅保存到思源</span>
+      </div>
+      <div class="ds-menu-item" data-action="save-webdav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        <span>仅保存到 WebDAV</span>
+      </div>
+      </div>
+      <div class="ds-menu-divider"></div>
       <div class="ds-menu-item" data-action="save-html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
         <span>导出 HTML 文件</span>
@@ -605,6 +734,11 @@
         <input type="text" id="ds-floor-num" placeholder="如: 5 或 2-8 或 1,3,5-7" style="width:140px" />
         <button class="ds-floor-btn" id="ds-floor-go">保存</button>
       </div>
+      <div class="ds-menu-divider"></div>
+      <div class="ds-menu-item" data-action="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>设置</span>
+      </div>
       <div id="ds-floor-hint" style="font-size:11px;color:#888;padding:0 10px 6px;"></div>
     `;
 
@@ -625,6 +759,29 @@
     }
     menu.style.left = menuLeft + 'px';
     menu.style.top = menuTop + 'px';
+
+    // 折叠/展开「仅保存到」区域，状态记忆
+    const collapseTitle = menu.querySelector('#ds-collapse-targets');
+    const collapseSection = menu.querySelector('#ds-collapse-targets-section');
+    if (collapseTitle && collapseSection) {
+      // 设置初始高度
+      collapseSection.style.maxHeight = collapseSection.scrollHeight + 'px';
+      // 读取保存的状态
+      chrome.storage.local.get({ fabMenuTargetsCollapsed: true }, (result) => {
+        if (result.fabMenuTargetsCollapsed) {
+          collapseSection.classList.add('collapsed');
+          collapseTitle.classList.add('collapsed');
+        }
+      });
+      collapseTitle.addEventListener('click', () => {
+        const isCollapsed = collapseSection.classList.toggle('collapsed');
+        collapseTitle.classList.toggle('collapsed', isCollapsed);
+        if (!isCollapsed) {
+          collapseSection.style.maxHeight = collapseSection.scrollHeight + 'px';
+        }
+        chrome.storage.local.set({ fabMenuTargetsCollapsed: isCollapsed });
+      });
+    }
 
     // 保存整帖（所有已启用目标）
     menu.querySelector('[data-action="save-all"]').addEventListener('click', () => {
@@ -660,6 +817,48 @@
       saveToObsidian(null, 'baidu').finally(() => {
         anchorBtn.classList.remove('ds-fab-saving');
       });
+    });
+
+    // 仅保存到 Notion
+    menu.querySelector('[data-action="save-notion"]').addEventListener('click', () => {
+      closeFabMenu();
+      anchorBtn.classList.add('ds-fab-saving');
+      saveToObsidian(null, 'notion').finally(() => {
+        anchorBtn.classList.remove('ds-fab-saving');
+      });
+    });
+
+    // 仅保存到语雀
+    menu.querySelector('[data-action="save-yuque"]').addEventListener('click', () => {
+      closeFabMenu();
+      anchorBtn.classList.add('ds-fab-saving');
+      saveToObsidian(null, 'yuque').finally(() => {
+        anchorBtn.classList.remove('ds-fab-saving');
+      });
+    });
+
+    // 仅保存到思源
+    menu.querySelector('[data-action="save-siyuan"]').addEventListener('click', () => {
+      closeFabMenu();
+      anchorBtn.classList.add('ds-fab-saving');
+      saveToObsidian(null, 'siyuan').finally(() => {
+        anchorBtn.classList.remove('ds-fab-saving');
+      });
+    });
+
+    // 仅保存到 WebDAV
+    menu.querySelector('[data-action="save-webdav"]').addEventListener('click', () => {
+      closeFabMenu();
+      anchorBtn.classList.add('ds-fab-saving');
+      saveToObsidian(null, 'webdav').finally(() => {
+        anchorBtn.classList.remove('ds-fab-saving');
+      });
+    });
+
+    // 设置按钮
+    menu.querySelector('[data-action="settings"]').addEventListener('click', () => {
+      closeFabMenu();
+      chrome.runtime.openOptionsPage();
     });
 
     // 导出 HTML

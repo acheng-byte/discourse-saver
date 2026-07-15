@@ -1545,6 +1545,92 @@ document.addEventListener('DOMContentLoaded', () => {
   // 初始化语言设置
   initLanguage();
 
+  // 「保存目标」折叠/展开，状态记忆
+  const saveTargetToggle = document.getElementById('saveTargetToggle');
+  const saveTargetSection = document.getElementById('saveTargetSection');
+  if (saveTargetToggle && saveTargetSection) {
+    // 设置初始高度
+    saveTargetSection.style.maxHeight = saveTargetSection.scrollHeight + 'px';
+    // 读取保存的状态（默认折叠）
+    chrome.storage.local.get({ saveTargetSectionCollapsed: true }, (result) => {
+      if (result.saveTargetSectionCollapsed) {
+        saveTargetSection.classList.add('collapsed');
+        saveTargetToggle.querySelector('.ds-collapse-icon').style.transform = 'rotate(-90deg)';
+      }
+    });
+    saveTargetToggle.addEventListener('click', () => {
+      const isCollapsed = saveTargetSection.classList.toggle('collapsed');
+      saveTargetToggle.querySelector('.ds-collapse-icon').style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+      if (!isCollapsed) {
+        saveTargetSection.style.maxHeight = saveTargetSection.scrollHeight + 'px';
+      }
+      chrome.storage.local.set({ saveTargetSectionCollapsed: isCollapsed });
+    });
+  }
+
+  // 「自定义站点」折叠/展开，状态记忆
+  const siteSettingsToggle = document.getElementById('siteSettingsToggle');
+  const siteSettingsSection = document.getElementById('siteSettingsSection');
+  if (siteSettingsToggle && siteSettingsSection) {
+    siteSettingsSection.style.maxHeight = siteSettingsSection.scrollHeight + 'px';
+    chrome.storage.local.get({ siteSettingsSectionCollapsed: true }, (result) => {
+      if (result.siteSettingsSectionCollapsed) {
+        siteSettingsSection.classList.add('collapsed');
+        siteSettingsToggle.querySelector('.ds-collapse-icon').style.transform = 'rotate(-90deg)';
+      }
+    });
+    siteSettingsToggle.addEventListener('click', () => {
+      const isCollapsed = siteSettingsSection.classList.toggle('collapsed');
+      siteSettingsToggle.querySelector('.ds-collapse-icon').style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+      if (!isCollapsed) {
+        siteSettingsSection.style.maxHeight = siteSettingsSection.scrollHeight + 'px';
+      }
+      chrome.storage.local.set({ siteSettingsSectionCollapsed: isCollapsed });
+    });
+  }
+
+  // 「内容设置」折叠/展开，状态记忆
+  const contentSettingsToggle = document.getElementById('contentSettingsToggle');
+  const contentSettingsSection = document.getElementById('contentSettingsSection');
+  if (contentSettingsToggle && contentSettingsSection) {
+    contentSettingsSection.style.maxHeight = contentSettingsSection.scrollHeight + 'px';
+    chrome.storage.local.get({ contentSettingsSectionCollapsed: true }, (result) => {
+      if (result.contentSettingsSectionCollapsed) {
+        contentSettingsSection.classList.add('collapsed');
+        contentSettingsToggle.querySelector('.ds-collapse-icon').style.transform = 'rotate(-90deg)';
+      }
+    });
+    contentSettingsToggle.addEventListener('click', () => {
+      const isCollapsed = contentSettingsSection.classList.toggle('collapsed');
+      contentSettingsToggle.querySelector('.ds-collapse-icon').style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+      if (!isCollapsed) {
+        contentSettingsSection.style.maxHeight = contentSettingsSection.scrollHeight + 'px';
+      }
+      chrome.storage.local.set({ contentSettingsSectionCollapsed: isCollapsed });
+    });
+  }
+
+  // 「运行日志」折叠/展开，状态记忆
+  const runtimeLogsToggle = document.getElementById('runtimeLogsToggle');
+  const runtimeLogsSection = document.getElementById('runtimeLogsSection');
+  if (runtimeLogsToggle && runtimeLogsSection) {
+    runtimeLogsSection.style.maxHeight = runtimeLogsSection.scrollHeight + 'px';
+    chrome.storage.local.get({ runtimeLogsSectionCollapsed: true }, (result) => {
+      if (result.runtimeLogsSectionCollapsed) {
+        runtimeLogsSection.classList.add('collapsed');
+        runtimeLogsToggle.querySelector('.ds-collapse-icon').style.transform = 'rotate(-90deg)';
+      }
+    });
+    runtimeLogsToggle.addEventListener('click', () => {
+      const isCollapsed = runtimeLogsSection.classList.toggle('collapsed');
+      runtimeLogsToggle.querySelector('.ds-collapse-icon').style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+      if (!isCollapsed) {
+        runtimeLogsSection.style.maxHeight = runtimeLogsSection.scrollHeight + 'px';
+      }
+      chrome.storage.local.set({ runtimeLogsSectionCollapsed: isCollapsed });
+    });
+  }
+
   // 语言切换按钮事件
   document.getElementById('lang-zh').addEventListener('click', () => setLanguage('zh'));
   document.getElementById('lang-en').addEventListener('click', () => setLanguage('en'));
