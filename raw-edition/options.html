@@ -566,7 +566,7 @@
         </div>
       </div>
       <h1>Discourse Saver</h1>
-      <p data-i18n="header.subtitle">保存 Discourse 论坛帖子到 Obsidian、飞书、Notion、WebDAV、百度网盘，或导出 HTML V1.1.2</p>
+      <p data-i18n="header.subtitle">保存 Discourse 论坛帖子到 Obsidian、飞书、Notion、WebDAV、百度网盘，或导出 HTML V1.1.5</p>
     </div>
 
     <!-- Tab Navigation -->
@@ -1216,7 +1216,18 @@
           <div class="form-group">
             <label data-i18n="baidu.auth">授权状态</label>
             <button type="button" id="baiduAuthBtn" class="test-btn" data-i18n="baidu.authorize">百度网盘授权登录</button>
-            <div class="help-text" data-i18n="baidu.authHelp">点击按钮弹出百度登录页进行授权，授权后 token 自动刷新</div>
+            <div class="help-text" data-i18n="baidu.authHelp">点击按钮获取授权码，在百度验证页面输入即可</div>
+          </div>
+          <!-- V1.1.5: 扩展内直接显示授权码（左右布局） -->
+          <div id="baiduDeviceCodeBox" style="display:none; background:#eff6ff; border:1.5px solid #2563eb; border-radius:8px; padding:12px 16px; margin:10px 0;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:16px;">
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:12px; color:#666; margin-bottom:2px;" data-i18n="baidu.deviceCodeHint">请在百度验证页面输入以下授权码：</div>
+                <div id="baiduDeviceCodeText" style="font-size:22px; font-weight:bold; letter-spacing:4px; color:#2563eb; font-family:monospace; user-select:all; cursor:pointer;" title="点击复制"></div>
+                <div id="baiduDeviceCodeExpiry" style="font-size:11px; color:#999; margin-top:2px;"></div>
+              </div>
+              <a id="baiduVerifyLink" href="https://openapi.baidu.com/device" target="_blank" rel="noopener" style="flex-shrink:0; padding:8px 20px; background:#2563eb; color:#fff; border-radius:6px; text-decoration:none; font-size:13px; white-space:nowrap;" data-i18n="baidu.openVerifyPage">打开百度验证页面 →</a>
+            </div>
           </div>
           <div class="form-group">
             <label data-i18n="baidu.appFolder">应用文件夹</label>
@@ -1345,7 +1356,7 @@
       <a href="https://github.com/acheng-byte/discourse-saver" target="_blank">GitHub</a> |
       <a href="https://linux.do" target="_blank">LinuxDo</a> |
       <a href="https://obsidian.md" target="_blank">Obsidian</a> |
-      Discourse Saver V1.1.2 &copy; 2026 acheng-byte
+      Discourse Saver V1.1.5 &copy; 2026 acheng-byte
     </div>
   </div>
 

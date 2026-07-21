@@ -63,14 +63,7 @@ function main() {
   const oldVersion = getCurrentVersion();
   console.log(`\n📦 Discourse Saver 版本更新: ${oldVersion} → ${newVersion}\n`);
 
-  // 1. manifest.json
-  const manifestPath = path.join(RAW_DIR, 'manifest.json');
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  manifest.version = newVersion;
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
-  console.log('  ✅ manifest.json');
-
-  // 2. background.js
+  // 1. background.js
   replaceInFile(
     path.join(RAW_DIR, 'background.js'),
     oldVersion, newVersion,
@@ -79,7 +72,7 @@ function main() {
     ]
   );
 
-  // 3. i18n.js (中英文 subtitle)
+  // 2. i18n.js (中英文 subtitle)
   replaceInFile(
     path.join(RAW_DIR, 'i18n.js'),
     oldVersion, newVersion,
@@ -88,7 +81,7 @@ function main() {
     ]
   );
 
-  // 4. options.html (subtitle + footer)
+  // 3. options.html (subtitle + footer)
   replaceInFile(
     path.join(RAW_DIR, 'options.html'),
     oldVersion, newVersion,
@@ -98,7 +91,7 @@ function main() {
     ]
   );
 
-  // 5. README.md
+  // 4. README.md
   replaceInFile(
     path.join(RAW_DIR, 'README.md'),
     oldVersion, newVersion,
@@ -107,7 +100,7 @@ function main() {
     ]
   );
 
-  // 6. README_EN.md
+  // 5. README_EN.md
   replaceInFile(
     path.join(RAW_DIR, 'README_EN.md'),
     oldVersion, newVersion,
@@ -115,6 +108,13 @@ function main() {
       { pattern: new RegExp(`v${oldVersion.replace(/\./g, '\\.')}`, 'g'), replacement: `v${newVersion}` }
     ]
   );
+
+  // 6. manifest.json（最后更新，因为 getCurrentVersion() 依赖它读取旧版本）
+  const manifestPath = path.join(RAW_DIR, 'manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  manifest.version = newVersion;
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+  console.log('  ✅ manifest.json');
 
   console.log(`\n✅ 版本已更新为 ${newVersion}`);
   console.log('   请记得 git commit + push + 创建 Release\n');

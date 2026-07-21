@@ -3,7 +3,7 @@
 > 请使用 Raw Edition 获取最新功能与 Bug 修复。
 > 油猴脚本一键安装：[discourse-saver-raw.user.js](https://raw.githubusercontent.com/acheng-byte/discourse-saver/main/raw-edition/discourse-saver.user.js)
 
-# Discourse Saver v1.1.2
+# Discourse Saver v1.1.5
 
 **中文 | [English](README_EN.md)**
 
@@ -207,6 +207,11 @@ A: 所有保存目标完全独立，可以同时启用多个。例如同时开�
 ---
 
 ## 更新日志
+
+### v1.1.5
+
+- 修复百度网盘授权失败（设备码接口 URL 错误 + token 接口改用 POST）
+- 授权码直接在扩展内展示，支持点击复制，无需跳转百度页面
 
 ### v1.1.2
 

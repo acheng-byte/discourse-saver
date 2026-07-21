@@ -3232,7 +3232,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return false;
   }
 
-  // V1.1.4: 下载更新压缩包
+  // V1.1.5: 下载更新压缩包
   if (request.action === 'downloadUpdate') {
     (async () => {
       try {
@@ -4526,10 +4526,23 @@ async function testWebDAVConnection(config) {
 
 // ==================== 百度网盘 ====================
 
+// V1.1.5: 安全解析 JSON，防止空响应或非 JSON 内容导致崩溃
+async function safeParseJson(response, context = 'API') {
+  const text = await response.text();
+  if (!text || !text.trim()) {
+    throw new Error(`${context} 返回空响应，HTTP ${response.status} ${response.statusText}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error(`${context} 返回非 JSON 内容，HTTP ${response.status}，body: ${text.slice(0, 200)}`);
+  }
+}
+
 const BAIDU_OAUTH = {
   appKey: 'IGnQAQKyA1T2WblSYNlpCb3oTbeVorO1',
   secretKey: 'ppH8ptFNWUUId5wkxGSIknxTqHtJAbLW',
-  deviceAuthUrl: 'https://openapi.baidu.com/oauth/2.0/device/authorize',
+  deviceAuthUrl: 'https://openapi.baidu.com/oauth/2.0/device/code',
   authorizeUrl: 'https://openapi.baidu.com/oauth/2.0/authorize',
   tokenUrl: 'https://openapi.baidu.com/oauth/2.0/token',
   devicePageUrl: 'https://openapi.baidu.com/device',
@@ -4539,7 +4552,7 @@ const BAIDU_OAUTH = {
 // V1.1.2: 百度 OAuth 设备码授权流程（解决 redirect_uri_mismatch 问题）
 // 不再依赖 chrome.identity.getRedirectURL()，改用设备码轮询方式
 async function baiduOAuthAuthorize() {
-  // 1. 请求设备码
+  // 1. 请求设备码（/device/code 接口用 GET + query params）
   const deviceParams = new URLSearchParams({
     client_id: BAIDU_OAUTH.appKey,
     scope: BAIDU_OAUTH.scope,
@@ -4551,7 +4564,7 @@ async function baiduOAuthAuthorize() {
     const text = await deviceResp.text();
     throw new Error(`获取设备码失败: HTTP ${deviceResp.status} - ${text}`);
   }
-  const deviceData = await deviceResp.json();
+  const deviceData = await safeParseJson(deviceResp, '百度获取设备码');
 
   if (deviceData.error) {
     throw new Error(deviceData.error_description || deviceData.error);
@@ -4562,11 +4575,8 @@ async function baiduOAuthAuthorize() {
 
   console.log('[Discourse Saver→百度] 设备码:', user_code, '验证页:', verification_url || BAIDU_OAUTH.devicePageUrl);
 
-  // 2. 打开百度设备授权页面（让用户输入授权码）
+  // 2. 通知 options 页面显示授权码（扩展内展示，用户自行点击链接打开验证页）
   const verifyUrl = verification_url || BAIDU_OAUTH.devicePageUrl;
-  chrome.tabs.create({ url: verifyUrl, active: true });
-
-  // 3. 通知 options 页面显示授权码
   chrome.runtime.sendMessage({
     action: 'baiduDeviceCode',
     userCode: user_code,
@@ -4589,13 +4599,26 @@ async function baiduOAuthAuthorize() {
     });
 
     try {
-      const tokenResp = await fetch(`${BAIDU_OAUTH.tokenUrl}?${tokenParams.toString()}`);
-      if (!tokenResp.ok) {
-        const text = await tokenResp.text();
-        console.warn('[Discourse Saver→百度] 轮询请求失败:', tokenResp.status, text);
-        continue;
+      // V1.1.5: 百度 token 接口要求 POST + form body，GET 会返回空导致 JSON 解析失败
+      const tokenResp = await fetch(BAIDU_OAUTH.tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: tokenParams.toString()
+      });
+
+      // V1.1.5: 百度在 authorization_pending 时返回 HTTP 400 + JSON body
+      // 必须先解析 JSON 判断错误类型，不能直接 continue 跳过
+      let tokenData;
+      try {
+        tokenData = await safeParseJson(tokenResp, '百度设备码轮询token');
+      } catch (e) {
+        // 真正的非 JSON 错误（如网关错误）
+        if (tokenResp.status >= 500) {
+          console.warn('[Discourse Saver→百度] 轮询服务端错误:', tokenResp.status);
+          continue;
+        }
+        throw e;
       }
-      const tokenData = await tokenResp.json();
 
       if (tokenData.error) {
         if (tokenData.error === 'authorization_pending') {
@@ -4613,10 +4636,18 @@ async function baiduOAuthAuthorize() {
         if (tokenData.error === 'denied') {
           throw new Error('用户拒绝了授权');
         }
-        throw new Error(tokenData.error_description || tokenData.error);
+        // V1.1.5: 其他错误（如 invalid_grant）也要抛出，不能静默 continue
+        throw new Error(`百度返回错误: ${tokenData.error} - ${tokenData.error_description || '未知错误'}`);
+      }
+
+      // V1.1.5: 检查必要字段是否存在
+      if (!tokenData.access_token) {
+        console.warn('[Discourse Saver→百度] 轮询响应缺少 access_token:', JSON.stringify(tokenData).slice(0, 200));
+        continue;
       }
 
       // 授权成功，返回 token 信息
+      bgLog('INFO', '[baidu] 轮询成功，获取到 access_token');
       return {
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token,
@@ -4624,7 +4655,8 @@ async function baiduOAuthAuthorize() {
         scope: tokenData.scope
       };
     } catch (e) {
-      if (e.message.includes('过期') || e.message.includes('拒绝')) throw e;
+      // V1.1.5: 过期/拒绝/百度错误 必须抛出，不能静默 continue
+      if (e.message.includes('过期') || e.message.includes('拒绝') || e.message.includes('百度返回错误')) throw e;
       console.warn('[Discourse Saver→百度] 轮询异常:', e.message);
       continue;
     }
@@ -4643,9 +4675,14 @@ async function baiduExchangeToken(code) {
     redirect_uri: BAIDU_OAUTH.redirectUri
   });
 
-  const response = await fetch(`${BAIDU_OAUTH.tokenUrl}?${params.toString()}`);
+  // V1.1.5: 百度 token 接口要求 POST + form body
+  const response = await fetch(BAIDU_OAUTH.tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: params.toString()
+  });
   if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  const data = await response.json();
+  const data = await safeParseJson(response, '百度授权码换token');
 
   if (data.error) {
     throw new Error(data.error_description || data.error);
@@ -4675,12 +4712,17 @@ async function baiduRefreshToken(refreshToken) {
     client_secret: BAIDU_OAUTH.secretKey
   });
 
-  const response = await fetch(`${BAIDU_OAUTH.tokenUrl}?${params.toString()}`);
+  // V1.1.5: 百度 token 接口要求 POST + form body
+  const response = await fetch(BAIDU_OAUTH.tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: params.toString()
+  });
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`刷新 token 失败: HTTP ${response.status} - ${text}`);
   }
-  const data = await response.json();
+  const data = await safeParseJson(response, '百度刷新token');
 
   if (data.error) {
     throw new Error(data.error_description || data.error);
@@ -4725,7 +4767,7 @@ async function baiduGetQuota(accessToken) {
   const response = await fetch(
     `https://pcs.baidu.com/rest/2.0/pcs/quota?method=info&access_token=${accessToken}`
   );
-  const data = await response.json();
+  const data = await safeParseJson(response, '百度获取配额');
   if (data.error_code) {
     throw new Error(data.error_msg || '获取配额失败');
   }
@@ -4742,7 +4784,7 @@ async function baiduCreateDir(accessToken, path) {
       body: `path=${encodeURIComponent(path)}`
     }
   );
-  const data = await response.json();
+  const data = await safeParseJson(response, '百度创建目录');
   if (data.error_code && data.error_code !== 31061) {
     // 31061 = 文件已存在（目录已存在）
     throw new Error(data.error_msg || '创建目录失败');
@@ -4785,7 +4827,7 @@ async function baiduUploadFile(accessToken, localPath, remotePath, fileData) {
     body: fileData
   });
 
-  const data = await response.json();
+  const data = await safeParseJson(response, '百度上传分片');
   if (data.error_code) {
     throw new Error(data.error_msg || '上传分片失败');
   }
@@ -4801,7 +4843,7 @@ async function baiduUploadFile(accessToken, localPath, remotePath, fileData) {
     body: `param=${encodeURIComponent(JSON.stringify({ blocklist: blockList }))}`
   });
 
-  const createData = await createResponse.json();
+  const createData = await safeParseJson(createResponse, '百度创建文件');
   if (createData.error_code) {
     throw new Error(createData.error_msg || '创建文件失败');
   }
@@ -4900,4 +4942,4 @@ async function testBaiduConnection() {
   }
 }
 
-console.log('[Discourse Saver] Background script 已加载 (V1.1.0)');
+console.log('[Discourse Saver] Background script 已加载 (V1.1.5)');

@@ -2,7 +2,7 @@
 > Use Raw Edition for latest features and bug fixes.
 > One-click userscript install: [discourse-saver-raw.user.js](https://raw.githubusercontent.com/acheng-byte/discourse-saver/main/raw-edition/discourse-saver.user.js)
 
-# Discourse Saver v1.1.2
+# Discourse Saver v1.1.5
 
 **[中文](README.md) | English**
 
@@ -212,6 +212,11 @@ A: All save targets are independent. Enable any combination — e.g., Obsidian +
 ---
 
 ## Changelog
+
+### v1.1.5
+
+- Fixed Baidu OAuth authorization failure (wrong device code endpoint + token endpoint switched to POST)
+- Device code now displayed inline in extension with click-to-copy
 
 ### v1.1.2
 

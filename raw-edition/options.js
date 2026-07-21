@@ -1484,14 +1484,40 @@ async function baiduOAuth() {
   btn.disabled = false;
 }
 
-// V1.1.2: 监听背景脚本发来的设备码，在页面上显示
+// V1.1.5: 监听背景脚本发来的设备码，在扩展内醒目展示
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === 'baiduDeviceCode') {
+    const box = document.getElementById('baiduDeviceCodeBox');
+    const codeText = document.getElementById('baiduDeviceCodeText');
+    const expiry = document.getElementById('baiduDeviceCodeExpiry');
+    const verifyLink = document.getElementById('baiduVerifyLink');
+
     const minutes = Math.floor((msg.expiresIn || 900) / 60);
+
+    // 显示授权码
+    codeText.textContent = msg.userCode;
+    expiry.textContent = `${minutes} 分钟内有效，授权成功后 token 自动刷新`;
+    verifyLink.href = msg.verifyUrl || 'https://openapi.baidu.com/device';
+    box.style.display = 'block';
+
+    // 点击授权码复制到剪贴板
+    codeText.onclick = () => {
+      navigator.clipboard.writeText(msg.userCode).then(() => {
+        const orig = codeText.textContent;
+        codeText.textContent = '已复制!';
+        setTimeout(() => { codeText.textContent = orig; }, 1200);
+      }).catch(() => {});
+    };
+
+    // 同时也在底部状态栏提示
     showStatus(
-      `请在打开的百度页面输入授权码：<b style="font-size:18px;letter-spacing:3px;color:#2563eb;">${msg.userCode}</b>（${minutes}分钟内有效）`,
+      `授权码已获取：${msg.userCode} — 点击上方复制，然后到百度验证页面输入`,
       'info'
     );
+
+    // 确保百度标签页可见
+    const baiduTab = document.querySelector('[data-tab="baidu"]');
+    if (baiduTab) baiduTab.click();
   }
 });
 

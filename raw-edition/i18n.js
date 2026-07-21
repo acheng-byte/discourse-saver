@@ -3,7 +3,7 @@ const i18n = {
   zh: {
     header: {
       title: 'Discourse Saver - 设置',
-      subtitle: '保存 Discourse 论坛帖子到 Obsidian、飞书、Notion、WebDAV、百度网盘，或导出 HTML V1.1.2'
+      subtitle: '保存 Discourse 论坛帖子到 Obsidian、飞书、Notion、WebDAV、百度网盘，或导出 HTML V1.1.5'
     },
     tabs: {
       general: '通用',
@@ -200,7 +200,9 @@ const i18n = {
       enableHelp: '通过百度网盘开放 API 保存帖子到网盘',
       auth: '授权状态',
       authorize: '百度网盘授权登录',
-      authHelp: '点击按钮弹出百度登录页进行授权，授权后 token 自动刷新',
+      authHelp: '点击按钮获取授权码，在百度验证页面输入即可',
+      deviceCodeHint: '请在百度验证页面输入以下授权码：',
+      openVerifyPage: '打开百度验证页面 →',
       appFolder: '应用文件夹',
       appFolderHelp: '百度网盘 /apps/ 下的应用目录名，默认 ob-sync',
       vaultFolder: 'Vault 名称（网盘子目录）',
@@ -438,7 +440,7 @@ const i18n = {
   en: {
     header: {
       title: 'Discourse Saver - Settings',
-      subtitle: 'Save Discourse Forum Posts to Obsidian, Feishu, Notion, WebDAV, Baidu Netdisk or Export HTML V1.1.2'
+      subtitle: 'Save Discourse Forum Posts to Obsidian, Feishu, Notion, WebDAV, Baidu Netdisk or Export HTML V1.1.5'
     },
     tabs: {
       general: 'General',
@@ -635,7 +637,9 @@ const i18n = {
       enableHelp: 'Save posts to Baidu Netdisk via Open API',
       auth: 'Authorization Status',
       authorize: 'Baidu Netdisk OAuth Login',
-      authHelp: 'Click to open Baidu login page for authorization, token auto-refreshes after auth',
+      authHelp: 'Click to get a device code, then enter it on the Baidu verification page',
+      deviceCodeHint: 'Enter this code on the Baidu verification page:',
+      openVerifyPage: 'Open Baidu Verify Page →',
       appFolder: 'App Folder',
       appFolderHelp: 'Application directory under /apps/ on Baidu Netdisk, default: ob-sync',
       vaultFolder: 'Vault Name (Subdirectory)',
